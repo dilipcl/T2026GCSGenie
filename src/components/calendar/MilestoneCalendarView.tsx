@@ -4,6 +4,7 @@ import { MilestoneReminder, PriorityLevel, SubjectId } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
+import { todayISO, daysUntil, formatCountdown } from '../../utils/date';
 import {
   Calendar as CalendarIcon,
   Plus,
@@ -17,14 +18,27 @@ import {
   X,
 } from 'lucide-react';
 
-export const MilestoneCalendarView: React.FC = () => {
+interface MilestoneCalendarViewProps {
+  refreshKey?: number;
+  onAdd: () => void;
+}
+
+export const MilestoneCalendarView: React.FC<MilestoneCalendarViewProps> = ({
+  refreshKey = 0,
+  onAdd,
+}) => {
   const [milestones, setMilestones] = useState<MilestoneReminder[]>([]);
-  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 9, 1)); // October 2026 default
+  // Opens on the month you are actually in, not a hardcoded one
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [showPast, setShowPast] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // Form State
   const [newTitle, setNewTitle] = useState('');
-  const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newDate, setNewDate] = useState(todayISO());
   const [newCategory, setNewCategory] = useState<MilestoneReminder['category']>('EXAM_MOCK');
   const [newPriority, setNewPriority] = useState<PriorityLevel>('HIGH');
   const [newSubjectId, setNewSubjectId] = useState<SubjectId | ''>('');
@@ -38,7 +52,12 @@ export const MilestoneCalendarView: React.FC = () => {
 
   useEffect(() => {
     loadMilestones();
-  }, []);
+  }, [refreshKey]);
+
+  const goToToday = () => {
+    const now = new Date();
+    setCurrentMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+  };
 
   const handleCreateMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +123,12 @@ export const MilestoneCalendarView: React.FC = () => {
   const adjustedFirstDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1; // Mon = 0
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+  // "Coming up" is what matters day to day; past dates are one click away
+  const today = todayISO();
+  const upcomingMilestones = milestones.filter((m) => m.date >= today);
+  const pastMilestones = milestones.filter((m) => m.date < today).reverse();
+  const visibleMilestones = showPast ? pastMilestones : upcomingMilestones;
+
   const calendarDays: (number | null)[] = [];
   for (let i = 0; i < adjustedFirstDay; i++) {
     calendarDays.push(null);
@@ -121,22 +146,20 @@ export const MilestoneCalendarView: React.FC = () => {
             <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
               📅
             </span>
-            <h2 className="text-xl font-bold text-white">
-              Academic Milestones, Mocks & Reminders Calendar
-            </h2>
+            <h2 className="text-xl font-bold text-white">Key Dates</h2>
           </div>
           <p className="text-xs text-slate-300 max-w-xl">
-            Track Year 10 interim assessments (IR1, IR2, IR3), GCSE Art portfolio deadlines,
-            Science required practicals, and customized reminders.
+            Mocks, assessments, portfolio deadlines, required practicals and anything else you
+            need to be ready for.
           </p>
         </div>
 
         <button
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={onAdd}
           className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-950/50 flex items-center gap-2 transition-all"
         >
           <Plus className="w-4 h-4" />
-          <span>Add Milestone / Reminder</span>
+          <span>Add key date</span>
         </button>
       </div>
 
@@ -152,13 +175,21 @@ export const MilestoneCalendarView: React.FC = () => {
 
           <div className="flex items-center gap-1.5">
             <button
+              onClick={goToToday}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition-colors"
+            >
+              Today
+            </button>
+            <button
               onClick={prevMonth}
+              aria-label="Previous month"
               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={nextMonth}
+              aria-label="Next month"
               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
@@ -192,16 +223,29 @@ export const MilestoneCalendarView: React.FC = () => {
             ).padStart(2, '0')}`;
 
             const daysMilestones = milestones.filter((m) => m.date === currentDayStr);
+            const isToday = currentDayStr === todayISO();
 
             return (
               <div
                 key={currentDayStr}
-                className="min-h-[85px] bg-slate-900/80 rounded-xl border border-slate-800 p-2 flex flex-col justify-between hover:border-slate-700 transition-colors"
+                className={`min-h-[85px] rounded-xl border p-2 flex flex-col justify-between transition-colors ${
+                  isToday
+                    ? 'bg-indigo-950/50 border-indigo-500 ring-1 ring-indigo-500/50'
+                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+                }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white font-mono">{dayNum}</span>
+                  <span
+                    className={`text-xs font-bold font-mono ${
+                      isToday
+                        ? 'text-indigo-200 bg-indigo-600 rounded-full w-5 h-5 flex items-center justify-center'
+                        : 'text-white'
+                    }`}
+                  >
+                    {dayNum}
+                  </span>
                   {daysMilestones.length > 0 && (
-                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
                   )}
                 </div>
 
@@ -231,18 +275,38 @@ export const MilestoneCalendarView: React.FC = () => {
 
       {/* Comprehensive Milestones & Reminders List */}
       <div className="glass-card p-6">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-4 flex items-center gap-2">
-          <Clock className="w-4 h-4 text-indigo-400" />
-          <span>All Upcoming Milestones & Target Checkpoints</span>
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-indigo-400" />
+            <span>{showPast ? 'Past dates' : 'Coming up'}</span>
+            <span className="text-slate-500 font-normal normal-case">
+              ({visibleMilestones.length})
+            </span>
+          </h3>
 
-        {milestones.length === 0 ? (
+          {pastMilestones.length > 0 && (
+            <button
+              onClick={() => setShowPast((prev) => !prev)}
+              className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              {showPast
+                ? 'Show coming up'
+                : `Show ${pastMilestones.length} past ${
+                    pastMilestones.length === 1 ? 'date' : 'dates'
+                  }`}
+            </button>
+          )}
+        </div>
+
+        {visibleMilestones.length === 0 ? (
           <div className="p-8 text-center bg-slate-900/40 rounded-xl border border-slate-800 text-slate-400 text-xs">
-            No milestones registered. Click "Add Milestone / Reminder" above!
+            {showPast
+              ? 'Nothing in the past yet.'
+              : 'Nothing coming up. Use the + button to add a mock, deadline or practical.'}
           </div>
         ) : (
           <div className="space-y-3">
-            {milestones.map((m) => (
+            {visibleMilestones.map((m) => (
               <div
                 key={m.id}
                 className={`p-4 rounded-xl border flex flex-wrap items-center justify-between gap-3 transition-all ${
@@ -303,9 +367,16 @@ export const MilestoneCalendarView: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-3 text-xs">
-                  <span className="font-mono text-slate-300 bg-slate-800 px-2.5 py-1 rounded border border-slate-700 flex items-center gap-1">
+                  <span
+                    title={m.date}
+                    className={`bg-slate-800 px-2.5 py-1 rounded border border-slate-700 flex items-center gap-1 font-semibold ${
+                      daysUntil(m.date) <= 7 && daysUntil(m.date) >= 0
+                        ? 'text-rose-300'
+                        : 'text-slate-300'
+                    }`}
+                  >
                     <CalendarIcon className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>{m.date}</span>
+                    <span>{formatCountdown(m.date)}</span>
                   </span>
 
                   {m.driveResourceUrl && (

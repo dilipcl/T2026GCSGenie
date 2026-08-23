@@ -15,6 +15,8 @@ import {
 } from '../../services/backupService';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
+import { todayISO } from '../../utils/date';
+import { sha256 } from '../../utils/hash';
 import {
   ShieldAlert,
   Bot,
@@ -23,7 +25,12 @@ import {
   Database,
   History,
   Sparkles,
+  KeyRound,
 } from 'lucide-react';
+
+/** SHA-256 of '1234' - the seeded default. */
+const DEFAULT_PIN_HASH =
+  '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4';
 
 export const ParentPortal: React.FC = () => {
   const [settings, setSettings] = useState<ParentSettings>({
@@ -38,6 +45,12 @@ export const ParentPortal: React.FC = () => {
   const [isRunningAudit, setIsRunningAudit] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [sanctions, setSanctions] = useState<Sanction[]>([]);
+
+  // Change PIN form
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [pinMessage, setPinMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Sanction form
   const [sanctionReason, setSanctionReason] = useState('');
@@ -65,8 +78,66 @@ export const ParentPortal: React.FC = () => {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    await db.parentSettings.put({ ...settings, id: 'active_settings' });
+    const stored = await db.parentSettings.get('active_settings');
+    await db.parentSettings.put({
+      ...settings,
+      // The PIN is owned by the change-PIN form; never let this form overwrite it
+      // (the default state has an empty hash and would silently reset it).
+      parentPinHash: stored?.parentPinHash || settings.parentPinHash,
+      id: 'active_settings',
+    });
     alert('Parent AI & Google Drive settings saved successfully.');
+  };
+
+  const handleChangePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinMessage(null);
+
+    if (!/^\d{4}$/.test(newPin)) {
+      setPinMessage({ ok: false, text: 'The new PIN must be exactly 4 digits.' });
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setPinMessage({ ok: false, text: 'The two new PIN entries do not match.' });
+      return;
+    }
+
+    const stored = await db.parentSettings.get('active_settings');
+    const expectedHash = stored?.parentPinHash || DEFAULT_PIN_HASH;
+
+    if ((await sha256(currentPin)) !== expectedHash) {
+      setPinMessage({ ok: false, text: 'Current PIN is incorrect.' });
+      return;
+    }
+
+    const newHash = await sha256(newPin);
+    if (newHash === DEFAULT_PIN_HASH) {
+      setPinMessage({ ok: false, text: 'Please choose something other than the default 1234.' });
+      return;
+    }
+
+    await db.parentSettings.put({
+      ...settings,
+      ...stored,
+      parentPinHash: newHash,
+      id: 'active_settings',
+    });
+
+    // Deliberately records only that the PIN changed - never the PIN or its hash.
+    await logAuditEvent({
+      user: 'PARENT',
+      action: 'UPDATE',
+      entity: 'ParentSettings',
+      entityId: 'active_settings',
+      fieldChanged: 'parentPinHash',
+      newValue: 'Parent PIN changed',
+    });
+
+    setCurrentPin('');
+    setNewPin('');
+    setConfirmPin('');
+    setPinMessage({ ok: true, text: 'Parent PIN updated.' });
+    loadData();
   };
 
   const handleRunAudit = async () => {
@@ -133,7 +204,7 @@ export const ParentPortal: React.FC = () => {
       id: `sanc_${Date.now()}`,
       type: 'DETENTION',
       reason: sanctionReason.trim(),
-      date: new Date().toISOString().split('T')[0],
+      date: todayISO(),
       penaltyXP: -500,
       shopFrozen: true,
       remediationTaskIdRequired: sanctionRemediation.trim(),
@@ -188,6 +259,94 @@ export const ParentPortal: React.FC = () => {
           Trigger model-agnostic AI agent audits, manage the real-world rewards ledger, log school
           sanctions, and inspect the tamper-evident audit trail.
         </p>
+      </div>
+
+      {/* Parent PIN */}
+      <div className="glass-card p-6">
+        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-800">
+          <KeyRound className="w-5 h-5 text-amber-400" />
+          <h3 className="font-bold text-sm text-white">Parent PIN</h3>
+        </div>
+
+        {(!settings.parentPinHash || settings.parentPinHash === DEFAULT_PIN_HASH) && (
+          <div className="mb-4 p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl text-xs text-amber-200 flex items-start gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <span>
+              This PIN is still the factory default (1234). Anyone who has seen the app can
+              open the Parent Portal, approve their own reward requests and lift their own
+              sanctions. Please change it.
+            </span>
+          </div>
+        )}
+
+        <form onSubmit={handleChangePin} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+              Current PIN
+            </label>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              autoComplete="off"
+              value={currentPin}
+              onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
+              required
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white tracking-widest"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+              New PIN
+            </label>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              autoComplete="off"
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+              required
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white tracking-widest"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+              Confirm New PIN
+            </label>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              autoComplete="off"
+              value={confirmPin}
+              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+              required
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white tracking-widest"
+            />
+          </div>
+
+          <div className="flex items-end">
+            <button
+              type="submit"
+              className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-950/50"
+            >
+              Update PIN
+            </button>
+          </div>
+        </form>
+
+        {pinMessage && (
+          <p
+            className={`mt-3 text-xs font-semibold ${
+              pinMessage.ok ? 'text-emerald-400' : 'text-rose-400'
+            }`}
+          >
+            {pinMessage.text}
+          </p>
+        )}
       </div>
 
       {/* Grid: AI Agent Audit Engine & Configuration */}

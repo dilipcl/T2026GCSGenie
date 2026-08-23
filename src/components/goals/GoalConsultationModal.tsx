@@ -34,7 +34,11 @@ export const GoalConsultationModal: React.FC<GoalConsultationModalProps> = ({
     const projectedHours = burnout.totalScheduledHours + newHours;
     if (projectedHours > burnout.safeWeeklyHoursLimit) {
       setBurnoutWarning(
-        `Warning: Adding ${newHours}h will push total weekly commitments to ${projectedHours}h (Exceeds safe 45h limit by ${Math.round((projectedHours - 45) * 10) / 10}h). This will be flagged for MoSCoW prioritization during parent review.`
+        `Warning: Adding ${newHours}h will push total weekly commitments to ${
+          Math.round(projectedHours * 10) / 10
+        }h (Exceeds the safe ${burnout.safeWeeklyHoursLimit}h limit by ${
+          Math.round((projectedHours - burnout.safeWeeklyHoursLimit) * 10) / 10
+        }h). This will be flagged for MoSCoW prioritization during parent review.`
       );
     } else {
       setBurnoutWarning(null);

@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { RAGStatus } from '../types';
+import { todayISO } from '../utils/date';
 
 export interface BurnoutCapacityResult {
   safeWeeklyHoursLimit: number; // 45.0
@@ -21,15 +22,50 @@ export interface BurnoutCapacityResult {
   moscowRecommendations: string[];
 }
 
+/**
+ * Fixed weekly commitments that are already known, so they do not need to be
+ * re-entered as goals.
+ *
+ * `coveredByGoalId` matters: an approved goal representing the same real-world
+ * commitment must NOT be added on top, or the same hours are counted twice.
+ */
+const BASELINE_COMMITMENTS = [
+  { key: 'school', label: 'School', hours: 32.5 },
+  { key: 'cadets', label: 'Air Cadets', hours: 6.0, coveredByGoalId: 'g-cadets' },
+  { key: 'artSupport', label: 'Art Support', hours: 1.5 },
+  { key: 'drums', label: 'Drums', hours: 2.0 },
+  { key: 'dofe', label: 'Bronze DofE', hours: 2.0 },
+] as const;
+
+/**
+ * Weekly hours ceiling. This is a TOTAL and includes the 32.5h already spent at
+ * school, so it is not a homework budget.
+ *
+ * Baseline commitments come to 44h. A ceiling of 45h left under an hour a week
+ * for all homework and revision, which meant the gauge sat at CRITICAL
+ * permanently and stopped carrying any signal. 60h leaves roughly 16h of study
+ * headroom: ~10h/week keeps the status GREEN, and only a genuinely excessive
+ * load pushes it RED.
+ */
+const SAFE_WEEKLY_HOURS_LIMIT = 60.0;
+
 export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult> {
-  const safeLimit = 45.0;
+  const safeLimit = SAFE_WEEKLY_HOURS_LIMIT;
 
   // Base commitments
-  const schoolHours = 32.5;
-  const cadetsHours = 6.0; // Tue & Fri 19:00 - 22:00
-  const artSupportHours = 1.5;
-  const drumsHours = 2.0;
-  const dofeHours = 2.0;
+  const hoursFor = (key: string) =>
+    BASELINE_COMMITMENTS.find((c) => c.key === key)?.hours ?? 0;
+
+  const schoolHours = hoursFor('school');
+  const cadetsHours = hoursFor('cadets'); // Tue & Fri 19:00 - 22:00
+  const artSupportHours = hoursFor('artSupport');
+  const drumsHours = hoursFor('drums');
+  const dofeHours = hoursFor('dofe');
+
+  const baselineHours = BASELINE_COMMITMENTS.reduce((sum, c) => sum + c.hours, 0);
+  const goalIdsAlreadyInBaseline = new Set<string>(
+    BASELINE_COMMITMENTS.flatMap((c) => ('coveredByGoalId' in c ? [c.coveredByGoalId] : []))
+  );
 
   // Additional active goals hours
   const activeGoals = await db.goals
@@ -39,6 +75,9 @@ export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult>
 
   const customGoalsHours = activeGoals
     .filter((g) => g.category === 'CO_CURRICULAR' || g.category === 'PERSONAL')
+    // Skip goals whose hours are already in the baseline above, or Air Cadets
+    // (and anything like it) gets counted twice.
+    .filter((g) => !goalIdsAlreadyInBaseline.has(g.id))
     .reduce((sum, g) => sum + (g.weeklyHoursRequired || 0), 0);
 
   // Revision hours logged this week from daily check-ins
@@ -54,20 +93,13 @@ export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult>
   const loggedRevisionHours = Math.round((loggedRevisionMinutes / 60) * 10) / 10;
 
   // Check overdue and high priority tasks
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayISO();
   const allTasks = await db.tasks.toArray();
   const pendingTasks = allTasks.filter((t) => !t.completed);
   const overdueTasks = pendingTasks.filter((t) => t.dueDate < todayStr);
   const highPriorityTasks = pendingTasks.filter((t) => t.priority === 'HIGH');
 
-  const baseScheduled =
-    schoolHours +
-    cadetsHours +
-    artSupportHours +
-    drumsHours +
-    dofeHours +
-    customGoalsHours +
-    loggedRevisionHours;
+  const baseScheduled = baselineHours + customGoalsHours + loggedRevisionHours;
 
   const totalScheduled = Math.round(baseScheduled * 10) / 10;
   const remaining = Math.round((safeLimit - totalScheduled) * 10) / 10;
@@ -87,7 +119,7 @@ export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult>
 
   if (totalScheduled > safeLimit || stressIndex > 100) {
     stressStatus = 'RED';
-    warningMessage = `CRITICAL BURNOUT RISK! Scheduled load (${totalScheduled}h) exceeds the safe 45h threshold by ${Math.abs(remaining)}h (${stressIndex}% Stress Index).`;
+    warningMessage = `CRITICAL BURNOUT RISK! Scheduled load (${totalScheduled}h) exceeds the safe ${safeLimit}h threshold by ${Math.abs(remaining)}h (${stressIndex}% Stress Index).`;
     moscowRecommendations.push('MoSCoW (Must/Should/Could/Won\'t): Defer non-essential personal goals.');
     moscowRecommendations.push('During mock exams or major Art deadlines, temporarily reduce DofE and Drum practice by 50%.');
     moscowRecommendations.push('Maintain strict 22:00 sleep cutoff (8.5+ hours rest needed).');

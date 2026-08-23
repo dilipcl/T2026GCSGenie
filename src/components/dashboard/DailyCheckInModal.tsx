@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
-import { Task, CheckInSession } from '../../types';
+import { Task, CheckInSession, SubjectId } from '../../types';
+import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
+import { todayISO, addDaysISO } from '../../utils/date';
 import {
   X,
   Sparkles,
@@ -39,11 +41,18 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   const [actionForTomorrow, setActionForTomorrow] = useState('');
   const [category, setCategory] = useState<'ACADEMIC' | 'CO_CURRICULAR' | 'PERSONAL' | 'WELL_BEING'>('ACADEMIC');
 
+  // Turning the two forward-looking answers into real tasks, rather than letting
+  // them die in a log nobody re-reads. This is an implementation intention:
+  // a stated action attached to a specific day.
+  const [followUpSubject, setFollowUpSubject] = useState<SubjectId | ''>('');
+  const [createActionTask, setCreateActionTask] = useState(true);
+  const [createQuestionTask, setCreateQuestionTask] = useState(true);
+
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
   const [todayCheckInCount, setTodayCheckInCount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayISO();
 
   useEffect(() => {
     if (isOpen) {
@@ -53,8 +62,21 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
         setTodayCheckInCount(existing.length);
       });
 
-      // 2. Fetch pending tasks
-      db.tasks.where('completed').equals(0).toArray().then((tasks) => setPendingTasks(tasks));
+      // 2. Fetch pending tasks, soonest due first.
+      // Booleans are not indexable in IndexedDB - filter in memory (see db/index.ts).
+      db.tasks.orderBy('dueDate').toArray().then((tasks) => {
+        setPendingTasks(tasks.filter((t) => !t.completed));
+      });
+
+      // Clear anything left over from a previous check-in - several can happen
+      // in one day, and stale text would silently be logged again
+      setCompletedTaskIds([]);
+      setKeyLearning('');
+      setBlockersAndQuestions('');
+      setActionForTomorrow('');
+      setFollowUpSubject('');
+      setCreateActionTask(true);
+      setCreateQuestionTask(true);
 
       // Auto detect session based on hour
       const hour = new Date().getHours();
@@ -72,13 +94,30 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
     );
   };
 
+  /**
+   * XP is split in two so it is never counted twice.
+   *
+   * `checkIn` is the XP only this check-in grants (daily base + study time) and is
+   * the value stored on the DailyCheckIn record. `tasks` is the XP from homework
+   * ticked here, which is already banked through each Task's own `xpValue` once the
+   * task is marked complete - storing it on the check-in as well would double it.
+   * `total` is display only: what the student's balance will actually go up by.
+   */
   const calculateXPEarned = () => {
     // Base daily XP (+10 XP) awarded ONLY on the first check-in of the day
     const baseCheckInXP = hasCheckedInToday ? 0 : 10;
-    const taskXP = completedTaskIds.length * 50;
     const revisionXP = Math.floor(revisionMinutes / 30) * 10;
-    return baseCheckInXP + taskXP + revisionXP;
+    const checkInXP = baseCheckInXP + revisionXP;
+
+    // Use each task's own value so HIGH priority homework correctly pays more
+    const taskXP = pendingTasks
+      .filter((t) => completedTaskIds.includes(t.id))
+      .reduce((sum, t) => sum + (t.xpValue || 0), 0);
+
+    return { checkIn: checkInXP, tasks: taskXP, total: checkInXP + taskXP };
   };
+
+  const xp = calculateXPEarned();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +125,8 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
 
     try {
       const now = Date.now();
-      const xpEarned = calculateXPEarned();
+      const earned = calculateXPEarned();
+      const xpEarned = earned.checkIn;
       const isDailyBase = !hasCheckedInToday;
 
       // 1. Record Structured Check-in
@@ -119,13 +159,65 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
         });
       }
 
-      // 3. Write to write-only audit trail
+      // 3. Turn the forward-looking answers into tasks for tomorrow, so the
+      //    reflection actually leads somewhere instead of ending in the log
+      const tomorrow = addDaysISO(1);
+      const spawned: Task[] = [];
+
+      if (followUpSubject) {
+        if (createActionTask && actionForTomorrow.trim()) {
+          spawned.push({
+            id: `task_${now}_action`,
+            subjectId: followUpSubject,
+            title: actionForTomorrow.trim(),
+            description: 'Added from your check-in as tomorrow\'s action.',
+            dueDate: tomorrow,
+            priority: 'HIGH',
+            isHomework: true,
+            isRemediation: false,
+            xpValue: 60,
+            completed: false,
+            createdAt: now,
+          });
+        }
+
+        if (createQuestionTask && blockersAndQuestions.trim()) {
+          spawned.push({
+            id: `task_${now}_question`,
+            subjectId: followUpSubject,
+            title: `Ask: ${blockersAndQuestions.trim()}`,
+            description: 'Question you noted at check-in. Ask in your next lesson.',
+            dueDate: tomorrow,
+            priority: 'MEDIUM',
+            isHomework: false,
+            isRemediation: false,
+            xpValue: 50,
+            completed: false,
+            createdAt: now,
+          });
+        }
+      }
+
+      if (spawned.length > 0) {
+        await db.tasks.bulkAdd(spawned);
+        for (const task of spawned) {
+          await logAuditEvent({
+            user: 'STUDENT',
+            action: 'INSERT',
+            entity: 'Task',
+            entityId: task.id,
+            newValue: `${task.title} [from check-in, due ${tomorrow}]`,
+          });
+        }
+      }
+
+      // 4. Write to write-only audit trail
       await logAuditEvent({
         user: 'STUDENT',
         action: 'INSERT',
         entity: 'DailyCheckIn',
         entityId: checkInId,
-        newValue: `[${session}] Energy: ${energy}, Focus: ${focus}, Tasks Done: ${completedTaskIds.length}, Study: ${revisionMinutes}m, XP: +${xpEarned} (Base Awarded: ${isDailyBase})`,
+        newValue: `[${session}] Energy: ${energy}, Focus: ${focus}, Tasks Done: ${completedTaskIds.length}, Study: ${revisionMinutes}m, Check-in XP: +${xpEarned}, Task XP: +${earned.tasks} (Base Awarded: ${isDailyBase})`,
       });
 
       triggerCelebration();
@@ -171,7 +263,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
           <div className="p-2.5 bg-indigo-950/40 border border-indigo-500/40 rounded-xl mb-4 text-[11px] text-indigo-300 flex items-center gap-2">
             <BookmarkCheck className="w-4 h-4 text-indigo-400 flex-shrink-0" />
             <span>
-              Daily base +10 XP was already banked earlier today. Homework (+50 XP) and study time will be added!
+              Daily base +10 XP was already banked earlier today. Homework and study time still count!
             </span>
           </div>
         )}
@@ -251,36 +343,53 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase mb-1.5 flex items-center justify-between">
               <span>Homework Completed in this Session</span>
-              <span className="text-[11px] text-indigo-400 font-normal">+50 XP per task</span>
+              <span className="text-[11px] text-indigo-400 font-normal">
+                {pendingTasks.length} still to do
+              </span>
             </label>
             {pendingTasks.length === 0 ? (
               <div className="p-2.5 bg-slate-800/40 rounded-xl border border-slate-800 text-xs text-slate-400 text-center">
                 🎉 No pending tasks! All clear.
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                 {pendingTasks.map((task) => {
                   const isChecked = completedTaskIds.includes(task.id);
+                  const isOverdue = task.dueDate < todayStr;
                   return (
                     <div
                       key={task.id}
                       onClick={() => toggleTask(task.id)}
-                      className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                      className={`p-2 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition-all ${
                         isChecked
                           ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+                          : isOverdue
+                          ? 'bg-rose-950/30 border-rose-500/40 text-slate-200 hover:bg-rose-950/50'
                           : 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:bg-slate-800'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <CheckCircle2
-                          className={`w-4 h-4 ${
+                          className={`w-4 h-4 flex-shrink-0 ${
                             isChecked ? 'text-emerald-400 fill-emerald-400/20' : 'text-slate-500'
                           }`}
                         />
-                        <span className="text-xs font-medium">{task.title}</span>
+                        <div className="min-w-0">
+                          <span className="block text-xs font-medium truncate">{task.title}</span>
+                          <span className="block text-[10px] text-slate-400">
+                            {task.subjectId.replace('_', ' ')} ·{' '}
+                            {isOverdue ? (
+                              <span className="text-rose-300 font-semibold">
+                                Overdue ({task.dueDate})
+                              </span>
+                            ) : (
+                              `Due ${task.dueDate}`
+                            )}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700/60 text-slate-300">
-                        {task.subjectId.replace('_', ' ')}
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700/60 text-amber-300 font-bold flex-shrink-0">
+                        +{task.xpValue} XP
                       </span>
                     </div>
                   );
@@ -362,6 +471,67 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
               />
             </div>
 
+            {/* Turn the two forward-looking answers into real tasks for tomorrow */}
+            {(actionForTomorrow.trim() || blockersAndQuestions.trim()) && (
+              <div className="p-3 bg-indigo-950/30 rounded-xl border border-indigo-500/40 space-y-2.5">
+                <p className="text-[11px] font-bold text-indigo-200">
+                  Put this on tomorrow's list
+                </p>
+
+                <select
+                  aria-label="Subject for tomorrow's items"
+                  value={followUpSubject}
+                  onChange={(e) => setFollowUpSubject(e.target.value as SubjectId | '')}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white"
+                >
+                  <option value="">Which subject? (needed to add)</option>
+                  {INITIAL_SUBJECTS.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.icon} {sub.name}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="space-y-1.5">
+                  {actionForTomorrow.trim() && (
+                    <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={createActionTask}
+                        onChange={(e) => setCreateActionTask(e.target.checked)}
+                        className="accent-indigo-500 mt-0.5"
+                      />
+                      <span>
+                        Add <strong className="text-white">"{actionForTomorrow.trim()}"</strong> as
+                        homework due tomorrow
+                      </span>
+                    </label>
+                  )}
+
+                  {blockersAndQuestions.trim() && (
+                    <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={createQuestionTask}
+                        onChange={(e) => setCreateQuestionTask(e.target.checked)}
+                        className="accent-indigo-500 mt-0.5"
+                      />
+                      <span>
+                        Remind me to ask{' '}
+                        <strong className="text-white">"{blockersAndQuestions.trim()}"</strong>
+                      </span>
+                    </label>
+                  )}
+                </div>
+
+                {!followUpSubject && (
+                  <p className="text-[10px] text-amber-300">
+                    Pick a subject above and these get added to tomorrow automatically.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Categorization */}
             <div>
               <label className="block text-[10px] font-semibold text-slate-400 uppercase mb-1">
@@ -396,11 +566,19 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2 active:scale-98 transition-all"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2 disabled:opacity-60 transition-all"
             >
               <Sparkles className="w-4 h-4 text-emerald-200" />
-              <span>Save Check-in (+{calculateXPEarned()} XP)</span>
+              <span>{isSubmitting ? 'Saving...' : `Save Check-in (+${xp.total} XP)`}</span>
             </button>
+
+            {xp.tasks > 0 && (
+              <p className="text-center text-[11px] text-slate-400 mt-1.5">
+                +{xp.checkIn} XP for checking in &amp; studying · +{xp.tasks} XP for{' '}
+                {completedTaskIds.length} completed{' '}
+                {completedTaskIds.length === 1 ? 'task' : 'tasks'}
+              </p>
+            )}
           </div>
         </form>
       </div>

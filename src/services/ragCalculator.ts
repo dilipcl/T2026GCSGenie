@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { RAGStatus, SubjectId } from '../types';
+import { todayISO, addDaysISO, parseISODate, toLocalISODate } from '../utils/date';
 
 export interface SubjectRAGResult {
   subjectId: SubjectId;
@@ -124,8 +125,8 @@ export async function calculateStreak(): Promise<number> {
   // Deduplicate by distinct calendar dates
   const uniqueDates = Array.from(new Set(checkIns.map((c) => c.date)));
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const todayStr = todayISO();
+  const yesterdayStr = addDaysISO(-1);
 
   const latestDate = uniqueDates[0];
   if (latestDate !== todayStr && latestDate !== yesterdayStr) {
@@ -133,11 +134,11 @@ export async function calculateStreak(): Promise<number> {
   }
 
   let streak = 0;
-  let currentDate = new Date(latestDate);
+  // Local dates throughout: toISOString() is UTC and would drop a day during BST
+  let currentDate = parseISODate(latestDate);
 
   for (const d of uniqueDates) {
-    const expectedDateStr = currentDate.toISOString().split('T')[0];
-    if (d === expectedDateStr) {
+    if (d === toLocalISODate(currentDate)) {
       streak++;
       currentDate.setDate(currentDate.getDate() - 1);
     } else {

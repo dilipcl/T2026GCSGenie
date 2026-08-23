@@ -93,7 +93,8 @@ export async function generateAgentAuditPackage(): Promise<{
   }
 
   const checkIns = await db.checkIns.orderBy('date').reverse().limit(14).toArray();
-  const pendingTasks = await db.tasks.where('completed').equals(0).toArray();
+  // Booleans are not indexable in IndexedDB - filter in memory (see db/index.ts).
+  const pendingTasks = (await db.tasks.toArray()).filter((t) => !t.completed);
   const remediations = await db.remediations.toArray();
   const sanctions = await db.sanctions.toArray();
 
@@ -143,7 +144,7 @@ ${ragResults
 ---
 
 ## 2. Weekly Time Budget & Burnout Analysis
-- **Safe Limit:** 45.0 Hours/Week
+- **Safe Limit:** ${burnout.safeWeeklyHoursLimit} Hours/Week (total, including school hours)
 - **Scheduled Commitments:** ${burnout.totalScheduledHours} Hours/Week
 - **Stress Index:** ${burnout.stressIndex}% (${burnout.stressStatus})
 - **Base Breakdown:** School (${burnout.schoolHours}h) + Cadets (${burnout.cadetsHours}h) + Art (${burnout.artSupportHours}h) + Drums (${burnout.drumsHours}h) + DofE (${burnout.dofeHours}h)

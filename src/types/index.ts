@@ -167,6 +167,7 @@ export interface RemediationAction {
   completedAt?: number;
   driveNotebookUrl?: string; // Link to Google Notebook / Drive working proof
   selfStudyScore?: { scored: number; total: number; percentage: number };
+  studentWorkingNotes?: string; // Student's own calculations / solution steps
   weakAreasIdentified?: string; // Notes on sub-areas that need work
   followUpQuestIds?: string[]; // IDs of generated follow-up quests
   parentQuestId?: string; // If this is a follow-up sub-quest

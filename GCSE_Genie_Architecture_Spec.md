@@ -24,7 +24,7 @@
 |                    |                                                |                            |
 |  +-----------------v------------------------------------------------v-------------------------+  |
 |  |                                  CORE APPLICATION ENGINES                                  |  |
-|  |  [Burnout Heatmap / 45h Limit] [MoSCoW Prioritization] [XP Economy] [RAG Metric Calculator] |  |
+|  |  [Burnout Heatmap / 60h Limit] [MoSCoW Prioritization] [XP Economy] [RAG Metric Calculator] |  |
 |  +---------------------------------------------+----------------------------------------------+  |
 |                                                |                                                 |
 |  +---------------------------------------------v----------------------------------------------+  |
@@ -125,10 +125,32 @@ graph TD
 
 ### 4.1. Module 1: Student Daily Dashboard & Rapid Check-in (<2 min)
 
-- **Quick-Toggle Check-in**: 3 clicks (Mood/Energy rating 1–5, Homework check, Sleep log) takes < 90 seconds.
-- **Contextual Schedule Banner**: Automatically detects current period based on time of day and displays countdown to next activity.
+The dashboard is ordered by **daily frequency of use**, not by conceptual importance:
+
+1. **"What's next" card** — overdue work first, then due today, then the next seven days, with
+   upcoming key dates counting down beneath. Tasks are tickable in place. This answers the question
+   the app is opened to answer and therefore sits above everything else.
+2. **"Log today" banner** — opens the check-in.
+3. **Today's schedule + active quests** — contextual, side by side.
+4. **Weekly time capacity gauge** — a status readout, not a daily action, so it sits last.
+
+- **Quick-Toggle Check-in**: energy (1–5), focus, tap-to-complete homework list, study-time slider,
+  and three structured log questions. Multiple sessions per day (Morning / Afternoon / Study /
+  Evening); the daily base XP is awarded only on the first.
+- **Quick Add**: a floating action button present on *every* screen opens a single sheet that adds
+  either a homework task or a key date. Three required fields; priority, category and notes are
+  collapsed behind *More options*. Adding is the second most frequent action after checking in, so
+  it deliberately does not live inside a particular tab.
 - **Active Quests Strip**: Shows pending Year 9 remediation actions with live XP rewards.
-- **Real-Time Level & Streak Engine**: Instant celebratory haptics and animations on quest completion.
+- **Real-Time Streak Engine**: Streak and XP in the header; confetti on completion. (Haptics are
+  specified but not yet implemented.)
+
+> **Navigation tiers.** Sections are split into `daily` (Home, My Work, Key Dates, Fix My Mistakes)
+> and `weekly` (Rewards, Timetable, Subjects & Goals, Careers & Help, Parent Portal). On mobile the
+> daily four form the bottom bar and the rest sit behind a **More** sheet; on desktop a `WEEKLY`
+> divider separates them. Goal creation and amendment is explicitly a weekly-tier activity.
+> The XP badge in the header doubles as a shortcut into the Rewards shop so that spending XP stays
+> one tap away without consuming a navigation slot.
 
 ---
 
@@ -159,11 +181,30 @@ graph TD
 ```
 
 #### RAG Status Health Metric Formula
-For each subject $S$, the RAG status is calculated dynamically:
-$$\text{Health}(S) = 0.35 \times \text{HW\_Rate}(S) + 0.35 \times \text{Assessment\_Avg}(S) + 0.20 \times \text{Remediation\_Velocity}(S) + 0.10 \times \text{Streak\_Factor}(S)$$
+
+**As implemented** (`src/services/ragCalculator.ts`):
+$$\text{Health}(S) = 0.40 \times \text{HW\_Rate}(S) + 0.35 \times \text{Remediation\_Rate}(S) + 0.25 \times \text{Topic\_Mastery}(S)$$
 - **Green (On Track for Grade 9)**: $\text{Health} \ge 85\%$
 - **Amber (Needs Attention / Intervention)**: $65\% \le \text{Health} < 85\%$
 - **Red (Critical Risk to Grade 9 Target)**: $\text{Health} < 65\%$
+
+A per-subject manual override (`manualRAGOverride`, `manualHealthScore`) can force a status when the
+calculated value is misleading.
+
+> **Divergence from the original design — and two weaknesses to fix.**
+> The originally specified formula included an `Assessment_Avg` term weighted at 35%. **No assessment
+> results are recorded anywhere in the app**, so that term does not exist and its weight has been
+> redistributed. Consequences worth understanding before trusting a green light:
+>
+> 1. **The score measures effort, not attainment.** Nothing in it reflects a real, externally marked
+>    result. `currentEstimatedGrade` is seeded once and never updated by anything.
+> 2. **Doing nothing scores better than doing something imperfectly.** Homework completion counts only
+>    tasks that exist in the app, and defaults to 100% when a subject has none — so a subject with no
+>    logged work looks perfect. Topic mastery is entirely self-declared (clicking five stars sets
+>    `isCompleted`). Overdue work is not represented at all.
+>
+> Adding an assessment-results log and making it the primary input is the highest-value change
+> available to this module.
 
 **Interactive Dashboard Drilldown**:
 Clicking any subject card reveals:
@@ -222,20 +263,35 @@ Directly digitizes Year 9 baseline exam diagnostic errors and turns them into hi
 
 ### 4.5. Module 5: Time-Budget Matrix & Burnout Risk Heatmap
 
-- **Safe Weekly Working Threshold**: Strictly capped at **45.0 hours/week**.
-- **Fixed Baseline Commitments**:
+- **Safe Weekly Working Threshold**: **60.0 hours/week**. This is a *total* and includes school
+  hours, so it is not a homework budget.
+- **Fixed Baseline Commitments** (declared once in `BASELINE_COMMITMENTS`):
   - GCS School Hours: **32.5 hrs**
   - Air Cadets (Tue/Fri 19:00–22:00): **6.0 hrs**
   - GCSE Support Art Class: **1.5 hrs**
   - Drum Lessons & Practice: **2.0 hrs**
   - Bronze DofE (Skills/Volunteering/Physical): **2.0 hrs**
-  - **Base Load Total**: **44.0 hrs/week** (Buffer remaining: **1.0 hr**).
+  - **Base Load Total**: **44.0 hrs/week** (Study headroom remaining: **16.0 hrs**).
 
 - **Stress Index Formula**:
-  $$\text{Stress Index} = \frac{\text{Total Scheduled Active Hours}}{45.0\text{ hrs}} \times 100\%$$
-  - **Green**: $\le 90\%$ ($< 40.5\text{ hrs}$)
-  - **Amber**: $90\% - 100\%$ ($40.5 - 45.0\text{ hrs}$)
-  - **Red Alert (Burnout Hazard)**: $> 100\%$ ($> 45.0\text{ hrs}$)
+  $$\text{Stress Index} = \frac{\text{Baseline} + \text{Approved Goals} + \text{Logged Study}}{60.0\text{ hrs}} \times 100\% + \text{Task Pressure Surcharge}$$
+  where the surcharge is $2\%$ per overdue task plus $1.5\%$ per high-priority task beyond the second.
+  - **Green**: $< 90\%$ (up to ~10 hrs/week of study)
+  - **Amber**: $90\% - 100\%$ (~10–16 hrs/week)
+  - **Red Alert (Burnout Hazard)**: $> 100\%$ (more than ~16 hrs/week)
+
+> **Revision note — the 45h ceiling was raised to 60h.** With a 44h baseline, a 45h ceiling left
+> under one hour a week for all homework and revision. The gauge therefore read CRITICAL on first
+> launch and never moved, regardless of behaviour, which is textbook alert fatigue. A second defect
+> compounded it: Air Cadets was counted twice (once as a hardcoded baseline constant, once as the
+> seeded `g-cadets` approved goal), making the true starting figure 50h against a 45h limit — 111%.
+> Baseline commitments now carry an optional `coveredByGoalId` so a goal representing the same
+> real-world commitment is excluded from the goals total. The ceiling is a single named constant,
+> `SAFE_WEEKLY_HOURS_LIMIT` in `src/services/burnoutEngine.ts`, and is intended to be tuned.
+>
+> Note also that **logged study time counts toward the total**. This is deliberate — it is real time —
+> but it means the ceiling must leave genuine study headroom, or studying more would push the student
+> toward a burnout warning, which inverts the incentive the module exists to create.
 
 - **MoSCoW Dynamic Override**:
   During mock exams or major Art practical deadlines, the app automatically recommends postponing `COULD_HAVE` co-curricular goals to maintain safe rest margins.
@@ -505,9 +561,81 @@ export interface CareerGuidanceResource {
    - Year 9 real-world remediation quests with XP reward engine.
 3. **Phase 3: Grade 9 Goal Engine, Burnout Matrix & Career Hub**
    - Grade 9 RAG visualizer and topic-level drill-down.
-   - 45h weekly capacity tracker with stress index heatmap.
+   - 60h weekly capacity tracker with stress index heatmap.
    - Teacher directory, curated revision links, and post-GCSE career pathways.
 4. **Phase 4: Parent Portal & Model-Agnostic Agentic Audit (Android & Laptop)**
    - Secure PIN authentication and rewards ledger approval workflow.
    - Model-agnostic AI Audit engine (Gemini & Claude adapter) + Google Drive audit bundle exporter.
    - End-to-end testing across iOS Safari, Android Chrome, and Desktop.
+
+---
+
+## 8. Implementation Status vs. Specification
+
+This section records where the running application diverges from the design above, so that gaps are
+not rediscovered as bugs. Last reviewed: **August 2026**.
+
+### 8.1. Built and working
+
+| Module | Status |
+| :--- | :--- |
+| Daily check-in & structured learning log | ✅ Multiple sessions/day, XP banked once |
+| "What's next" dashboard card | ✅ Overdue → today → next 7 days, tick in place |
+| Quick Add (homework / key date) | ✅ Floating action button on every screen |
+| Frequency-tiered navigation | ✅ Daily vs weekly tiers, mobile "More" sheet |
+| Diagnostic quests + mark schemes | ✅ Score, proof URL, working notes, sub-quests |
+| Subject RAG matrix | ⚠️ Works, but see 4.2 — measures effort, not attainment |
+| Weekly time-capacity gauge | ✅ Recalibrated, see 4.5 |
+| XP, rewards shop, sanctions | ⚠️ Works, but see 8.2 |
+| Parent PIN + Parent Portal | ✅ Hash-checked, changeable, default flagged |
+| JSON backup / restore | ⚠️ Works, but destructive and unconfirmed on restore |
+| Offline agentic audit engine | ✅ Deterministic rules engine |
+
+### 8.2. Specified but not implemented
+
+1. **Goal approval / locking.** `GoalStatus` defines `PENDING_DISCUSSION → APPROVED_LOCKED`, and the
+   burnout engine only counts `APPROVED_LOCKED` goals — but **no code path anywhere performs that
+   transition**. Proposed goals are inert: they never affect the time budget, and cannot be completed,
+   deferred, edited or deleted. The central parent toll gate in the design does not exist.
+2. **Assessment results.** No storage for mock or interim-report scores. See 4.2.
+3. **Overdue escalation.** Overdue tasks tint red and add a small stress surcharge. They do not
+   downgrade RAG status, notify anyone, or gate the rewards shop.
+4. **PWA install / offline.** No `manifest.json` and no service worker, despite the iOS/Android
+   install instructions. Chrome will not offer "Install app" and nothing works offline.
+5. **Cross-device sync.** IndexedDB is per-device. Parent approval, sanctions and audits therefore
+   only function on the student's own device. This is the single largest architectural constraint on
+   the parent-oversight half of the design.
+6. **Contextual schedule banner** (current-period detection with countdown), **haptics**, **swipe to
+   approve/deny**, **drag-and-drop timetable builder**, and **searchable audit filters** are all
+   specified in §4.1 and §6 but not built.
+7. **Sleep logging** — §4.1 lists it in the check-in; only energy and focus are captured.
+
+### 8.3. Implemented differently than specified
+
+| Area | Specified | Actual |
+| :--- | :--- | :--- |
+| Safe weekly ceiling | 45.0 h | 60.0 h — see 4.5 |
+| RAG weighting | 35/35/20/10 incl. assessments | 40/35/25, no assessment term |
+| Verification of quests | — | Self-marked; no parent verification flag |
+| Audit ledger | "Cryptographically chained" | Per-entry SHA-256 only; **no chain**, and rows are deletable |
+
+### 8.4. Known defects in dependencies of the design
+
+- **Live LLM audits never reach the provider.** The Anthropic call sends a non-existent browser
+  header (`dangerously-allow-browser`; the real one is `anthropic-dangerous-direct-browser-access`),
+  and both default model IDs — `claude-3-5-sonnet-20241022` and `gemini-1.5-pro` — are retired or
+  superseded. OpenAI is selectable but unimplemented. All failures are swallowed and the offline
+  engine runs instead, with no indication to the parent that their API key was never used.
+- **The Markdown half of the audit bundle is discarded.** `generateAgentAuditPackage()` returns both
+  `jsonContent` and `markdownSummary`; only the JSON is downloaded, so the "Instructions for
+  Reviewing Agent" prompt never reaches the user.
+- **Seed timetable is incomplete.** Only Monday of the Odd week has lessons; the Even week is empty.
+
+### 8.5. Platform traps
+
+- **IndexedDB cannot index booleans.** `completed`, `isCompleted`, `isHomework` and `shopFrozen`
+  appear in Dexie schema strings but are never indexed. `.where('completed').equals(0)` silently
+  returns `[]`. Filter booleans in memory.
+- **`toISOString()` is UTC.** During British Summer Time, "today" computed this way is wrong between
+  00:00 and 01:00 local — a check-in at 00:30 files against yesterday and breaks the streak. All date
+  handling goes through `src/utils/date.ts`.

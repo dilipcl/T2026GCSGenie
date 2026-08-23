@@ -97,6 +97,11 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
     loadData();
   };
 
+  // Cheapest reward not yet affordable - the one worth aiming at right now
+  const nextReward = [...rewards]
+    .filter((r) => r.costXP > xpData.availableXP)
+    .sort((a, b) => a.costXP - b.costXP)[0];
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -123,9 +128,33 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
               {xpData.availableXP.toLocaleString()} XP
             </span>
           </div>
-          <Sparkles className="w-8 h-8 text-amber-400 animate-pulse" />
+          <Sparkles className="w-8 h-8 text-amber-400" />
         </div>
       </div>
+
+      {/* Anticipation does more work than the balance alone: show the next thing
+          within reach and how close it is */}
+      {nextReward && (
+        <div className="glass-card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <p className="text-xs text-slate-300">
+              <span className="text-lg mr-1.5">{nextReward.icon}</span>
+              Next up: <strong className="text-white">{nextReward.title}</strong>
+            </p>
+            <span className="text-xs font-bold text-amber-400">
+              {(nextReward.costXP - xpData.availableXP).toLocaleString()} XP to go
+            </span>
+          </div>
+          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
+            <div
+              className="h-full bg-gradient-to-r from-indigo-500 to-amber-400 transition-all duration-500"
+              style={{
+                width: `${Math.min(100, (xpData.availableXP / nextReward.costXP) * 100)}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Detention Freeze Alert Banner */}
       {xpData.isShopFrozen && (
@@ -149,7 +178,10 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {rewards.map((item) => {
+          {/* Cheapest first, so what is actually within reach leads */}
+          {[...rewards]
+            .sort((a, b) => a.costXP - b.costXP)
+            .map((item) => {
             const canAfford = xpData.availableXP >= item.costXP && !xpData.isShopFrozen;
             return (
               <div
@@ -187,6 +219,7 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
           })}
         </div>
       </div>
+
 
       {/* Redemptions Ledger */}
       <div className="glass-card p-6">

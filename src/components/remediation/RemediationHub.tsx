@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../db';
 import { RemediationAction, SubjectId } from '../../types';
 import { RemediationSolveModal } from './RemediationSolveModal';
@@ -11,21 +11,30 @@ interface RemediationHubProps {
 export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }) => {
   const [remediations, setRemediations] = useState<RemediationAction[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<SubjectId | 'ALL'>('ALL');
-  const [activeQuest, setActiveQuest] = useState<RemediationAction | null>(null);
+  const [activeQuestId, setActiveQuestId] = useState<string | null>(null);
+  const autoOpenedQuestId = useRef<string | null>(null);
+
+  // Derived rather than stored, so the open modal always reflects the latest saved
+  // data after a refresh instead of a stale snapshot.
+  const activeQuest = remediations.find((r) => r.id === activeQuestId) ?? null;
 
   const loadRemediations = async () => {
-    const list = await db.remediations.toArray();
-    setRemediations(list);
-
-    if (initialQuestId) {
-      const found = list.find((r) => r.id === initialQuestId);
-      if (found) setActiveQuest(found);
-    }
+    setRemediations(await db.remediations.toArray());
   };
 
   useEffect(() => {
     loadRemediations();
-  }, [initialQuestId]);
+  }, []);
+
+  // Open the quest handed over from the dashboard, but only once - otherwise every
+  // refresh after saving would pop the modal straight back open.
+  useEffect(() => {
+    if (!initialQuestId || autoOpenedQuestId.current === initialQuestId) return;
+    if (!remediations.some((r) => r.id === initialQuestId)) return;
+
+    autoOpenedQuestId.current = initialQuestId;
+    setActiveQuestId(initialQuestId);
+  }, [initialQuestId, remediations]);
 
   const filtered = remediations.filter(
     (r) => selectedSubject === 'ALL' || r.subjectId === selectedSubject
@@ -65,7 +74,7 @@ export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }
             </span>
           </div>
           <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-xs">
-            {Math.round((earnedXP / totalXP) * 100)}%
+            {totalXP > 0 ? Math.round((earnedXP / totalXP) * 100) : 0}%
           </div>
         </div>
       </div>
@@ -99,7 +108,7 @@ export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }
         {filtered.map((quest) => (
           <div
             key={quest.id}
-            onClick={() => setActiveQuest(quest)}
+            onClick={() => setActiveQuestId(quest.id)}
             className={`glass-card p-5 cursor-pointer transition-all border relative overflow-hidden group ${
               quest.isCompleted
                 ? 'bg-slate-900/40 border-emerald-500/30'
@@ -161,7 +170,7 @@ export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }
       <RemediationSolveModal
         quest={activeQuest}
         isOpen={!!activeQuest}
-        onClose={() => setActiveQuest(null)}
+        onClose={() => setActiveQuestId(null)}
         onSuccess={loadRemediations}
       />
     </div>

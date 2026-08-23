@@ -30,8 +30,18 @@ import {
   INITIAL_FREE_REVISION_LINKS,
   INITIAL_GOALS,
   INITIAL_PARENT_SETTINGS,
+  MICRO_REWARDS,
 } from './seedData';
 
+/**
+ * IMPORTANT: IndexedDB cannot index boolean values. Fields such as `completed`,
+ * `isCompleted`, `isHomework` and `shopFrozen` appear in the schema strings below
+ * but are never actually indexed, so `.where('completed').equals(0)` silently
+ * returns an empty array instead of the pending records.
+ *
+ * Always filter boolean fields in memory (`.filter(t => !t.completed)`), never
+ * with `.where(...)`.
+ */
 export class GCSEGenieDatabase extends Dexie {
   subjects!: Table<SubjectConfig, string>;
   syllabusTopics!: Table<SyllabusTopic, string>;
@@ -72,6 +82,16 @@ export class GCSEGenieDatabase extends Dexie {
       agentAuditReports: 'id, timestamp, burnoutStatus',
       careerResources: 'id, category, requiredGCSEGrade',
       revisionLinks: 'id, subjectId, type',
+    });
+
+    // v3 adds the low-cost rewards. `populate` only fires on a brand new
+    // database, so an existing install needs an explicit upgrade to receive them.
+    this.version(3).upgrade(async (tx) => {
+      const rewards = tx.table<RewardItem, string>('rewards');
+      for (const reward of MICRO_REWARDS) {
+        const existing = await rewards.get(reward.id);
+        if (!existing) await rewards.add(reward);
+      }
     });
 
     this.on('populate', () => {

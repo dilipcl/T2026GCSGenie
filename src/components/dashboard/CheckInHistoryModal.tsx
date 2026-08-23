@@ -72,7 +72,18 @@ export const CheckInHistoryModal: React.FC<CheckInHistoryModalProps> = ({
                   <div className="flex items-center gap-3 text-[11px] text-slate-400">
                     <span>Study: {item.completedRevisionMinutes || 0}m</span>
                     <span>Energy: {item.energyLevel}/5</span>
-                    <span className="text-amber-400 font-bold">+{item.xpEarned} XP</span>
+                    {item.completedHomeworkIds?.length > 0 && (
+                      <span className="text-emerald-400">
+                        {item.completedHomeworkIds.length}{' '}
+                        {item.completedHomeworkIds.length === 1 ? 'task' : 'tasks'} done
+                      </span>
+                    )}
+                    <span
+                      className="text-amber-400 font-bold"
+                      title="XP from this check-in. Completed homework is banked separately against each task."
+                    >
+                      +{item.xpEarned} XP
+                    </span>
                   </div>
                 </div>
 

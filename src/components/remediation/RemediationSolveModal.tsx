@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { db } from '../../db';
 import { RemediationAction } from '../../types';
 import { logAuditEvent } from '../../services/auditService';
@@ -27,19 +27,40 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [driveUrl, setDriveUrl] = useState(quest?.driveNotebookUrl || '');
-  const [marksScored, setMarksScored] = useState<number>(
-    quest?.selfStudyScore?.scored || 18
-  );
-  const [totalMarks, setTotalMarks] = useState<number>(
-    quest?.selfStudyScore?.total || 20
-  );
+  const [driveUrl, setDriveUrl] = useState('');
+  const [marksScored, setMarksScored] = useState<number>(0);
+  const [totalMarks, setTotalMarks] = useState<number>(20);
   const [studentNotes, setStudentNotes] = useState('');
   const [showMarkScheme, setShowMarkScheme] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Follow-up quest creation
   const [weakArea, setWeakArea] = useState('');
   const [showSubQuestForm, setShowSubQuestForm] = useState(false);
+
+  /**
+   * This modal stays mounted while the hub is open, so state initialisers only ever
+   * run once (with quest === null). Without this reset, a saved score never loads
+   * and values typed for one quest bleed into the next one opened.
+   */
+  useEffect(() => {
+    if (!quest) return;
+
+    // Default the total to the marks actually on offer in the question bank
+    const marksInBank = (quest.comprehensiveQuestions || []).reduce(
+      (sum, q) => sum + (q.marksAllocated || 0),
+      0
+    );
+
+    setDriveUrl(quest.driveNotebookUrl || '');
+    setMarksScored(quest.selfStudyScore?.scored ?? 0);
+    setTotalMarks(quest.selfStudyScore?.total ?? (marksInBank > 0 ? marksInBank : 20));
+    setStudentNotes(quest.studentWorkingNotes || '');
+    setWeakArea(quest.weakAreasIdentified || '');
+    setShowMarkScheme(false);
+    setShowSubQuestForm(false);
+    setIsSaving(false);
+  }, [quest?.id]);
 
   if (!isOpen || !quest) return null;
 
@@ -47,32 +68,57 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
 
   const handleCompleteQuest = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
 
-    await db.remediations.update(quest.id, {
-      isCompleted: true,
-      completedAt: Date.now(),
-      driveNotebookUrl: driveUrl.trim() || undefined,
-      selfStudyScore: {
-        scored: marksScored,
-        total: totalMarks,
-        percentage,
-      },
-      weakAreasIdentified: weakArea.trim() || undefined,
-    });
+    if (marksScored > totalMarks) {
+      alert('Marks scored cannot be more than the total marks available.');
+      return;
+    }
 
-    await logAuditEvent({
-      user: 'STUDENT',
-      action: 'UPDATE',
-      entity: 'RemediationAction',
-      entityId: quest.id,
-      fieldChanged: 'isCompleted',
-      oldValue: 'false',
-      newValue: `Completed with Test Score: ${marksScored}/${totalMarks} (${percentage}%), Proof: ${driveUrl || 'Self-verified'} (+${quest.xpReward} XP)`,
-    });
+    setIsSaving(true);
+    try {
+      const wasAlreadyCompleted = quest.isCompleted;
 
-    triggerCelebration({ particleCount: 120, spread: 90 });
-    onSuccess();
-    onClose();
+      await db.remediations.update(quest.id, {
+        isCompleted: true,
+        completedAt: quest.completedAt ?? Date.now(),
+        driveNotebookUrl: driveUrl.trim() || undefined,
+        selfStudyScore: {
+          scored: marksScored,
+          total: totalMarks,
+          percentage,
+        },
+        studentWorkingNotes: studentNotes.trim() || undefined,
+        weakAreasIdentified: weakArea.trim() || undefined,
+      });
+
+      await logAuditEvent({
+        user: 'STUDENT',
+        action: 'UPDATE',
+        entity: 'RemediationAction',
+        entityId: quest.id,
+        fieldChanged: wasAlreadyCompleted ? 'selfStudyScore' : 'isCompleted',
+        oldValue: String(wasAlreadyCompleted),
+        newValue: `${
+          wasAlreadyCompleted ? 'Updated' : 'Completed'
+        } with Test Score: ${marksScored}/${totalMarks} (${percentage}%), Proof: ${
+          driveUrl || 'Self-verified'
+        }${wasAlreadyCompleted ? '' : ` (+${quest.xpReward} XP)`}`,
+      });
+
+      // Only celebrate the first completion, not every subsequent edit
+      if (!wasAlreadyCompleted) {
+        triggerCelebration({ particleCount: 120, spread: 90 });
+      }
+
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error('Failed to save quest:', err);
+      alert('Could not save this quest. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCreateSubQuest = async () => {
@@ -275,13 +321,17 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
                   Percentage
                 </label>
                 <div
+                  title="A practice score, not a GCSE grade. Real grade boundaries are set per paper, per year."
                   className={`w-full py-1.5 px-2.5 rounded-lg border text-xs font-bold text-center ${
                     percentage >= 80
                       ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
-                      : 'bg-amber-950/60 border-amber-500/50 text-amber-300'
+                      : percentage >= 60
+                      ? 'bg-amber-950/60 border-amber-500/50 text-amber-300'
+                      : 'bg-rose-950/60 border-rose-500/50 text-rose-300'
                   }`}
                 >
-                  {percentage}% (Grade {percentage >= 80 ? '9' : percentage >= 70 ? '8' : '7'})
+                  {percentage}%{' '}
+                  {percentage >= 80 ? 'Secure' : percentage >= 60 ? 'Nearly' : 'Needs work'}
                 </div>
               </div>
             </div>
@@ -340,10 +390,17 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-950/50 flex items-center justify-center gap-2 transition-all active:scale-98"
+            disabled={isSaving}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-950/50 flex items-center justify-center gap-2 transition-all disabled:opacity-60"
           >
             <Sparkles className="w-4 h-4" />
-            <span>Mark Remediation Complete & Claim +{quest.xpReward} XP</span>
+            <span>
+              {isSaving
+                ? 'Saving...'
+                : quest.isCompleted
+                ? 'Update Saved Score & Proof'
+                : `Mark Complete & Claim +${quest.xpReward} XP`}
+            </span>
           </button>
         </form>
       </div>

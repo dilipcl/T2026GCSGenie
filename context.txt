@@ -1,3 +1,21 @@
+================================================================================
+STATUS: FOUNDING BRIEF — HISTORICAL DOCUMENT
+================================================================================
+This is the original specification prompt that was used to generate GCSE Genie.
+It is preserved as a record of intent and is NOT maintained as a description of
+the running application.
+
+For what the app actually does today, read in this order:
+  1. README.md                          - features, setup, known limitations
+  2. GCSE_Genie_Architecture_Spec.md    - technical design; section 8 lists every
+                                          divergence between spec and reality
+  3. CHANGELOG.md                       - what changed and why
+
+Figures in this brief that have since changed are flagged inline with [SUPERSEDED].
+A summary of the significant divergences is at the end of this file.
+Last reconciled: August 2026.
+================================================================================
+
 GCSE Genie - Master Software Specification & Prompt Blueprint (v3)
 This master specification acts as a direct software blueprint. It is designed to be pasted directly into LLM terminals (e.g., Gemini Advanced, Claude 3.5 Sonnet, or GPT-4o) to generate a complete, working application.
 
@@ -91,22 +109,22 @@ There need to be visualisation in the dashboard that provides a simple view of t
 B. Time-Budget Matrix & Burnout Risk Heatmap
 To prevent academic and physical exhaustion, the system maintains a Time-Capacity Budget:
 
-Safe Weekly Focused Activity Threshold: 45 hours.
+Safe Weekly Focused Activity Threshold: 45 hours.  [SUPERSEDED -> 60 hours; see README "Time budget"]
 Standard Weekly Commitments:
 GCS School Hours: 32.5 hours
 Air Cadets: 6 hours (Tue/Fri 19:00 - 22:00)
 Art support class: 1.5 hours
 Drums + practice: 2 hours
 DofE physical/volunteering: 2 hours
-Total Base Commitment: 44 hours/week (leaving 1 hour of safe capacity).
+Total Base Commitment: 44 hours/week (leaving 1 hour of safe capacity).  [SUPERSEDED -> 44h baseline against a 60h ceiling, leaving 16h of study headroom]
 Burnout Risk Notification: If the student attempts to add a new personal goal (such as "Join a Football Club" with 4 hours of training and weekend matches), the app calculates the projected total (48 hours), moves the "Stress Index" into the Red Zone (Burnout Risk), and issues a warning to parents and student.
 Prioritization (MoSCoW Rules): During mock exams or final Art practical sessions, the app automatically recommends postponing or scaling back secondary, non-essential goals to restore safe time budgets.
 6. Points, Penalties, & Real-World Rewards
 To make gamification meaningful, points translate directly into parent-managed, real-world incentives:
 
 XP Earning Rates:
-Daily 2-minute check-in: +10 XP
-Completed GCS Homework: +50 XP
+Daily 2-minute check-in: +10 XP (first check-in of the day only)
+Completed GCS Homework: +50 XP (+60 if High priority). Credited once, via the task itself.
 Completed Year 9 Remediation Action: +150 to +300 XP
 School Sanctions & Detentions:
 Since GCS has a strict detention policy, detentions must be logged manually.
@@ -128,3 +146,50 @@ Output Report: The agent compiles a concise "Plan Alignment Report" summarizing:
 Curriculum Status: What subjects are on track vs. falling behind.
 Burnout Level: Current Stress Index and time allocation.
 Actionable Adjustments: Recommending changes to the calendar, task frequencies, or pausing personal goals.
+================================================================================
+APPENDIX: DIVERGENCES FROM THIS BRIEF (reconciled August 2026)
+================================================================================
+What the brief asked for vs. what exists. Full detail in
+GCSE_Genie_Architecture_Spec.md section 8.
+
+DELIVERED AS SPECIFIED
+  - <2 minute daily check-in with quick toggles, sliders and tap-to-complete
+  - Year 9 diagnostic remediation quests with mark schemes and XP
+  - Odd/Even rotational timetable with hard-locked cadet blocks
+  - Subject RAG matrix with drill-down to topic checklists
+  - XP economy, rewards shop, parent-logged sanctions with shop freeze
+  - PIN-protected Parent Portal, JSON backup/restore, append-only change log
+  - Careers hub, teacher directory, curated free revision links
+
+DELIVERED DIFFERENTLY
+  - Weekly ceiling is 60h, not 45h. At 44h of fixed commitments a 45h ceiling
+    left under an hour a week for homework, so the burnout gauge read CRITICAL
+    permanently and carried no signal.
+  - RAG weighting is 40% homework / 35% remediations / 25% topic mastery. The
+    brief's 35% "assessment average" term was dropped because no assessment
+    results are stored anywhere in the app.
+  - Navigation is tiered by frequency of use (daily vs weekly) rather than by
+    module. Goal creation and amendment is a weekly-tier activity; adding
+    homework and key dates is a floating action button on every screen.
+
+NOT BUILT
+  - Parental review and LOCKING of proposed goals. This brief describes it as the
+    mechanism by which goals "generate daily/weekly habits added to his calendar".
+    The status enum exists and the burnout engine only counts locked goals, but
+    nothing in the app performs the transition. Proposed goals are inert.
+  - Assessment/mock result tracking, so the app cannot answer whether real
+    performance is trending toward Grade 9.
+  - Offline capability and PWA installation (no manifest, no service worker).
+  - Cross-device sync. Data is per-device IndexedDB, so the parent-facing half of
+    this brief only functions on the student's own device or via manual JSON
+    export/import.
+  - Sleep logging in the check-in (energy and focus only).
+
+KNOWN DEFECTS
+  - Live LLM audits never reach Gemini or Claude: the Anthropic browser header is
+    wrong and both default model IDs are retired. Failures are swallowed and the
+    offline rules engine runs instead, without telling the parent.
+  - The audit ledger is described as tamper-evident and hash-chained. Each entry
+    is hashed independently with no previous-hash link, and rows are deletable.
+  - Only Monday of the Odd week is seeded in the timetable.
+================================================================================

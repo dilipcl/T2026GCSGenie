@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserRole, WeekType } from '../../types';
-import { calculateStreak, calculateTotalXP } from '../../services/ragCalculator';
+import { calculateTotalXP } from '../../services/ragCalculator';
+import { calculateStreakStats, StreakStats } from '../../services/habitEngine';
 import { Sparkles, Flame, Calendar, Lock, Unlock } from 'lucide-react';
 
 interface HeaderProps {
@@ -9,6 +10,7 @@ interface HeaderProps {
   activeWeek: WeekType;
   onToggleWeek: () => void;
   onOpenCheckIn: () => void;
+  onOpenRewards: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,12 +19,13 @@ export const Header: React.FC<HeaderProps> = ({
   activeWeek,
   onToggleWeek,
   onOpenCheckIn,
+  onOpenRewards,
 }) => {
-  const [streak, setStreak] = useState(0);
+  const [streak, setStreak] = useState<StreakStats | null>(null);
   const [xp, setXp] = useState({ totalXP: 0, availableXP: 0, isShopFrozen: false });
 
   const refreshMetrics = async () => {
-    const s = await calculateStreak();
+    const s = await calculateStreakStats();
     const x = await calculateTotalXP();
     setStreak(s);
     setXp(x);
@@ -74,14 +77,36 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          {/* Streak Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 font-medium">
-            <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-            <span>{streak} Day Streak</span>
+          {/* Streak Badge - amber when exactly one day has been missed, so the
+              "don't miss twice" moment is visible from anywhere in the app */}
+          <div
+            title={
+              streak?.atRisk
+                ? "You missed yesterday. Check in today and the streak survives."
+                : streak?.best
+                ? `Best run: ${streak.best} days`
+                : undefined
+            }
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border font-medium ${
+              streak?.atRisk
+                ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+            }`}
+          >
+            <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <span>
+              {streak?.current ?? 0} Day Streak
+              {streak?.atRisk && ' · at risk'}
+            </span>
           </div>
 
-          {/* XP Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-medium">
+          {/* XP Badge - doubles as the shortcut into the rewards shop, so spending
+              XP is always one tap away without using a nav slot */}
+          <button
+            onClick={onOpenRewards}
+            title="Spend your XP in the rewards shop"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-medium hover:bg-indigo-500/20 hover:border-indigo-400/50 transition-colors"
+          >
             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
             <span>{xp.availableXP.toLocaleString()} XP</span>
             {xp.isShopFrozen && (
@@ -89,14 +114,14 @@ export const Header: React.FC<HeaderProps> = ({
                 Shop Locked
               </span>
             )}
-          </div>
+          </button>
 
           {/* Quick Daily Check-in Button */}
           <button
             onClick={onOpenCheckIn}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold shadow-md shadow-emerald-900/30 hover:from-emerald-500 hover:to-teal-500 active:scale-95 transition-all text-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold shadow-md shadow-emerald-900/30 hover:from-emerald-500 hover:to-teal-500 transition-all text-xs"
           >
-            <span>⚡ 2-Min Check-in</span>
+            <span>⚡ Check in</span>
           </button>
 
           {/* Role Switcher (Student / Parent Mode) */}

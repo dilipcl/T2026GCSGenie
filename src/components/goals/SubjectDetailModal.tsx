@@ -4,6 +4,7 @@ import { SubjectConfig, SyllabusTopic, Task, RAGStatus } from '../../types';
 import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalculator';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
+import { todayISO, addDaysISO } from '../../utils/date';
 import {
   X,
   CheckCircle2,
@@ -115,7 +116,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
       isImportantForGrade9: true,
       isRequiredPractical: newTopicIsPractical,
       yearGroup: 'YEAR_10',
-      dateTaught: new Date().toISOString().split('T')[0],
+      dateTaught: todayISO(),
       driveNotesUrl: newTopicDriveUrl.trim() || undefined,
     };
 
@@ -171,7 +172,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
       id: `task_${Date.now()}`,
       subjectId: subject.id,
       title: newTaskTitle.trim(),
-      dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+      dueDate: addDaysISO(2),
       priority: 'HIGH',
       isHomework: true,
       isRemediation: false,

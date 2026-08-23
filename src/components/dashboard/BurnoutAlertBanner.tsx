@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { calculateBurnoutCapacity, BurnoutCapacityResult } from '../../services/burnoutEngine';
 import { ShieldAlert, AlertTriangle, BatteryCharging, Info } from 'lucide-react';
 
-export const BurnoutAlertBanner: React.FC = () => {
+interface BurnoutAlertBannerProps {
+  refreshKey?: number;
+}
+
+export const BurnoutAlertBanner: React.FC<BurnoutAlertBannerProps> = ({ refreshKey = 0 }) => {
   const [burnout, setBurnout] = useState<BurnoutCapacityResult | null>(null);
 
   useEffect(() => {
     calculateBurnoutCapacity().then(setBurnout);
-  }, []);
+  }, [refreshKey]);
 
   if (!burnout) return null;
 
@@ -39,7 +43,8 @@ export const BurnoutAlertBanner: React.FC = () => {
               Weekly Time Capacity Budget ({burnout.stressIndex}% Stress Index)
             </h4>
             <p className="text-[11px] text-slate-300">
-              {burnout.totalScheduledHours} hrs scheduled / {burnout.safeWeeklyHoursLimit} hrs safe weekly threshold
+              {burnout.totalScheduledHours} hrs total / {burnout.safeWeeklyHoursLimit} hrs safe weekly
+              threshold <span className="text-slate-400">(school hours included)</span>
             </p>
           </div>
         </div>
@@ -77,6 +82,14 @@ export const BurnoutAlertBanner: React.FC = () => {
         </span>
         <span className="px-2 py-0.5 rounded bg-slate-900/80 border border-slate-800">
           Bronze DofE: {burnout.dofeHours}h
+        </span>
+        {burnout.customGoalsHours > 0 && (
+          <span className="px-2 py-0.5 rounded bg-slate-900/80 border border-slate-800">
+            Other Goals: {burnout.customGoalsHours}h
+          </span>
+        )}
+        <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800 text-emerald-300">
+          Study Logged: {burnout.loggedRevisionHours}h
         </span>
       </div>
 

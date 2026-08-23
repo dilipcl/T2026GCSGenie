@@ -433,7 +433,21 @@ export const INITIAL_TIMETABLE_ENTRIES: TimetableEntry[] = [
   { id: 'dofe-sat', weekType: 'BOTH', dayOfWeek: 'SAT', slotName: 'Period 1', startTime: '10:00', endTime: '12:00', activityName: 'Bronze DofE Volunteering & Skills', room: 'Community', isHardLocked: true },
 ];
 
+/**
+ * Micro-rewards exist so there is something reachable within a day or two.
+ * The original catalogue started at 800 XP, roughly ten days of steady work,
+ * which is a savings account rather than a craving - too far away to reinforce
+ * anything on the day the effort is actually made.
+ */
+export const MICRO_REWARDS: RewardItem[] = [
+  { id: 'rew-m1', title: 'Pick Tonight\'s Dinner Music', description: 'Your playlist while everyone eats. No skipping allowed.', costXP: 50, icon: '🎵', category: 'PRIVILEGE' },
+  { id: 'rew-m2', title: 'Skip One Chore Today', description: 'Nominate a single job and it is off your list.', costXP: 75, icon: '🧹', category: 'PRIVILEGE' },
+  { id: 'rew-m3', title: '15 Minutes Extra Screen Time', description: 'A short top-up on today\'s allowance.', costXP: 100, icon: '📱', category: 'SCREEN_TIME' },
+  { id: 'rew-m4', title: 'Choose the Weekend Film', description: 'You pick what the family watches this weekend.', costXP: 150, icon: '🍿', category: 'ACTIVITY' },
+];
+
 export const INITIAL_REWARDS: RewardItem[] = [
+  ...MICRO_REWARDS,
   { id: 'rew-1', title: '1 Hour Extra Weekend Screen Time', description: 'Redeem for 60 mins of gaming / video time on Saturday or Sunday.', costXP: 1000, icon: '🎮', category: 'SCREEN_TIME' },
   { id: 'rew-2', title: 'Choose Weekend Family Takeaway / Dinner', description: 'Pick the family dinner location or delivery menu.', costXP: 1500, icon: '🍕', category: 'ACTIVITY' },
   { id: 'rew-3', title: 'Tech / Gaming Accessory (£15 budget)', description: 'Parent-sponsored £15 reward voucher or accessory.', costXP: 3000, icon: '🎧', category: 'CUSTOM' },

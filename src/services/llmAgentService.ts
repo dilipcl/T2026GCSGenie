@@ -114,10 +114,10 @@ function generateDeterministicAuditReport(data: {
 
   // Burnout check
   if (data.burnout.stressStatus === 'RED') {
-    alerts.push(`Critical Stress Alert: ${data.burnout.totalScheduledHours}h scheduled vs 45h safe threshold.`);
+    alerts.push(`Critical Stress Alert: ${data.burnout.totalScheduledHours}h scheduled vs ${data.burnout.safeWeeklyHoursLimit}h safe threshold.`);
     recommendations.push('Apply MoSCoW prioritization: Pause non-essential recreational goals.');
   } else if (data.burnout.stressStatus === 'AMBER') {
-    recommendations.push('Capacity is near safe limits (44h/45h). Maintain strict 22:00 sleep cutoff.');
+    recommendations.push(`Capacity is near safe limits (${data.burnout.totalScheduledHours}h/${data.burnout.safeWeeklyHoursLimit}h). Maintain strict 22:00 sleep cutoff.`);
   }
 
   // Remediation Quests
@@ -141,9 +141,10 @@ function generateDeterministicAuditReport(data: {
 ${data.ragList.map((r) => `  * **${r.name}:** [${r.ragStatus}] Score: ${r.healthScore}/100 | HW: ${r.hwRate}% | Remediations: ${r.remRate}%`).join('\n')}
 
 #### 2. Time-Capacity & Burnout Risk Analysis
-- **Total Scheduled Load:** ${data.burnout.totalScheduledHours} hrs / 45.0 hrs max safe capacity.
+- **Total Scheduled Load:** ${data.burnout.totalScheduledHours} hrs / ${data.burnout.safeWeeklyHoursLimit} hrs max safe capacity (includes school hours).
 - **Stress Index:** ${data.burnout.stressIndex}% (${data.burnout.stressStatus}).
-- **Base Commitments:** School (32.5h) + Air Cadets (6h Tue/Fri) + Art (1.5h) + Drums (2h) + DofE (2h).
+- **Base Commitments:** School (${data.burnout.schoolHours}h) + Air Cadets (${data.burnout.cadetsHours}h Tue/Fri) + Art (${data.burnout.artSupportHours}h) + Drums (${data.burnout.drumsHours}h) + DofE (${data.burnout.dofeHours}h).
+- **Logged Revision This Week:** ${data.burnout.loggedRevisionHours} hrs.
 
 #### 3. Subject Balance & Key Alerts
 ${alerts.map((a) => `- ${a}`).join('\n')}
