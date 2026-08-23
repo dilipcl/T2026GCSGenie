@@ -8,6 +8,7 @@ import {
   TimetableSlotConfig,
   TimetableEntry,
   RemediationAction,
+  MilestoneReminder,
   RewardItem,
   RewardRedemption,
   Sanction,
@@ -21,6 +22,7 @@ import {
   INITIAL_SUBJECTS,
   INITIAL_SYLLABUS_TOPICS,
   INITIAL_REMEDIATION_ACTIONS,
+  INITIAL_MILESTONES,
   INITIAL_TIMETABLE_SLOTS,
   INITIAL_TIMETABLE_ENTRIES,
   INITIAL_REWARDS,
@@ -39,6 +41,7 @@ export class GCSEGenieDatabase extends Dexie {
   timetableSlots!: Table<TimetableSlotConfig, string>;
   timetableEntries!: Table<TimetableEntry, string>;
   remediations!: Table<RemediationAction, string>;
+  milestones!: Table<MilestoneReminder, string>;
   rewards!: Table<RewardItem, string>;
   redemptions!: Table<RewardRedemption, string>;
   sanctions!: Table<Sanction, string>;
@@ -51,15 +54,16 @@ export class GCSEGenieDatabase extends Dexie {
   constructor() {
     super('GCSEGenieDB');
 
-    this.version(1).stores({
+    this.version(2).stores({
       subjects: 'id, examBoard, targetGrade',
-      syllabusTopics: 'id, subjectId, unit, isCompleted, isImportantForGrade9',
-      checkIns: 'id, date, timestamp',
-      tasks: 'id, subjectId, dueDate, isHomework, isRemediation, completed',
-      goals: 'id, category, subjectId, status, ragStatus',
+      syllabusTopics: 'id, subjectId, unit, isCompleted, isImportantForGrade9, yearGroup',
+      checkIns: 'id, date, timestamp, session',
+      tasks: 'id, subjectId, dueDate, priority, isHomework, isRemediation, completed',
+      goals: 'id, category, subjectId, status, ragStatus, priority',
       timetableSlots: 'id',
       timetableEntries: 'id, weekType, dayOfWeek, subjectId',
-      remediations: 'id, subjectId, isCompleted',
+      remediations: 'id, subjectId, isCompleted, parentQuestId',
+      milestones: 'id, date, category, priority, isCompleted',
       rewards: 'id, category, costXP',
       redemptions: 'id, rewardId, status, requestedAt',
       sanctions: 'id, date, shopFrozen',
@@ -79,6 +83,7 @@ export class GCSEGenieDatabase extends Dexie {
     await this.subjects.bulkAdd(INITIAL_SUBJECTS);
     await this.syllabusTopics.bulkAdd(INITIAL_SYLLABUS_TOPICS);
     await this.remediations.bulkAdd(INITIAL_REMEDIATION_ACTIONS);
+    await this.milestones.bulkAdd(INITIAL_MILESTONES);
     await this.timetableSlots.bulkAdd(INITIAL_TIMETABLE_SLOTS);
     await this.timetableEntries.bulkAdd(INITIAL_TIMETABLE_ENTRIES);
     await this.rewards.bulkAdd(INITIAL_REWARDS);
@@ -90,16 +95,18 @@ export class GCSEGenieDatabase extends Dexie {
       id: 'active_settings',
     });
 
-    // Add initial starter tasks
+    // Initial Starter Tasks with Priorities and Goal Linkage
     await this.tasks.bulkAdd([
       {
         id: 't-maths-hw-1',
         subjectId: 'maths',
         title: 'Edexcel Paper 1 Past Paper Questions (Venn & Trig)',
-        description: 'Complete questions 12 to 18 on independence probability.',
+        description: 'Complete questions 12 to 18 on independence probability proofs.',
         dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+        priority: 'HIGH',
         isHomework: true,
         isRemediation: false,
+        linkedGoalId: 'g-academic-maths',
         xpValue: 50,
         completed: false,
         createdAt: Date.now(),
@@ -108,10 +115,12 @@ export class GCSEGenieDatabase extends Dexie {
         id: 't-cs-hw-1',
         subjectId: 'computer_science',
         title: 'OCR CS Network Protocols (TCP/IP 4-Layer Model)',
-        description: 'Summarize Application, Transport, Network, and Link layers.',
+        description: 'Summarize Application, Transport, Network, and Link layers for teacher AMN.',
         dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        priority: 'HIGH',
         isHomework: true,
         isRemediation: false,
+        linkedGoalId: 'g-academic-cs',
         xpValue: 50,
         completed: false,
         createdAt: Date.now(),
@@ -122,6 +131,20 @@ export class GCSEGenieDatabase extends Dexie {
         title: 'Portfolio AO2 Media Experimentation Sheet',
         description: 'Complete 2 mixed-media color studies for Component 1.',
         dueDate: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0],
+        priority: 'MEDIUM',
+        isHomework: true,
+        isRemediation: false,
+        xpValue: 50,
+        completed: false,
+        createdAt: Date.now(),
+      },
+      {
+        id: 't-sci-hw-1',
+        subjectId: 'physics',
+        title: 'Physics Energy Transfer Safety Step Problems',
+        description: 'Solve 5 questions converting time to seconds before calculating E=Pxt.',
+        dueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
+        priority: 'MEDIUM',
         isHomework: true,
         isRemediation: false,
         xpValue: 50,

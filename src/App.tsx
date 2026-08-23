@@ -1,159 +1,144 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { UserRole, WeekType } from './types';
 import { Header } from './components/layout/Header';
-import { Navigation, ActiveTab } from './components/layout/Navigation';
+import { Navigation, NavTab } from './components/layout/Navigation';
 import { DailyCheckInModal } from './components/dashboard/DailyCheckInModal';
-import { ParentPinModal } from './components/parent/ParentPinModal';
+import { CheckInHistoryModal } from './components/dashboard/CheckInHistoryModal';
 import { TodayScheduleCard } from './components/dashboard/TodayScheduleCard';
 import { ActiveQuestsCard } from './components/dashboard/ActiveQuestsCard';
 import { BurnoutAlertBanner } from './components/dashboard/BurnoutAlertBanner';
+import { TaskManagerView } from './components/tasks/TaskManagerView';
+import { MilestoneCalendarView } from './components/calendar/MilestoneCalendarView';
 import { Grade9GoalsView } from './components/goals/Grade9GoalsView';
 import { TimetableManager } from './components/timetable/TimetableManager';
 import { RemediationHub } from './components/remediation/RemediationHub';
 import { RewardsShop } from './components/rewards/RewardsShop';
 import { HelpAndCareersHub } from './components/guidance/HelpAndCareersHub';
 import { ParentPortal } from './components/parent/ParentPortal';
-import { Sparkles, Target, Zap, ArrowRight } from 'lucide-react';
+import { ParentPinModal } from './components/parent/ParentPinModal';
+import { Zap, BookmarkCheck } from 'lucide-react';
 
-export function App() {
+export const App: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<NavTab>('DASHBOARD');
   const [currentRole, setCurrentRole] = useState<UserRole>('STUDENT');
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [activeWeek, setActiveWeek] = useState<WeekType>('ODD');
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [selectedRemediationId, setSelectedRemediationId] = useState<string | undefined>();
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isParentPinOpen, setIsParentPinOpen] = useState(false);
+  const [selectedQuestId, setSelectedQuestId] = useState<string | undefined>(undefined);
 
-  const handleToggleRole = (targetRole: UserRole) => {
+  const handleRoleToggle = (targetRole: UserRole) => {
     if (targetRole === 'PARENT') {
-      setIsPinModalOpen(true);
+      setIsParentPinOpen(true);
     } else {
       setCurrentRole('STUDENT');
+      if (activeTab === 'PARENT') setActiveTab('DASHBOARD');
     }
   };
 
-  const handlePinSuccess = () => {
+  const handleParentUnlockSuccess = () => {
     setCurrentRole('PARENT');
-    setActiveTab('parent');
+    setActiveTab('PARENT');
   };
 
-  const handleToggleWeek = () => {
-    setActiveWeek((prev) => (prev === 'ODD' ? 'EVEN' : 'ODD'));
-  };
-
-  const handleOpenRemediation = (questId?: string) => {
-    setSelectedRemediationId(questId);
-    setActiveTab('remediation');
+  const handleSelectQuestFromDashboard = (questId: string) => {
+    setSelectedQuestId(questId);
+    setActiveTab('REMEDIATIONS');
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white">
-      {/* Top Header */}
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-20 md:pb-8">
+      {/* Header Bar */}
       <Header
         currentRole={currentRole}
-        onToggleRole={handleToggleRole}
+        onToggleRole={handleRoleToggle}
         activeWeek={activeWeek}
-        onToggleWeek={handleToggleWeek}
+        onToggleWeek={() => setActiveWeek((prev) => (prev === 'ODD' ? 'EVEN' : 'ODD'))}
         onOpenCheckIn={() => setIsCheckInOpen(true)}
       />
 
-      {/* Navigation Tabs */}
-      <Navigation
-        activeTab={activeTab}
-        onSelectTab={setActiveTab}
-        currentRole={currentRole}
-      />
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-5">
+        {/* Navigation Tabs */}
+        <Navigation
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          currentRole={currentRole}
+        />
 
-      {/* Main App Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 pb-24 md:pb-8">
-        {/* TAB 1: DASHBOARD */}
-        {activeTab === 'dashboard' && (
+        {/* Dynamic Content Views */}
+        {activeTab === 'DASHBOARD' && (
           <div className="space-y-6">
-            {/* Quick Hero Banner */}
-            <div className="glass-card p-6 bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-slate-900 border-indigo-500/30 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs uppercase font-extrabold tracking-wider px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Tejas Dilip · GCSE Year 10</span>
-                  </span>
+            {/* Top Quick Check-in Banner & History Trigger */}
+            <div className="glass-card p-5 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-indigo-950/40 border-emerald-500/30 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl border border-emerald-500/30 shadow-lg shadow-emerald-950/40">
+                  ⚡
                 </div>
-                <h2 className="text-2xl font-extrabold text-white tracking-tight">
-                  Welcome to GCSE Genie
-                </h2>
-                <p className="text-xs text-slate-300 max-w-xl mt-1">
-                  Zero administrative friction organiser. Log daily homework in &lt;2 minutes,
-                  remedy Year 9 test errors, track your 45h safe capacity budget, and bank real-world XP.
-                </p>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Daily GCSE Check-in & Learning Log</h2>
+                  <p className="text-xs text-slate-300">
+                    Multiple daily check-ins supported (Morning, After School, Evening). Earn +10 XP daily base + 50 XP per homework!
+                  </p>
+                </div>
               </div>
 
-              <button
-                onClick={() => setIsCheckInOpen(true)}
-                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-xl shadow-emerald-950/60 flex items-center gap-2 transition-all active:scale-95"
-              >
-                <Zap className="w-5 h-5 text-emerald-200" />
-                <span>Start Daily 2-Min Check-in</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsHistoryOpen(true)}
+                  className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 flex items-center gap-1.5 transition-all"
+                >
+                  <BookmarkCheck className="w-4 h-4 text-indigo-400" />
+                  <span>Learning Timeline</span>
+                </button>
+
+                <button
+                  onClick={() => setIsCheckInOpen(true)}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/50 flex items-center gap-2 transition-all active:scale-95"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>Start Check-in</span>
+                </button>
+              </div>
             </div>
 
-            {/* Burnout & Time Capacity Alert */}
+            {/* Burnout Capacity Status */}
             <BurnoutAlertBanner />
 
-            {/* 2-Column Section: Schedule & Diagnostic Quests */}
+            {/* Grid: Timetable & Quests */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <TodayScheduleCard
                 activeWeek={activeWeek}
-                onNavigateToTimetable={() => setActiveTab('timetable')}
+                onNavigateToTimetable={() => setActiveTab('TIMETABLE')}
               />
 
-              <ActiveQuestsCard onOpenRemediation={handleOpenRemediation} />
-            </div>
-
-            {/* Quick Preview of Grade 9 Goals */}
-            <div className="glass-card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Target className="w-5 h-5 text-indigo-400" />
-                  <h3 className="font-bold text-sm text-white">
-                    Grade 9 Academic Curriculum Alignment
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setActiveTab('goals')}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1"
-                >
-                  <span>View All 6 Subjects</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-xs text-slate-400">
-                Tracking Edexcel Maths, AQA English Lang & Lit, AQA Triple Science, AQA History, OCR
-                Computer Science, and AQA Art Portfolio progression.
-              </p>
+              <ActiveQuestsCard onSelectQuest={handleSelectQuestFromDashboard} />
             </div>
           </div>
         )}
 
-        {/* TAB 2: GOALS & RAG STATUS */}
-        {activeTab === 'goals' && <Grade9GoalsView />}
+        {activeTab === 'TASKS' && <TaskManagerView />}
 
-        {/* TAB 3: ROTATIONAL TIMETABLE */}
-        {activeTab === 'timetable' && (
-          <TimetableManager activeWeek={activeWeek} onToggleWeek={handleToggleWeek} />
+        {activeTab === 'CALENDAR' && <MilestoneCalendarView />}
+
+        {activeTab === 'GOALS' && <Grade9GoalsView />}
+
+        {activeTab === 'TIMETABLE' && (
+          <TimetableManager
+            activeWeek={activeWeek}
+            onToggleWeek={() => setActiveWeek((prev) => (prev === 'ODD' ? 'EVEN' : 'ODD'))}
+          />
         )}
 
-        {/* TAB 4: REMEDIATION PORTAL */}
-        {activeTab === 'remediation' && (
-          <RemediationHub initialQuestId={selectedRemediationId} />
+        {activeTab === 'REMEDIATIONS' && (
+          <RemediationHub initialQuestId={selectedQuestId} />
         )}
 
-        {/* TAB 5: REWARDS SHOP */}
-        {activeTab === 'rewards' && <RewardsShop currentRole={currentRole} />}
+        {activeTab === 'REWARDS' && <RewardsShop currentRole={currentRole} />}
 
-        {/* TAB 6: CAREERS & GUIDANCE HUB */}
-        {activeTab === 'guidance' && <HelpAndCareersHub />}
+        {activeTab === 'GUIDANCE' && <HelpAndCareersHub />}
 
-        {/* TAB 7: PARENT PORTAL */}
-        {activeTab === 'parent' && <ParentPortal />}
+        {activeTab === 'PARENT' && <ParentPortal />}
       </main>
 
       {/* Global Modals */}
@@ -163,13 +148,18 @@ export function App() {
         onSuccess={() => {}}
       />
 
+      <CheckInHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+      />
+
       <ParentPinModal
-        isOpen={isPinModalOpen}
-        onClose={() => setIsPinModalOpen(false)}
-        onSuccess={handlePinSuccess}
+        isOpen={isParentPinOpen}
+        onClose={() => setIsParentPinOpen(false)}
+        onSuccess={handleParentUnlockSuccess}
       />
     </div>
   );
-}
+};
 
 export default App;

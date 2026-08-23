@@ -9,11 +9,13 @@ import {
   FreeRevisionLink,
   Goal,
   ParentSettings,
+  MilestoneReminder,
 } from '../types';
 
 export const INITIAL_PARENT_SETTINGS: ParentSettings = {
   parentPinHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', // SHA-256 for '1234'
   googleDriveBackupPath: 'G:/My Drive/Documents/UK/Family/Tejas/GCSE-Genie/Backups',
+  googleDriveFolderUrl: 'https://drive.google.com/drive/folders/',
   llmProvider: 'GEMINI',
   llmModelName: 'gemini-1.5-pro',
 };
@@ -31,6 +33,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Mr. Davies (Maths Faculty)',
     teacherNotes: 'Strong algebra foundation; focus on independence probability proofs & coordinate centers.',
     examStructure: '3 x 1.5h written papers in Year 11 (Paper 1 Non-Calc, Papers 2 & 3 Calculator).',
+    driveFolderUrl: 'https://drive.google.com/drive/folders/',
   },
   {
     id: 'english_lang',
@@ -44,6 +47,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Ms. Robinson',
     teacherNotes: 'Analyze fiction/non-fiction texts with precise linguistic terminology.',
     examStructure: 'Paper 1 (Explorations in Creative Reading & Writing) & Paper 2 (Writers Viewpoints).',
+    driveFolderUrl: 'https://drive.google.com/drive/folders/',
   },
   {
     id: 'english_lit',
@@ -57,6 +61,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Ms. Robinson',
     teacherNotes: 'Master Shakespeare (Macbeth), 19th Century Prose, and Power & Conflict Poetry.',
     examStructure: 'Paper 1 (Shakespeare & 19th C Novel) & Paper 2 (Modern texts & Poetry).',
+    driveFolderUrl: 'https://drive.google.com/drive/folders/',
   },
   {
     id: 'biology',
@@ -70,6 +75,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Dr. Evans',
     teacherNotes: 'Focus on cell biology, osmosis, enzymes, bioenergetics, and 7 required practicals.',
     examStructure: '2 x 1h 45m papers (50% each) for Triple Science award.',
+    driveFolderUrl: 'https://drive.google.com/drive/folders/',
   },
   {
     id: 'chemistry',
@@ -83,6 +89,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Mr. Gallagher',
     teacherNotes: 'Chromatography Rf formulas, mole calculations, electrolysis, and quantitative chemistry.',
     examStructure: '2 x 1h 45m papers (50% each) for Triple Science award.',
+    driveFolderUrl: 'https://drive.google.com/drive/folders/',
   },
   {
     id: 'physics',
@@ -96,6 +103,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Mr. Clarke',
     teacherNotes: 'Strict unit conversion discipline (minutes -> seconds, kW -> W) and energy formulas.',
     examStructure: '2 x 1h 45m papers (50% each) for Triple Science award.',
+    driveFolderUrl: 'https://drive.google.com/drive/folders/',
   },
   {
     id: 'history',
@@ -109,6 +117,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Mr. Harrison',
     teacherNotes: 'Weimar & Nazi Germany, Conflict & Tension (1918-1939), Health and the People, Normans.',
     examStructure: 'Paper 1 (Understanding Modern World - 2h) & Paper 2 (Shaping the Nation - 2h).',
+    driveFolderUrl: 'https://drive.google.com/drive/folders/',
   },
   {
     id: 'computer_science',
@@ -122,6 +131,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'AMN (Home Learning Lead)',
     teacherNotes: 'CRITICAL: Maintain daily homework completion consistency. Master SQL & Networking.',
     examStructure: 'Component 1 (Computer Systems - 1.5h) & Component 2 (Algorithms & Programming - 1.5h).',
+    driveFolderUrl: 'https://drive.google.com/drive/folders/',
   },
   {
     id: 'art',
@@ -136,37 +146,39 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherNotes: 'Component 1 Portfolio (60%) ongoing targets + prepare for 10-hour supervised exam.',
     courseworkWeight: 60,
     examStructure: '60% Coursework Portfolio + 40% Externally Set Assignment (10-hour practical).',
+    driveFolderUrl: 'https://drive.google.com/drive/folders/',
   },
 ];
 
 export const INITIAL_SYLLABUS_TOPICS: SyllabusTopic[] = [
   // Maths
-  { id: 'm-1', subjectId: 'maths', unit: 'Probability', title: 'Independent Probability Proofs (P(A∩B)=P(A)P(B))', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true },
-  { id: 'm-2', subjectId: 'maths', unit: 'Geometry', title: 'Negative & Fractional Scale Factor Enlargements with (X,Y) Centers', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true },
-  { id: 'm-3', subjectId: 'maths', unit: 'Algebra', title: 'Expanding & Factorizing Complex Double Brackets with Negative Signs', isCompleted: false, confidenceRating: 4, isImportantForGrade9: true },
-  { id: 'm-4', subjectId: 'maths', unit: 'Algebra', title: 'Quadratic Equations & Quadratic Formula Proofs', isCompleted: true, confidenceRating: 5, isImportantForGrade9: true },
-  { id: 'm-5', subjectId: 'maths', unit: 'Trigonometry', title: 'Sine & Cosine Rules for Non-Right Angled Triangles', isCompleted: false, confidenceRating: 4, isImportantForGrade9: true },
+  { id: 'm-1', subjectId: 'maths', unit: 'Probability', title: 'Independent Probability Proofs (P(A∩B)=P(A)P(B))', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-10', driveNotesUrl: '' },
+  { id: 'm-2', subjectId: 'maths', unit: 'Geometry', title: 'Negative & Fractional Scale Factor Enlargements with (X,Y) Centers', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-17', driveNotesUrl: '' },
+  { id: 'm-3', subjectId: 'maths', unit: 'Algebra', title: 'Expanding & Factorizing Complex Double Brackets with Negative Signs', isCompleted: false, confidenceRating: 4, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-24', driveNotesUrl: '' },
+  { id: 'm-4', subjectId: 'maths', unit: 'Algebra', title: 'Quadratic Equations & Quadratic Formula Proofs', isCompleted: true, confidenceRating: 5, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-10-01', driveNotesUrl: '' },
+  { id: 'm-5', subjectId: 'maths', unit: 'Trigonometry', title: 'Sine & Cosine Rules for Non-Right Angled Triangles', isCompleted: false, confidenceRating: 4, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-10-08', driveNotesUrl: '' },
+  { id: 'm-6', subjectId: 'maths', unit: 'Algebra', title: 'Simultaneous Equations (One Linear, One Non-Linear Quadratic)', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-10-15', driveNotesUrl: '' },
   
   // Science Practicals
-  { id: 's-1', subjectId: 'chemistry', unit: 'Required Practical 6', title: 'Chromatography: Calculating Rf Values (< 1.0)', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, isRequiredPractical: true },
-  { id: 's-2', subjectId: 'physics', unit: 'Required Practical 1', title: 'Specific Heat Capacity & Energy Transfers (E=Pxt)', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, isRequiredPractical: true },
-  { id: 's-3', subjectId: 'biology', unit: 'Required Practical 1', title: 'Microscopy: Plant & Animal Cell Magnification', isCompleted: true, confidenceRating: 5, isImportantForGrade9: true, isRequiredPractical: true },
-  { id: 's-4', subjectId: 'biology', unit: 'Required Practical 3', title: 'Osmosis in Plant Tissue (Mass change %)', isCompleted: false, confidenceRating: 4, isImportantForGrade9: true, isRequiredPractical: true },
-  { id: 's-5', subjectId: 'physics', unit: 'Required Practical 2', title: 'Thermal Insulation & Rate of Cooling', isCompleted: false, confidenceRating: 4, isImportantForGrade9: true, isRequiredPractical: true },
+  { id: 's-1', subjectId: 'chemistry', unit: 'Required Practical 6', title: 'Chromatography: Calculating Rf Values (< 1.0)', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, isRequiredPractical: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-12' },
+  { id: 's-2', subjectId: 'physics', unit: 'Required Practical 1', title: 'Specific Heat Capacity & Energy Transfers (E=Pxt)', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, isRequiredPractical: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-19' },
+  { id: 's-3', subjectId: 'biology', unit: 'Required Practical 1', title: 'Microscopy: Plant & Animal Cell Magnification', isCompleted: true, confidenceRating: 5, isImportantForGrade9: true, isRequiredPractical: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-26' },
+  { id: 's-4', subjectId: 'biology', unit: 'Required Practical 3', title: 'Osmosis in Plant Tissue (Mass change %)', isCompleted: false, confidenceRating: 4, isImportantForGrade9: true, isRequiredPractical: true, yearGroup: 'YEAR_10', dateTaught: '2026-10-03' },
+  { id: 's-5', subjectId: 'physics', unit: 'Required Practical 2', title: 'Thermal Insulation & Rate of Cooling', isCompleted: false, confidenceRating: 4, isImportantForGrade9: true, isRequiredPractical: true, yearGroup: 'YEAR_10', dateTaught: '2026-10-10' },
   
   // History
-  { id: 'h-1', subjectId: 'history', unit: 'Weimar Germany', title: 'Treaty of Versailles Terms & Reparations (£6.6 Billion)', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true },
-  { id: 'h-2', subjectId: 'history', unit: 'Essay Skills', title: '12-Mark Comparative Essay Structure with Definite Judgment', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true },
-  { id: 'h-3', subjectId: 'history', unit: 'America 1920-73', title: 'Boom to Bust: Wall Street Crash & Great Depression', isCompleted: true, confidenceRating: 4, isImportantForGrade9: true },
+  { id: 'h-1', subjectId: 'history', unit: 'Weimar Germany', title: 'Treaty of Versailles Terms & Reparations (£6.6 Billion)', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-14' },
+  { id: 'h-2', subjectId: 'history', unit: 'Essay Skills', title: '12-Mark Comparative Essay Structure with Definite Judgment', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-21' },
+  { id: 'h-3', subjectId: 'history', unit: 'America 1920-73', title: 'Boom to Bust: Wall Street Crash & Great Depression', isCompleted: true, confidenceRating: 4, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-28' },
 
   // Computer Science
-  { id: 'cs-1', subjectId: 'computer_science', unit: 'Component 1', title: 'Networks: Protocols (TCP/IP, HTTP, HTTPS, DNS)', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true },
-  { id: 'cs-2', subjectId: 'computer_science', unit: 'Component 2', title: 'SQL Queries & Relational Database Design', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true },
-  { id: 'cs-3', subjectId: 'computer_science', unit: 'Home Learning', title: 'Consistent On-Time Homework Submission Streak', isCompleted: false, confidenceRating: 2, isImportantForGrade9: true },
+  { id: 'cs-1', subjectId: 'computer_science', unit: 'Component 1', title: 'Networks: Protocols (TCP/IP, HTTP, HTTPS, DNS)', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-15' },
+  { id: 'cs-2', subjectId: 'computer_science', unit: 'Component 2', title: 'SQL Queries & Relational Database Design', isCompleted: false, confidenceRating: 3, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-22' },
+  { id: 'cs-3', subjectId: 'computer_science', unit: 'Home Learning', title: 'Consistent On-Time Homework Submission Streak', isCompleted: false, confidenceRating: 2, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-29' },
   
   // Art
-  { id: 'a-1', subjectId: 'art', unit: 'Portfolio (60%)', title: 'AO1: Critical & Contextual Research Investigation', isCompleted: true, confidenceRating: 4, isImportantForGrade9: true },
-  { id: 'a-2', subjectId: 'art', unit: 'Portfolio (60%)', title: 'AO2: Creative Media Experimentation & Refinement', isCompleted: false, confidenceRating: 4, isImportantForGrade9: true },
+  { id: 'a-1', subjectId: 'art', unit: 'Portfolio (60%)', title: 'AO1: Critical & Contextual Research Investigation', isCompleted: true, confidenceRating: 4, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-18' },
+  { id: 'a-2', subjectId: 'art', unit: 'Portfolio (60%)', title: 'AO2: Creative Media Experimentation & Refinement', isCompleted: false, confidenceRating: 4, isImportantForGrade9: true, yearGroup: 'YEAR_10', dateTaught: '2026-09-25' },
 ];
 
 export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
@@ -176,7 +188,7 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     sourceDoc: 'yr9- maths.pdf (Score: 60/75)',
     diagnosticError: 'Scored 0/2 on proving event independence on Venn Diagram question.',
     taskTitle: 'Venn Diagram Probability Proofs',
-    taskInstructions: 'Solve 3 mock exam questions proving independence using the exact formula: P(B ∩ S) = P(B) × P(S). Explain step-by-step why the product equals the intersection.',
+    taskInstructions: 'Solve mock exam questions proving independence using the exact formula: P(B ∩ S) = P(B) × P(S). Explain step-by-step why the product equals the intersection. Provide Google Notebook proof of working.',
     formulaOrHint: 'Independent events definition: P(A ∩ B) = P(A) × P(B). If equality holds, events are statistically independent.',
     sampleQuestions: [
       {
@@ -188,6 +200,32 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
         expectedOutcome: 'P(F) = 15/30 = 0.5, P(T) = 10/30 = 1/3. P(F) × P(T) = 1/6 (5/30). Since P(F ∩ T) = 5/30 = 1/6, they are independent.',
       },
     ],
+    comprehensiveQuestions: [
+      {
+        id: 'q-m1-1',
+        questionNumber: 'Q1 (a)',
+        questionText: 'A spinner has 5 sections numbered 1 to 5. Let A be the event of spinning an even number and B be spinning a number greater than 2. Calculate P(A), P(B), and P(A ∩ B).',
+        marksAllocated: 3,
+        modelAnswer: 'P(A) = 2/5 (numbers 2,4). P(B) = 3/5 (numbers 3,4,5). A ∩ B = {4}, so P(A ∩ B) = 1/5.',
+        markSchemeNotes: '1 mark for P(A), 1 mark for P(B), 1 mark for P(A ∩ B).'
+      },
+      {
+        id: 'q-m1-2',
+        questionNumber: 'Q1 (b)',
+        questionText: 'Using your answers from part (a), determine with proof whether events A and B are statistically independent.',
+        marksAllocated: 2,
+        modelAnswer: 'P(A) × P(B) = (2/5) × (3/5) = 6/25 (0.24). Since P(A ∩ B) = 1/5 = 5/25 (0.20), P(A ∩ B) ≠ P(A) × P(B). Therefore, events A and B are NOT independent.',
+        markSchemeNotes: '1 mark for calculating product 6/25. 1 mark for explicit comparison statement and conclusion.'
+      },
+      {
+        id: 'q-m1-3',
+        questionNumber: 'Q2',
+        questionText: 'In a survey of 100 students: 60 study Biology (B), 40 study Chemistry (C), and 24 study both. Prove whether choosing a Biology student and choosing a Chemistry student are independent events.',
+        marksAllocated: 3,
+        modelAnswer: 'P(B) = 60/100 = 0.6. P(C) = 40/100 = 0.4. P(B ∩ C) = 24/100 = 0.24. Product: P(B) × P(C) = 0.6 × 0.4 = 0.24. Since 0.24 == 0.24, the events are independent.',
+        markSchemeNotes: '1 mark for probabilities, 1 mark for product calculation, 1 mark for conclusive proof statement.'
+      }
+    ],
     xpReward: 200,
     isCompleted: false,
   },
@@ -197,13 +235,23 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     sourceDoc: 'yr9- maths.pdf',
     diagnosticError: 'Scored 1/2 on scale-factor enlargement and transformation descriptions.',
     taskTitle: 'Scale-Factor Enlargements with Coordinate Centers',
-    taskInstructions: 'Perform 2 graph-based exercises shape enlargement with negative fractional scale factors (e.g. -1/2, -2) from specified (X,Y) centers of origin.',
+    taskInstructions: 'Perform graph-based shape enlargement with negative fractional scale factors (e.g. -1/2, -2) from specified (X,Y) centers of origin. Upload notebook drawing proof.',
     formulaOrHint: 'Negative scale factors invert the shape through the center of enlargement: Distance = Scale Factor × Distance from Center.',
     sampleQuestions: [
       {
         question: 'Enlarge triangle A with vertices at (2,2), (4,2), (2,6) by scale factor -1/2 with center (0,0).',
         expectedOutcome: 'New vertices: (-1, -1), (-2, -1), (-1, -3).',
       },
+    ],
+    comprehensiveQuestions: [
+      {
+        id: 'q-m2-1',
+        questionNumber: 'Q1',
+        questionText: 'Triangle T has vertices at (3, 1), (5, 1), (3, 4). Enlarge Triangle T by scale factor -2 with center of enlargement (1, 1). State the coordinates of the 3 new vertices.',
+        marksAllocated: 3,
+        modelAnswer: 'Vector from (1,1) to (3,1) is (2,0) -> (-4,0) -> Vertex 1: (-3, 1). Vector to (5,1) is (4,0) -> (-8,0) -> Vertex 2: (-7, 1). Vector to (3,4) is (2,3) -> (-4,-6) -> Vertex 3: (-3, -5).',
+        markSchemeNotes: '1 mark for correct method of ray lines/vectors from center (1,1). 2 marks for all 3 correct coordinates.'
+      }
     ],
     xpReward: 150,
     isCompleted: false,
@@ -214,7 +262,7 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     sourceDoc: 'yr9- maths.pdf',
     diagnosticError: 'Calculation errors on expanding (2x+3)^2 - (2x+3)(x-5). Sign errors on negative distribution.',
     taskTitle: 'Double Bracket Quadratic Expansion & Factorization',
-    taskInstructions: 'Solve 5 complex expanding and factorizing quadratic expressions to reinforce strict sign consistency when subtracting expressions.',
+    taskInstructions: 'Solve complex expanding and factorizing quadratic expressions to reinforce strict sign consistency when subtracting expressions.',
     formulaOrHint: '(2x+3)^2 = 4x^2 + 12x + 9. (2x+3)(x-5) = 2x^2 - 7x - 15. Subtracting gives: (4x^2 + 12x + 9) - (2x^2 - 7x - 15) = 2x^2 + 19x + 24.',
     sampleQuestions: [
       {
@@ -248,7 +296,7 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     sourceDoc: 'science .pdf',
     diagnosticError: 'Multiplied 65W by 25 mins directly on drone battery, omitting minute-to-second conversion (got 1625J instead of 97,500J).',
     taskTitle: 'Physics Power-to-Energy Unit Conversion Safety Step',
-    taskInstructions: 'Solve 5 energy transfer problems involving E = P × t. Explicitly write the "Unit Safety Conversion" step (t in seconds) before multiplying.',
+    taskInstructions: 'Solve energy transfer problems involving E = P × t. Explicitly write the "Unit Safety Conversion" step (t in seconds) before multiplying.',
     formulaOrHint: '1 minute = 60 seconds. Energy (Joules) = Power (Watts) × Time (Seconds). 65W × (25 × 60s) = 65W × 1500s = 97,500 J (97.5 kJ).',
     sampleQuestions: [
       {
@@ -312,6 +360,51 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
   },
 ];
 
+export const INITIAL_MILESTONES: MilestoneReminder[] = [
+  {
+    id: 'mile-1',
+    title: 'Year 10 Autumn Interim Assessment 1 (IR1)',
+    date: '2026-10-18',
+    category: 'EXAM_MOCK',
+    priority: 'HIGH',
+    isCompleted: false,
+    notes: 'Key tracking point for Edexcel Maths and OCR Computer Science.',
+    createdAt: Date.now(),
+  },
+  {
+    id: 'mile-2',
+    title: 'GCSE Art Component 1 Portfolio Checkpoint',
+    date: '2026-11-05',
+    category: 'PORTFOLIO_DEADLINE',
+    subjectId: 'art',
+    priority: 'HIGH',
+    isCompleted: false,
+    notes: 'Submit AO1 and AO2 research and experimentation sheets to Ms. Taylor.',
+    createdAt: Date.now(),
+  },
+  {
+    id: 'mile-3',
+    title: 'AQA Chemistry Required Practical 6 Assessment',
+    date: '2026-10-24',
+    category: 'REQUIRED_PRACTICAL',
+    subjectId: 'chemistry',
+    priority: 'MEDIUM',
+    isCompleted: false,
+    notes: 'Chromatography Rf analysis and lab book write-up review.',
+    createdAt: Date.now(),
+  },
+  {
+    id: 'mile-4',
+    title: 'Bronze DofE Expedition Skills Review',
+    date: '2026-11-15',
+    category: 'CADETS',
+    priority: 'MEDIUM',
+    isCompleted: false,
+    notes: 'Submit navigation logs and volunteering hours evidence.',
+    createdAt: Date.now(),
+  },
+];
+
 export const INITIAL_TIMETABLE_SLOTS: TimetableSlotConfig[] = [
   { id: 'reg', name: 'Registration / Tutor', defaultStartTime: '08:30', defaultEndTime: '08:50', isBreakOrLunch: false },
   { id: 'p1', name: 'Period 1', defaultStartTime: '08:50', defaultEndTime: '09:50', isBreakOrLunch: false },
@@ -326,7 +419,6 @@ export const INITIAL_TIMETABLE_SLOTS: TimetableSlotConfig[] = [
 ];
 
 export const INITIAL_TIMETABLE_ENTRIES: TimetableEntry[] = [
-  // Odd Week
   { id: 'odd-mon-p1', weekType: 'ODD', dayOfWeek: 'MON', slotName: 'Period 1', startTime: '08:50', endTime: '09:50', subjectId: 'maths', activityName: 'Maths (Linear 9-1)', room: 'M2', isHardLocked: false },
   { id: 'odd-mon-p2', weekType: 'ODD', dayOfWeek: 'MON', slotName: 'Period 2', startTime: '09:50', endTime: '10:50', subjectId: 'english_lang', activityName: 'English Language', room: 'E4', isHardLocked: false },
   { id: 'odd-mon-p3', weekType: 'ODD', dayOfWeek: 'MON', slotName: 'Period 3', startTime: '11:10', endTime: '12:10', subjectId: 'physics', activityName: 'Physics (Triple)', room: 'S1', isHardLocked: false },
@@ -408,6 +500,8 @@ export const INITIAL_GOALS: Goal[] = [
     title: 'Achieve Grade 9 in Edexcel Mathematics',
     category: 'ACADEMIC_GRADE_9',
     subjectId: 'maths',
+    targetDate: '2027-06-15',
+    priority: 'HIGH',
     smartSpecific: 'Master all Grade 8/9 exam question types (functions, Venn independence proofs, coordinate enlargement).',
     smartMeasurable: 'Score 68+/80 on all mock papers.',
     smartAchievable: 'Weekly practice questions + completing Year 9 remediation actions.',
@@ -425,6 +519,8 @@ export const INITIAL_GOALS: Goal[] = [
     title: 'Achieve Grade 9 in OCR Computer Science',
     category: 'ACADEMIC_GRADE_9',
     subjectId: 'computer_science',
+    targetDate: '2027-06-18',
+    priority: 'HIGH',
     smartSpecific: 'Zero missing homework assignments for teacher AMN; master networking protocols and SQL.',
     smartMeasurable: '14-day homework completion streak + 90%+ on component quizzes.',
     smartAchievable: 'Log homework immediately on day set using Genie dashboard.',
@@ -441,6 +537,8 @@ export const INITIAL_GOALS: Goal[] = [
     id: 'g-cadets',
     title: 'Air Cadets Leadership & Skills Milestone',
     category: 'CO_CURRICULAR',
+    targetDate: '2027-04-01',
+    priority: 'MEDIUM',
     smartSpecific: 'Complete Leading Cadet classification exam & maintain parade attendance on Tue/Fri.',
     smartMeasurable: '100% parade attendance (Tue/Fri 19:00-22:00).',
     smartAchievable: 'Blocked out securely in weekly schedule.',

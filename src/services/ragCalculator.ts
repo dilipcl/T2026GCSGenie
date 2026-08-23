@@ -5,6 +5,7 @@ export interface SubjectRAGResult {
   subjectId: SubjectId;
   healthScore: number; // 0 - 100
   ragStatus: RAGStatus;
+  isManualOverride: boolean;
   homeworkCompletionRate: number; // 0 - 100
   remediationCompletionRate: number; // 0 - 100
   topicsMastered: number;
@@ -13,6 +14,8 @@ export interface SubjectRAGResult {
 }
 
 export async function calculateSubjectRAG(subjectId: SubjectId): Promise<SubjectRAGResult> {
+  const subjectConfig = await db.subjects.get(subjectId);
+
   // 1. Homework tasks for this subject
   const allTasks = await db.tasks.where('subjectId').equals(subjectId).toArray();
   const homeworkTasks = allTasks.filter((t) => t.isHomework);
@@ -30,23 +33,40 @@ export async function calculateSubjectRAG(subjectId: SubjectId): Promise<Subject
   const topicRate = topics.length > 0 ? (masteredTopics.length / topics.length) * 100 : 80;
 
   // Health Score Weighted: 40% Homework, 35% Remediations, 25% Topics Mastered
-  const score = Math.round(hwRate * 0.4 + remRate * 0.35 + topicRate * 0.25);
-
+  let score = Math.round(hwRate * 0.4 + remRate * 0.35 + topicRate * 0.25);
   let ragStatus: RAGStatus = 'GREEN';
-  let details = 'On track for Grade 9 mastery.';
+  let isManualOverride = false;
 
-  if (score < 65) {
-    ragStatus = 'RED';
-    details = 'Critical risk to Grade 9 target! Overdue tasks or unaddressed diagnostics.';
-  } else if (score < 85) {
-    ragStatus = 'AMBER';
-    details = 'Attention needed. Incomplete remediations or pending homework.';
+  // Check if subject has a manual override
+  if (subjectConfig?.manualRAGOverride) {
+    ragStatus = subjectConfig.manualRAGOverride;
+    isManualOverride = true;
+    if (subjectConfig.manualHealthScore !== undefined && subjectConfig.manualHealthScore !== null) {
+      score = subjectConfig.manualHealthScore;
+    }
+  } else {
+    if (score < 65) {
+      ragStatus = 'RED';
+    } else if (score < 85) {
+      ragStatus = 'AMBER';
+    } else {
+      ragStatus = 'GREEN';
+    }
   }
+
+  let details = isManualOverride
+    ? `Manually set by Parent/Student: [${ragStatus}].`
+    : ragStatus === 'GREEN'
+    ? 'On track for Grade 9 mastery.'
+    : ragStatus === 'AMBER'
+    ? 'Attention needed. Incomplete remediations or pending homework.'
+    : 'Critical risk to Grade 9 target! Overdue tasks or unaddressed diagnostics.';
 
   return {
     subjectId,
     healthScore: score,
     ragStatus,
+    isManualOverride,
     homeworkCompletionRate: Math.round(hwRate),
     remediationCompletionRate: Math.round(remRate),
     topicsMastered: masteredTopics.length,
@@ -62,7 +82,7 @@ export async function calculateTotalXP(): Promise<{
   penaltyXP: number;
   isShopFrozen: boolean;
 }> {
-  // Check-ins XP
+  // Check-ins XP (daily base + task/revision bonuses across all check-ins)
   const checkIns = await db.checkIns.toArray();
   const checkInXP = checkIns.reduce((sum, c) => sum + (c.xpEarned || 0), 0);
 
@@ -101,10 +121,13 @@ export async function calculateStreak(): Promise<number> {
   const checkIns = await db.checkIns.orderBy('date').reverse().toArray();
   if (checkIns.length === 0) return 0;
 
+  // Deduplicate by distinct calendar dates
+  const uniqueDates = Array.from(new Set(checkIns.map((c) => c.date)));
+
   const todayStr = new Date().toISOString().split('T')[0];
   const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
-  const latestDate = checkIns[0].date;
+  const latestDate = uniqueDates[0];
   if (latestDate !== todayStr && latestDate !== yesterdayStr) {
     return 0;
   }
@@ -112,9 +135,9 @@ export async function calculateStreak(): Promise<number> {
   let streak = 0;
   let currentDate = new Date(latestDate);
 
-  for (const c of checkIns) {
+  for (const d of uniqueDates) {
     const expectedDateStr = currentDate.toISOString().split('T')[0];
-    if (c.date === expectedDateStr) {
+    if (d === expectedDateStr) {
       streak++;
       currentDate.setDate(currentDate.getDate() - 1);
     } else {

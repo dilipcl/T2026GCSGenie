@@ -1,5 +1,5 @@
 // ============================================================================
-// GCSE GENIE: MASTER TYPE DEFINITIONS
+// GCSE GENIE: MASTER TYPE DEFINITIONS (v2.0 Enhanced)
 // ============================================================================
 
 export type SubjectId =
@@ -16,24 +16,29 @@ export type SubjectId =
 export type UserRole = 'STUDENT' | 'PARENT' | 'SYSTEM_AGENT';
 export type RAGStatus = 'RED' | 'AMBER' | 'GREEN';
 export type GoalStatus = 'DRAFT' | 'PENDING_DISCUSSION' | 'APPROVED_LOCKED' | 'COMPLETED' | 'DEFERRED';
+export type PriorityLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export type LLMProvider = 'GEMINI' | 'CLAUDE' | 'OPENAI' | 'LOCAL';
 export type WeekType = 'ODD' | 'EVEN' | 'BOTH';
 export type DayOfWeek = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
+export type CheckInSession = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'STUDY_SESSION';
 
 export interface SubjectConfig {
   id: SubjectId;
   name: string;
   shortName: string;
-  examBoard: 'Edexcel' | 'AQA' | 'OCR';
-  targetGrade: 9;
+  examBoard: 'Edexcel' | 'AQA' | 'OCR' | string;
+  targetGrade: number; // e.g. 9
   currentEstimatedGrade: number; // 1-9
-  color: string; // Tailwind color class or hex
+  color: string;
   icon: string;
   teacherName: string;
   teacherEmail?: string;
   teacherNotes?: string;
-  courseworkWeight?: number; // e.g. 60% for Art
+  courseworkWeight?: number;
   examStructure: string;
+  driveFolderUrl?: string; // Link to Google Drive folder for this subject
+  manualRAGOverride?: RAGStatus | null; // Manual override if parent/student wants to force RAG
+  manualHealthScore?: number | null; // Optional manual health score 0-100
 }
 
 export interface SyllabusTopic {
@@ -45,18 +50,32 @@ export interface SyllabusTopic {
   confidenceRating: 1 | 2 | 3 | 4 | 5; // 1 = Red, 5 = Mastered
   isImportantForGrade9: boolean;
   isRequiredPractical?: boolean;
+  yearGroup?: 'YEAR_9' | 'YEAR_10' | 'YEAR_11';
+  dateTaught?: string; // YYYY-MM-DD
+  driveNotesUrl?: string; // Link to Google Notebook / Drive file for this topic
+}
+
+export interface StructuredCheckInNotes {
+  blockersAndQuestions?: string; // e.g., Questions to ask teacher tomorrow
+  keyLearning?: string; // What was the main takeaway today?
+  actionForTomorrow?: string; // Action items for next day
+  generalNotes?: string;
+  category?: 'ACADEMIC' | 'CO_CURRICULAR' | 'PERSONAL' | 'WELL_BEING';
 }
 
 export interface DailyCheckIn {
-  id: string; // YYYY-MM-DD
-  date: string;
+  id: string; // Unique ID: checkin_YYYY-MM-DD_timestamp
+  date: string; // YYYY-MM-DD
   timestamp: number;
+  session: CheckInSession;
   energyLevel: 1 | 2 | 3 | 4 | 5;
   focusRating: 'LOW' | 'NORMAL' | 'HIGH';
   completedHomeworkIds: string[];
   completedRevisionMinutes: number;
-  notes?: string;
+  structuredNotes?: StructuredCheckInNotes;
+  notes?: string; // Legacy fallback
   xpEarned: number;
+  isDailyBaseXPAwarded: boolean; // True if this check-in awarded the +10 XP daily base reward
 }
 
 export interface Task {
@@ -65,13 +84,18 @@ export interface Task {
   title: string;
   description?: string;
   dueDate: string;
+  priority: PriorityLevel;
   isHomework: boolean;
   isRemediation: boolean;
-  remediationSourceDoc?: string; // e.g. "yr9- maths.pdf"
+  remediationSourceDoc?: string;
+  linkedGoalId?: string;
+  linkedTopicId?: string;
   xpValue: number;
   completed: boolean;
   completedAt?: number;
   createdAt: number;
+  driveProofUrl?: string;
+  score?: { scored: number; total: number };
 }
 
 export interface Goal {
@@ -79,6 +103,8 @@ export interface Goal {
   title: string;
   category: 'ACADEMIC_GRADE_9' | 'CO_CURRICULAR' | 'PERSONAL';
   subjectId?: SubjectId;
+  targetDate?: string;
+  priority?: PriorityLevel;
   smartSpecific: string;
   smartMeasurable: string;
   smartAchievable: string;
@@ -88,15 +114,16 @@ export interface Goal {
   ragStatus: RAGStatus;
   weeklyHoursRequired: number;
   parentNotes?: string;
+  driveNotesUrl?: string;
   lockedAt?: number;
   createdAt: number;
 }
 
 export interface TimetableSlotConfig {
   id: string;
-  name: string; // e.g. "Registration", "Period 1", "Break"
-  defaultStartTime: string; // "08:30"
-  defaultEndTime: string; // "08:50"
+  name: string;
+  defaultStartTime: string;
+  defaultEndTime: string;
   isBreakOrLunch: boolean;
 }
 
@@ -105,12 +132,21 @@ export interface TimetableEntry {
   weekType: WeekType;
   dayOfWeek: DayOfWeek;
   slotName: string;
-  startTime: string; // "08:30"
-  endTime: string; // "08:50"
+  startTime: string;
+  endTime: string;
   subjectId?: SubjectId;
   activityName: string;
   room?: string;
-  isHardLocked: boolean; // Air Cadets, School
+  isHardLocked: boolean;
+}
+
+export interface ComprehensiveQuestion {
+  id: string;
+  questionNumber: string; // e.g. "Q1 (a)", "Q2"
+  questionText: string;
+  marksAllocated: number;
+  modelAnswer: string;
+  markSchemeNotes: string;
 }
 
 export interface RemediationAction {
@@ -125,9 +161,34 @@ export interface RemediationAction {
     question: string;
     expectedOutcome: string;
   }[];
+  comprehensiveQuestions?: ComprehensiveQuestion[];
   xpReward: number;
   isCompleted: boolean;
   completedAt?: number;
+  driveNotebookUrl?: string; // Link to Google Notebook / Drive working proof
+  selfStudyScore?: { scored: number; total: number; percentage: number };
+  weakAreasIdentified?: string; // Notes on sub-areas that need work
+  followUpQuestIds?: string[]; // IDs of generated follow-up quests
+  parentQuestId?: string; // If this is a follow-up sub-quest
+}
+
+export interface MilestoneReminder {
+  id: string;
+  title: string;
+  date: string; // YYYY-MM-DD
+  category:
+    | 'EXAM_MOCK'
+    | 'PORTFOLIO_DEADLINE'
+    | 'COURSEWORK'
+    | 'REQUIRED_PRACTICAL'
+    | 'CADETS'
+    | 'PERSONAL_TARGET';
+  subjectId?: SubjectId;
+  priority: PriorityLevel;
+  isCompleted: boolean;
+  notes?: string;
+  driveResourceUrl?: string;
+  createdAt: number;
 }
 
 export interface RewardItem {
@@ -155,7 +216,7 @@ export interface Sanction {
   type: 'DETENTION' | 'HOMEWORK_SANCTION' | 'CUSTOM';
   reason: string;
   date: string;
-  penaltyXP: number; // e.g. -500
+  penaltyXP: number;
   shopFrozen: boolean;
   remediationTaskIdRequired?: string;
   resolvedAt?: number;
@@ -176,8 +237,9 @@ export interface AuditLogEntry {
 }
 
 export interface ParentSettings {
-  parentPinHash: string; // SHA-256 of 4-digit PIN (default "1234")
+  parentPinHash: string;
   googleDriveBackupPath: string;
+  googleDriveFolderUrl?: string; // Direct link to open Google Drive folder
   llmProvider: LLMProvider;
   llmApiKey?: string;
   llmModelName?: string;
@@ -199,7 +261,7 @@ export interface CareerGuidanceResource {
   id: string;
   title: string;
   category: 'A_LEVELS' | 'UNIVERSITY_DEGREE' | 'DEGREE_APPRENTICESHIP' | 'CAREER_INSIGHT';
-  requiredGCSEGrade: number; // e.g. 9
+  requiredGCSEGrade: number;
   relevantSubjectIds: SubjectId[];
   description: string;
   externalUrl?: string;

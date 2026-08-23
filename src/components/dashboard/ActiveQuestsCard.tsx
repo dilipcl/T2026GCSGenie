@@ -1,22 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
 import { RemediationAction } from '../../types';
-import { Wrench, Sparkles, ChevronRight, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Wrench, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
 
 interface ActiveQuestsCardProps {
-  onOpenRemediation: (remediationId?: string) => void;
+  onSelectQuest: (questId: string) => void;
 }
 
-export const ActiveQuestsCard: React.FC<ActiveQuestsCardProps> = ({ onOpenRemediation }) => {
-  const [activeQuests, setActiveQuests] = useState<RemediationAction[]>([]);
+export const ActiveQuestsCard: React.FC<ActiveQuestsCardProps> = ({ onSelectQuest }) => {
+  const [quests, setQuests] = useState<RemediationAction[]>([]);
 
   useEffect(() => {
-    db.remediations
-      .where('isCompleted')
-      .equals(0)
-      .limit(3)
-      .toArray()
-      .then((res) => setActiveQuests(res));
+    const loadQuests = async () => {
+      const all = await db.remediations.toArray();
+      const active = all.filter((q) => !q.isCompleted);
+      setQuests(active);
+    };
+
+    loadQuests();
   }, []);
 
   return (
@@ -27,52 +28,55 @@ export const ActiveQuestsCard: React.FC<ActiveQuestsCardProps> = ({ onOpenRemedi
             <Wrench className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-white">Year 9 Diagnostic Remediation Quests</h3>
-            <p className="text-[11px] text-slate-400">High-value XP challenges from actual Year 9 exam scripts</p>
+            <h3 className="font-bold text-sm text-white">Year 9 Diagnostic Quests</h3>
+            <p className="text-[11px] text-slate-400">
+              High-value remediation actions based on exam diagnostic errors
+            </p>
           </div>
         </div>
 
-        <button
-          onClick={() => onOpenRemediation()}
-          className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
-        >
-          <span>All Quests</span>
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+        <span className="text-xs font-semibold text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/60">
+          {quests.length} Active
+        </span>
       </div>
 
-      {activeQuests.length === 0 ? (
+      {quests.length === 0 ? (
         <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 text-center">
-          <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto mb-1.5" />
-          <p className="text-xs text-slate-200 font-semibold">All Diagnostic Quests Completed!</p>
-          <p className="text-[11px] text-slate-400">You have addressed all flagged Year 9 exam errors.</p>
+          <ShieldCheck className="w-6 h-6 text-emerald-400 mx-auto mb-1.5" />
+          <p className="text-xs text-slate-300 font-medium">All Year 9 diagnostic quests solved!</p>
+          <p className="text-[11px] text-slate-400">Great job! You've mastered all identified errors.</p>
         </div>
       ) : (
         <div className="space-y-2.5">
-          {activeQuests.map((quest) => (
+          {quests.slice(0, 3).map((quest) => (
             <div
               key={quest.id}
-              onClick={() => onOpenRemediation(quest.id)}
-              className="p-3 bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800/90 hover:border-indigo-500/40 rounded-xl cursor-pointer transition-all flex items-center justify-between group"
+              onClick={() => onSelectQuest(quest.id)}
+              className="p-3 bg-slate-900/80 border border-slate-800/90 rounded-xl hover:border-amber-500/50 hover:bg-slate-800/80 transition-all cursor-pointer group"
             >
-              <div className="pr-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
-                    {quest.subjectId.replace('_', ' ')}
-                  </span>
-                  <span className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors">
-                    {quest.taskTitle}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400 line-clamp-1">{quest.diagnosticError}</p>
-              </div>
-
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-xs font-bold text-amber-400 bg-amber-950/60 px-2 py-1 rounded-lg border border-amber-800/60 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-400" />
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <span className="text-[10px] uppercase font-bold px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
+                  {quest.subjectId.replace('_', ' ')}
+                </span>
+                <span className="text-[11px] font-bold text-amber-400 flex items-center gap-0.5">
+                  <Sparkles className="w-3 h-3" />
                   <span>+{quest.xpReward} XP</span>
                 </span>
-                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition-colors" />
+              </div>
+
+              <h4 className="text-xs font-bold text-slate-100 group-hover:text-amber-300 transition-colors">
+                {quest.taskTitle}
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
+                Deficit: {quest.diagnosticError}
+              </p>
+
+              <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 pt-1.5 border-t border-slate-800">
+                <span className="text-[10px] font-mono">{quest.sourceDoc.split(' ')[0]}</span>
+                <span className="text-amber-400 font-medium flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  <span>Solve Quest</span>
+                  <ArrowRight className="w-3 h-3" />
+                </span>
               </div>
             </div>
           ))}
