@@ -4,7 +4,7 @@ import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: './', // Enables relative asset paths for seamless GitHub Pages, Vercel, and local hosting
+  base: '/T2026GCSGenie/', // Explicit repo base path for GitHub Pages
   plugins: [react()],
   resolve: {
     alias: {
