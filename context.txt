@@ -1,0 +1,130 @@
+GCSE Genie - Master Software Specification & Prompt Blueprint (v3)
+This master specification acts as a direct software blueprint. It is designed to be pasted directly into LLM terminals (e.g., Gemini Advanced, Claude 3.5 Sonnet, or GPT-4o) to generate a complete, working application.
+
+It is tailored for a student (Tejas Dilip, GCS Year 10) preparing for GCSE exams, incorporating direct diagnostic feedback from his real-world Year 9 academic assessments and Guildford County School (GCS) guidelines. It should be accessible via mobile and laptop.
+
+1. System Philosophy & Core Constraints
+100% Manual, Private, & Offline: Zero integrations with external school portals (Sparx, Bromcom, MCAS, Teams). Everything is manually entered by the student or parents. Teachers have no access.
+Zero-Administrative Overhead: The student's dashboard is optimized for rapid, frictionless interactions. Daily check-ins must take under 2 minutes using quick-toggle buttons, sliders, and tap-to-complete check-ins.
+Multi-User Collaborative Access:
+Student Role: Complete daily tasks, log homework, check off revision blocks, view current XP, and request real-world rewards.
+Parent Role: Monitor consistency, manage the rewards ledger (approve/deny points redemption), enter schedule overrides, manually log school sanctions (detentions), and trigger the "Agent Audit" service.
+Basic Audit Service: To preserve data trust and prevent tampering, every insert, update, or deletion of a goal, task, score, or points deduction must write to a write-only audit trail logging: [Timestamp, User, Field, Action, Old Value, New Value].
+2. Integrated GCSE Academic Curriculum
+The app tracks progress across the student's core and elective GCSE subjects, aligned to exact exam boards:
+
+Edexcel Mathematics (Linear, Grades 9-1):
+Structure: Linear (no coursework), examined via three 1.5-hour written papers in Year 11 [13, 17].
+Key Focus Areas: Number systems, Algebra (functions, linear/quadratic equations), Ratio/Proportion, Geometry/Measures (Trigonometry, vectors), Probability (Venn & tree diagrams), and Statistics [14, 15, 16].
+AQA English Language & Literature (Grades 9-1):
+Language: Analyzing fiction/non-fiction texts, creative/technical writing across styles, purposes, and audiences [10, 11].
+Literature: Drama, poetry, prose, and Shakespeare analysis. Checked via written analytical essays using GCS-prescribed argumentative structures [12, 13].
+AQA Separate Science - Biology, Chemistry, Physics (Triple Award, Grades 9-1):
+Structure: Examined via 6 written papers (1 hour 45 minutes each) at the end of Year 11 [119].
+Key Focus Areas: Biology (Cell organization, transport, osmosis, bioenergetics), Chemistry (Atomic structure, bonding, chromatography, states of matter), Physics (Energy transfer equations, electricity, particles, forces, space). Tracks the 21 Required Practicals [117, 118].
+AQA History (Grades 9-1):
+Structure: Examined via two 2-hour written papers (50% each) in Year 11 [61, 62].
+Units: America 1920-1973 (Boom/Bust, Civil Rights), Conflict & Tension 1918-1939 (Treaty of Versailles, Appeasement), Britain: Health and the People c1000-Present, and Norman England c1066-c1100 [60].
+OCR Computer Science (Grades 9-1):
+Structure: Component 1: Computer Systems (50%, 1.5-hour exam) and Component 2: Computational Thinking, Algorithms, and Programming (50%, 1.5-hour exam) [42].
+Key Features: Digitizes the school's "Improvement Log" to track tricky concepts (networking, hardware, programming logic, SQL databases) [41, 42].
+AQA Art, Craft & Design (Grades 9-1):
+Structure: Component 1: Portfolio (60% coursework) and Component 2: Externally Set Assignment (40%) [28].
+Key Milestones: Tracks portfolio progression targets (fine art, graphic communication) during Year 10 [24, 25]. Prepares for the crucial January-April preparation window and the 10-hour practical supervised exam in Year 11 [28].
+3. Real-World Assessment Reference & "Remediation Actions"
+Instead of generic study targets, the app has a dedicated portal to refer to real-world test papers. It translates specific errors from his actual Year 9 exam scripts and GCS interim reports (IR3) into high-value Remediation Actions:
+
+A. Mathematics (Source: yr9- maths.pdf - Score: 60/75, Sec 3: 16/25)
+Action 1: Venn Diagram Probability Proofs (+200 XP)
+Diagnostic Error: Scored 0/2 on proving event independence.
+Task: Solve 3 mock exam questions proving independence using the formula: $P(B \cap S) = P(B) \times P(S)$.
+Action 2: Scale-Factor Enlargements with Coordinate Centers (+150 XP)
+Diagnostic Error: Scored 1/2 on scale-factor enlargement and transformation descriptions.
+Task: Complete 2 graph-based exercises performing shape enlargement with negative fractional scale factors and specified $(X,Y)$ centers of origin.
+Action 3: Double Bracket Algebra Simplification (+100 XP)
+Diagnostic Error: Calculation errors on expanding $(2x+3)^2 - (2x+3)(x-5)$.
+Task: Solve 5 complex expanding and factorizing quadratic expressions to reinforce sign consistency.
+B. Science (Source: science .pdf - Year 9 End of Year Assessment)
+Action 1: Chromatography Rf Value Calculations (+150 XP)
+Diagnostic Error: Erroneously calculated an Rf value of 5.6 by reversing the numerator and denominator.
+Task: Solve 5 chromatogram calculation problems. Ensure the correct formula is used ($\text{Rf} = \frac{\text{Distance moved by solute}}{\text{Distance moved by solvent}}$) and verify that the output value is strictly less than 1.0.
+Action 2: Physics Power-to-Energy Unit Conversions (+200 XP)
+Diagnostic Error: Multiplied $65\text{W}$ by $25\text{ mins}$ directly on a drone battery question, omitting the conversion of minutes to seconds, resulting in $1625\text{ J}$ instead of $97,500\text{ J}$.
+Task: Solve 5 energy transfer problems involving kinetic energy, gravitational potential, and power. Explicitly include a "Unit Conversion Safety Check" step before executing final calculations.
+C. History (Source: history.pdf - Score: 20.5/28)
+Action 1: Reparations & Germany Keyword Mastery (+100 XP)
+Diagnostic Error: Lost marks on the precise definition of Weimar Germany "Reparations".
+Task: Match key terms (Reparations, Diktat, Demilitarisation, Lebensraum, Propaganda) to correct definitions. (Reparations = war damage compensation, specifically set at £6.6 billion in the Treaty of Versailles).
+Action 2: Essay Structure "Comparison Quest" (+250 XP)
+Diagnostic Error: Lost 4 marks on the 12-mark Treaty of Versailles essay for failing to explicitly compare land losses vs. reparations as the primary source of national humiliation.
+Task: Outline a standard 3-paragraph GCS essay skeleton that directly compares two historical causes and concludes with a definitive, justified judgment.
+D. Computer Science (Source: ir report.pdf - GCS Interim Report IR3)
+Action 1: CS Homework Consistency Challenge (+300 XP)
+Diagnostic Error: IR3 highlighted that while class commitment was good, Computer Science Home Learning under teacher AMN was "Below the expected standard" due to missing assignments.
+Task: Maintain a 14-day streak of logging and completing Computer Science tasks on the exact day they are set.
+4. Timetable & Schedule Integration
+The schedule tracks school and extracurricular blocks. It comes pre-programmed with Guildford County School's bi-weekly (Odd/Even) Lower School presets and a custom rotational module for lessons:
+
+Rotational Calendar presets:
+Odd Week: Monday (Maths/Languages), Tuesday (Science/Music), Wednesday (English/Geography), Thursday (Maths/History), Friday (Science/Art).
+Even Week: Monday (English/Languages), Tuesday (Maths/Computing), Wednesday (Science/Geography), Thursday (English/History), Friday (Drama/PRE/DT).
+Extracurricular Blocks:
+Air Cadets: Tuesdays and Fridays, strictly blocked out from 19:00 to 22:00.
+GCSE Support Art Class: Weekly set block.
+Drum Lessons: Custom in-school rotational block (adjusts weekly).
+Bronze Duke of Edinburgh (DofE): Tracks milestones across Volunteering, Physical, Skills, and Expedition sections.
+5. SMART Goal Consultation & Burnout Prevention Modules
+A. Student-Parent Goal Consultation Flow
+To ensure goals are realistic and collaborative, a dedicated module allows the student to propose academic, co-curricular, or personal goals:
+
+Drafting: The student drafts a goal (e.g., "Join a local football club").
+SMART Criteria Form: The app prompts them to define:
+Specific: Which club and what position?
+Measurable: How many training sessions per week?
+Achievable: Does the training fit into his schedule?
+Realistic: Can this be done without hurting academic performance?
+Time-bound: By what month will trials be completed?
+Parental Review & Locking: The goal enters a "Pending Discussion" state. During weekly reviews, parents can approve, adjust, and lock the goal. Once locked, it generates daily/weekly habits that are added to his calendar.
+
+GCSE grade 9 must be goal and there need to be specific tasks and criterias based on it which can be mapped to all the tasks.
+There need to be visualisation in the dashboard that provides a simple view of the goals with RAG status and feasibility to drill down further if required. Also the app should appear as a daily organiser where the student can upload the time table, there is a calendar where it is easy to add some reminders. There also need to be a general help section which has details on the subject teachers and contact details and provision to add notes, websites with free content, mock tests, career learning content to get an insight for Tejas. It also need to be in the tasks so that he gets to understand more on the career path and importance of grades for post GCSE phase.
+B. Time-Budget Matrix & Burnout Risk Heatmap
+To prevent academic and physical exhaustion, the system maintains a Time-Capacity Budget:
+
+Safe Weekly Focused Activity Threshold: 45 hours.
+Standard Weekly Commitments:
+GCS School Hours: 32.5 hours
+Air Cadets: 6 hours (Tue/Fri 19:00 - 22:00)
+Art support class: 1.5 hours
+Drums + practice: 2 hours
+DofE physical/volunteering: 2 hours
+Total Base Commitment: 44 hours/week (leaving 1 hour of safe capacity).
+Burnout Risk Notification: If the student attempts to add a new personal goal (such as "Join a Football Club" with 4 hours of training and weekend matches), the app calculates the projected total (48 hours), moves the "Stress Index" into the Red Zone (Burnout Risk), and issues a warning to parents and student.
+Prioritization (MoSCoW Rules): During mock exams or final Art practical sessions, the app automatically recommends postponing or scaling back secondary, non-essential goals to restore safe time budgets.
+6. Points, Penalties, & Real-World Rewards
+To make gamification meaningful, points translate directly into parent-managed, real-world incentives:
+
+XP Earning Rates:
+Daily 2-minute check-in: +10 XP
+Completed GCS Homework: +50 XP
+Completed Year 9 Remediation Action: +150 to +300 XP
+School Sanctions & Detentions:
+Since GCS has a strict detention policy, detentions must be logged manually.
+Action: Logging a detention applies a -500 XP penalty and freezes the Rewards Shop.
+Remediation Quest: He must complete a parent-assigned academic task (e.g., "Log 45 minutes of focused English revision") to lift the freeze and unlock the shop.
+Rewards Shop & Contract:
+Student requests redemption: e.g., "Redeem 1,000 XP for 1 Hour Extra Screen Time".
+Action: The request goes to the Parent Portal. Parents manually approve, deny, or adjust the request during weekly check-ins, reinforcing real-world rewards.
+7. Parent-Initiated "Agentic Audit" Process
+To ensure the app remains an asset and does not become an administrative chore, the Parent Portal features an Agentic Audit Button:
+
+Initiation: Parent triggers the audit agent.
+Analysis: The agent evaluates:
+Activity Logs (compliance with the 2-minute daily check-in).
+Weekly time budget (assessing if the student is encroaching on sleep/rest).
+Subject balance (checking if certain subjects, like Computer Science homework, are being neglected).
+Points-to-Rewards ratios (auditing the points economy).
+Output Report: The agent compiles a concise "Plan Alignment Report" summarizing:
+Curriculum Status: What subjects are on track vs. falling behind.
+Burnout Level: Current Stress Index and time allocation.
+Actionable Adjustments: Recommending changes to the calendar, task frequencies, or pausing personal goals.
