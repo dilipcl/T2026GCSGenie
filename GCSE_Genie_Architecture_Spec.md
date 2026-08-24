@@ -38,10 +38,14 @@
 
 ## 2. Core Architectural Principles & Constraints
 
-1. **100% Privacy & Zero-School Integration**:
+1. **Privacy & Zero-School Integration**:
    - Zero integration with external school platforms (Sparx, Bromcom, MCAS, Microsoft Teams).
-   - All data is managed locally and entered manually by Tejas or his parents.
-   - Absolute data isolation; no external telemetry or teacher access.
+   - All data is entered manually by Tejas or his parents. No teacher access, no analytics, no telemetry.
+   - **Amended August 2026.** The original "absolute data isolation" no longer holds: sync is provided
+     by Dexie Cloud, so once a user signs in, records leave the device for that service. This was a
+     deliberate trade to make parent oversight work across devices — the previous design left reward
+     approvals and sanctions functioning only on the student's own phone. Sync is optional and off
+     until login; the LLM API key is excluded from it permanently.
 
 2. **Ultra-Low Friction (<2 Minute Daily Overhead)**:
    - One-tap check-in buttons, preset sliders, and rapid homework check-offs.
@@ -52,10 +56,13 @@
    - **Tejas's Device (iPhone / iOS Safari PWA)**: Safe-area insets (`env(safe-area-inset-*)`), iOS standalone display mode, touch target sizes $\ge 44\text{px}$, WebKit IndexedDB persistence.
    - **Parent Devices (Android Chrome PWA)**: Modern Material/Tailwind responsive UI, Android Google Drive file picker integration, install prompt banner.
    - **Laptops (PC / Mac Chrome / Edge)**: Multi-column responsive layout, drag-and-drop schedule builders, detailed RAG drill-down dashboards.
-   - **Sync Strategy (Option A)**: One-click export/import of timestamped, encrypted JSON backup archives to Google Drive (`/GCSE-Genie/backups/`).
+   - **Sync Strategy**: Dexie Cloud (offline-first, operation-log based, per-record conflict
+     resolution). JSON export/import to Google Drive is retained as *backup*, not as the sync
+     mechanism — it is a whole-database replace and was never safe as a reconciliation strategy.
 
 4. **Model-Agnostic Agentic Audit & Google Drive Path Integration**:
-   - Supports **Google Gemini** (Gemini 1.5 Pro / Flash) and **Anthropic Claude** (Claude 3.5 Sonnet / Opus) as well as OpenAI.
+   - Supports **Google Gemini**, **Anthropic Claude** (default `claude-opus-5`) and **OpenAI**
+     (default `gpt-4o`). All three now have working execution paths; see 8.4.
    - **In-App Execution**: Direct API call using parent's stored key.
    - **External Drive-Based Execution**: One-click "Export Agent Audit Bundle" to the designated Google Drive path containing:
      * `audit_manifest.json`
@@ -64,8 +71,11 @@
      * `remediation_status.json`
      * `agent_instructions_prompt.md` (Ready for any external LLM terminal or web interface to evaluate).
 
-5. **Tamper-Evident Immutable Audit Trail**:
-   - Every state mutation (task creation, score update, XP award, sanction log) automatically writes to an append-only audit ledger with cryptographic hash chaining.
+5. **Checksummed Change Log** *(renamed from "Tamper-Evident Immutable Audit Trail")*:
+   - Every state mutation — creation, score update, XP award, sanction, **and deletion** — writes a row
+     carrying a SHA-256 of its own payload.
+   - It is **not** hash-chained and rows remain deletable, so it is not tamper-evident. The original
+     wording overstated the guarantee; see 8.3.
 
 ---
 
@@ -91,11 +101,12 @@ graph TD
 
     subgraph DataLayer ["Persistence & Sync (Offline-First)"]
         IDB[(IndexedDB via Dexie.js)]
-        LocalCache[(LocalStorage / OPFS)]
+        CloudSync[Dexie Cloud addon: sync, auth, blob offload]
         BackupService[Google Drive JSON Export / Import Bundle]
     end
 
     subgraph ExternalAgents ["External AI & Cloud Storage"]
+        DexieCloud[(Dexie Cloud: structured data + blob storage)]
         GDrive[Google Drive: /GCSE-Genie/Backups & Audit Bundles]
         GeminiAPI[Gemini API / Claude API]
         ExternalLLM[External LLM Agents Claude Sonnet / Gemini Adv]
@@ -104,6 +115,7 @@ graph TD
     UI --> LogicLayer
     LogicLayer --> DataLayer
     LLMAdapter --> GeminiAPI
+    CloudSync --> DexieCloud
     BackupService --> GDrive
     GDrive --> ExternalLLM
 ```
@@ -113,8 +125,9 @@ graph TD
 | **Frontend Framework** | **React 19 + TypeScript + Vite** | Fast, type-safe, component-driven, high performance on mobile & desktop |
 | **Styling & UI Kit** | **Tailwind CSS + shadcn/ui + Lucide Icons** | Clean, modern, accessible design with dark/light mode and mobile touch targets |
 | **State Management** | **Zustand** | Lightweight, boilerplate-free state store with local persistence middleware |
-| **Local Data Store** | **IndexedDB via Dexie.js** | Robust client-side database with reactive queries, schema migrations, and high capacity |
-| **Data Sync / Backup** | **Google Drive JSON Bundle (Option A)** | True offline-first capability with zero vendor lock-in; seamless cross-device portability |
+| **Local Data Store** | **IndexedDB via Dexie.js 4** | Robust client-side database with reactive queries, schema migrations, and high capacity |
+| **Cross-Device Sync** | **Dexie Cloud (`dexie-cloud-addon`)** | Layers onto the existing Dexie schema; operation-log sync, per-record conflict resolution, email/OAuth auth, automatic blob offload |
+| **Backup** | **Google Drive JSON Bundle** | Schema-walking whole-database export; disaster recovery and portability, not sync |
 | **PWA & Offline** | **Vite PWA Plugin (Workbox)** | Full offline asset caching, app-like standalone installation on iOS/Android/PC/Mac |
 | **Charts & Visuals** | **Recharts + Lucide** | RAG gauges, time-capacity heatmaps, XP progression bars, and diagnostic radar charts |
 | **Model-Agnostic AI Adapter** | **Gemini / Claude / OpenAI REST SDK** | Pluggable architecture supporting multiple LLM providers for in-app or file-based audits |
@@ -359,6 +372,28 @@ Accessible via a secure 4-digit Parent PIN:
 4. **Change History Viewer** (labelled "Change History" in the UI - see 8.3; it is NOT immutable or hash-chained):
    - Displays all historical events: `[Timestamp | User | Field | Action | Old Value | New Value]`.
 
+### 4.9. Module 9: Proof Log — Ongoing Marked Work *(added August 2026)*
+
+Distinct from Module 4, which digitises a fixed set of Year 9 diagnostic errors. This module captures
+**new marked work as it comes back**, with the evidence attached, and answers the question the RAG
+matrix cannot: *is real performance trending toward Grade 9?*
+
+| Captured | Detail |
+| :--- | :--- |
+| Header | Subject, title, type (class test / end of topic / mock / past paper / marked homework / practical), date sat |
+| Score | Marks scored vs available with live percentage, grade awarded |
+| Per question | Number, topic tested, marks scored vs available, **cause** of any dropped mark (careless / method / didn't know / misread / ran out of time), the question, the student's answer, the mark scheme |
+| Evidence | Photographs or PDFs of the paper, downscaled to 1600px on upload (~300 KB from a 6 MB phone photo) |
+| Review | Teacher feedback, topics to revisit, parent **Verified** flag |
+
+**The log drives work rather than storing it.** Any question that dropped marks optionally spawns a
+fix-up task due in three days, filed as a remediation against the right subject and carrying the
+recorded cause. A record that is only ever read would not change behaviour.
+
+Attachments are stored as real `Blob`s, never base64 — Dexie Cloud offloads binaries ≥ 4 KB to cheap
+blob storage, which a base64 string would defeat, and the size difference decides whether a backup
+bundle is still a file a person can put in Drive.
+
 ---
 
 ## 5. Comprehensive Database Schema (IndexedDB / Dexie.js)
@@ -499,7 +534,9 @@ export interface ParentSettings {
   googleDriveBackupPath: string; // e.g. "G:/My Drive/Documents/UK/Family/Tejas/GCSE-Genie/Backups"
   llmProvider: LLMProvider;
   llmApiKey?: string;
-  llmModelName?: string; // e.g. "gemini-1.5-pro" or "claude-3-5-sonnet-20241022"
+  llmModelName?: string; // defaults: claude-opus-5 / gpt-4o / gemini-1.5-pro
+  // NOTE: llmApiKey is listed in unsyncedProperties and never leaves the device,
+  // and is stripped from backup exports. See 2.1.
 }
 
 export interface AgentAuditReport {
@@ -512,6 +549,7 @@ export interface AgentAuditReport {
   subjectBalanceAlerts: string[];
   actionableRecommendations: string[];
   rawMarkdown: string;
+  fallbackReason?: string; // why the offline engine ran instead of the live model
 }
 
 export interface CareerGuidanceResource {
@@ -523,7 +561,96 @@ export interface CareerGuidanceResource {
   description: string;
   externalUrl?: string;
 }
+
+// ----------------------------------------------------------------------------
+// PROOF LOG (added August 2026) - closes the "no assessment results" gap in 8.2
+// ----------------------------------------------------------------------------
+
+export type AssessmentType =
+  | 'CLASS_TEST' | 'END_OF_TOPIC' | 'MOCK_EXAM'
+  | 'PAST_PAPER' | 'MARKED_HOMEWORK' | 'REQUIRED_PRACTICAL';
+
+export interface AssessmentQuestion {
+  id: string;
+  questionNumber: string;      // "Q1", "Q4 (b)"
+  topic?: string;              // what the question actually tested
+  marksAvailable: number;
+  marksScored: number;
+  questionText?: string;
+  yourAnswer?: string;
+  correctAnswer?: string;      // mark scheme
+  errorType?: 'NONE' | 'CARELESS' | 'METHOD' | 'KNOWLEDGE_GAP' | 'MISREAD' | 'TIMING';
+  notes?: string;
+}
+
+export interface Assessment {
+  id: string;
+  subjectId: SubjectId;
+  title: string;
+  type: AssessmentType;
+  date: string;                // YYYY-MM-DD
+  marksScored: number;
+  marksAvailable: number;
+  percentage: number;          // derived on save so lists sort without recomputing
+  gradeAwarded?: string;
+  teacherName?: string;
+  teacherFeedback?: string;
+  questions: AssessmentQuestion[];
+  attachmentIds: string[];
+  driveResourceUrl?: string;
+  weakTopics?: string;
+  followUpTaskIds?: string[];  // fix-up tasks spawned from dropped marks
+  verifiedByParent?: boolean;
+  verifiedAt?: number;
+  createdAt: number;
+}
+
+/**
+ * Binary proof held alongside the record it belongs to. Stored as a real Blob,
+ * never base64: Dexie Cloud offloads binaries >= 4 KB to cheap blob storage,
+ * which a base64 string would defeat. Images are downscaled to 1600px on upload.
+ */
+export interface ProofAttachment {
+  id: string;
+  ownerType: 'ASSESSMENT' | 'TASK' | 'REMEDIATION' | 'MILESTONE';
+  ownerId: string;
+  fileName: string;
+  mimeType: string;
+  byteSize: number;
+  blob: Blob;
+  caption?: string;
+  createdAt: number;
+}
 ```
+
+### 5.1. Dexie schema version history
+
+| Version | Change |
+| :--- | :--- |
+| 2 | Initial 17-table schema |
+| 3 | `MICRO_REWARDS` back-filled into existing installs |
+| 4 | `assessments` and `attachments` (Proof Log) |
+
+`attachments` carries a compound index `[ownerType+ownerId]`, which is the only lookup that matters.
+Booleans are never indexed — see 8.6.
+
+### 5.2. Sync configuration
+
+```typescript
+db.cloud.configure({
+  databaseUrl: 'https://z80xp4ajs.dexie.cloud',
+  requireAuth: false,                                  // works fully signed out
+  unsyncedProperties: { parentSettings: ['llmApiKey'] } // key never leaves the device
+});
+```
+
+The addon is applied only in a browser (`typeof window !== 'undefined'`), so Node tooling that
+exercises the data layer under `fake-indexeddb` gets a plain local Dexie instance.
+
+Seeding runs from `on('ready')`, **not** `on('populate')`, per Dexie Cloud's guidance: `populate`
+fires on a brand-new local database, which is also the state a second device is in moments before
+its first sync arrives. Seeding there would give every new device its own copy of the starter
+content. The seeder only inserts rows whose primary key is absent, and deduplicates its input by id.
 
 ---
 
@@ -573,7 +700,7 @@ export interface CareerGuidanceResource {
 ## 8. Implementation Status vs. Specification
 
 This section records where the running application diverges from the design above, so that gaps are
-not rediscovered as bugs. Last reviewed: **August 2026**.
+not rediscovered as bugs. Last reviewed: **August 2026** (post multi-device / Proof Log pass).
 
 ### 8.1. Built and working
 
@@ -581,55 +708,68 @@ not rediscovered as bugs. Last reviewed: **August 2026**.
 | :--- | :--- |
 | Daily check-in & structured learning log | ✅ Multiple sessions/day, XP banked once |
 | "What's next" dashboard card | ✅ Overdue → today → next 7 days, tick in place |
-| Quick Add (homework / key date) | ✅ Floating action button on every screen |
+| Quick Add | ✅ Homework / key date / **lesson**, chip pickers, multi-day lesson entry |
 | Frequency-tiered navigation | ✅ Daily vs weekly tiers, mobile "More" sheet |
 | Diagnostic quests + mark schemes | ✅ Score, proof URL, working notes, sub-quests |
-| Subject RAG matrix | ⚠️ Works, but see 4.2 — measures effort, not attainment |
+| **Proof Log (assessments)** | ✅ Per-question marks, error cause, photo/PDF proof, parent verification, auto fix-up tasks |
+| Subject RAG matrix | ⚠️ Effort-weighted; marked-work average reported but not folded in — see 8.3 |
 | Weekly time-capacity gauge | ✅ Recalibrated, see 4.5 |
-| XP, rewards shop, sanctions | ⚠️ Works, but see 8.2 |
-| Parent PIN + Parent Portal | ✅ Hash-checked, changeable, default flagged |
-| JSON backup / restore | ⚠️ Works, but destructive and unconfirmed on restore |
-| Offline agentic audit engine | ✅ Deterministic rules engine |
+| **Goal approval / locking** | ✅ Parent Approve & Lock; unlocked goals show struck-through hours |
+| XP, rewards shop, sanctions | ✅ Pending requests now reserve XP; overdraft approval blocked |
+| Parent PIN + Parent Portal | ⚠️ Works, but gates the UI only — see 8.2 |
+| JSON backup / restore | ✅ Schema-walking export, pre-flight diff, automatic rescue copy, API key stripped |
+| Offline agentic audit engine | ✅ Deterministic rules engine, with a visible reason when it is a fallback |
+| Live LLM audits | ✅ Gemini / Claude / OpenAI all implemented — see 8.4 |
+| **Cross-device sync** | ⚠️ Dexie Cloud wired and verified cold; not yet proven with two real devices |
+| Change log | ✅ Now records deletions too |
 
 ### 8.2. Specified but not implemented
 
-1. **Goal approval / locking.** `GoalStatus` defines `PENDING_DISCUSSION → APPROVED_LOCKED`, and the
-   burnout engine only counts `APPROVED_LOCKED` goals — but **no code path anywhere performs that
-   transition**. Proposed goals are inert: they never affect the time budget, and cannot be completed,
-   deferred, edited or deleted. The central parent toll gate in the design does not exist.
-2. **Assessment results.** No storage for mock or interim-report scores. See 4.2.
-3. **Overdue escalation.** Overdue tasks tint red and add a small stress surcharge. They do not
+1. **Enforced parent authority.** The PIN hides controls; it does not protect data. Anyone with
+   devtools can rewrite IndexedDB directly and approve their own rewards. Dexie Cloud realms and
+   roles are the mechanism that would make this real; that work has not started. *This is now the
+   largest remaining gap in the parent-oversight half of the design.*
+2. **Overdue escalation.** Overdue tasks tint red and add a small stress surcharge. They do not
    downgrade RAG status, notify anyone, or gate the rewards shop.
-4. **PWA install / offline.** No `manifest.json` and no service worker, despite the iOS/Android
-   install instructions. Chrome will not offer "Install app" and nothing works offline.
-5. **Cross-device sync.** IndexedDB is per-device. Parent approval, sanctions and audits therefore
-   only function on the student's own device. This is the single largest architectural constraint on
-   the parent-oversight half of the design.
-6. **Contextual schedule banner** (current-period detection with countdown), **haptics**, **swipe to
+3. **PWA install / offline assets.** No `manifest.json` and no service worker, despite the iOS/Android
+   install instructions. The *data* layer is offline-first; the *assets* are not cached.
+4. **Contextual schedule banner** (current-period detection with countdown), **haptics**, **swipe to
    approve/deny**, **drag-and-drop timetable builder**, and **searchable audit filters** are all
    specified in §4.1 and §6 but not built.
-7. **Sleep logging** — §4.1 lists it in the check-in; only energy and focus are captured.
+5. **Sleep logging** — §4.1 lists it in the check-in; only energy and focus are captured.
 
 ### 8.3. Implemented differently than specified
 
 | Area | Specified | Actual |
 | :--- | :--- | :--- |
 | Safe weekly ceiling | 45.0 h | 60.0 h — see 4.5 |
-| RAG weighting | 35/35/20/10 incl. assessments | 40/35/25, no assessment term |
-| Verification of quests | — | Self-marked; no parent verification flag |
+| RAG weighting | 35/35/20/10 incl. assessments | 40/35/25. Assessment data now exists and the per-subject average is computed and displayed, but is deliberately **not** folded into the score — doing so would move every subject's status without an explicit decision |
+| Sync | Encrypted JSON bundles to Google Drive | Dexie Cloud; JSON export retained as backup only |
+| Verification of quests | — | Self-marked. Proof Log assessments *do* carry a parent verification flag |
 | Audit ledger | "Cryptographically chained" | Per-entry SHA-256 only; **no chain**, and rows are deletable |
+| Record IDs | — | UUID-based (`utils/id.ts`). Clock-derived IDs were unique per device only and collided across devices |
 
 ### 8.4. Known defects in dependencies of the design
 
-- **Live LLM audits never reach the provider.** The Anthropic call sends a non-existent browser
-  header (`dangerously-allow-browser`; the real one is `anthropic-dangerous-direct-browser-access`),
-  and both default model IDs — `claude-3-5-sonnet-20241022` and `gemini-1.5-pro` — are retired or
-  superseded. OpenAI is selectable but unimplemented. All failures are swallowed and the offline
-  engine runs instead, with no indication to the parent that their API key was never used.
+**Resolved in the August 2026 pass** (kept here because the spec previously recorded them as open):
+
+- ~~Live LLM audits never reach the provider.~~ Fixed: the Anthropic header is now
+  `anthropic-dangerous-direct-browser-access`, defaults are `claude-opus-5` / `gpt-4o`, `max_tokens`
+  raised 1500 → 8000, OpenAI implemented, and every call checks `res.ok` and surfaces a readable
+  reason. When the offline engine runs as a fallback, the portal says why.
+- ~~`milestones` omitted from backup.~~ Fixed structurally: the exporter walks `db.tables`.
+- ~~Restore is destructive and unconfirmed.~~ Fixed: pre-flight row-count diff, automatic rescue
+  export, and tables absent from a bundle are preserved rather than emptied.
+
+**Still open:**
+
 - **The Markdown half of the audit bundle is discarded.** `generateAgentAuditPackage()` returns both
   `jsonContent` and `markdownSummary`; only the JSON is downloaded, so the "Instructions for
   Reviewing Agent" prompt never reaches the user.
 - **Seed timetable is incomplete.** Only Monday of the Odd week has lessons; the Even week is empty.
+  Quick Add's multi-day Lesson mode makes filling it in quick, but the seed itself is unchanged.
+- **An LLM API key in a client-side app is readable by whoever holds the device.** It is excluded
+  from sync and from backups, but devtools will still show it. Inherent to the architecture.
 
 ### 8.5. Naming — nav label and page heading must match
 
@@ -644,6 +784,7 @@ Diagnostic Remediation Portal" — which defeats the point of the rename.
 | `TASKS` | My Work | My Work | Workload Prioritization & Homework Planning |
 | `CALENDAR` | Key Dates | Key Dates | Academic Milestones, Mocks & Reminders Calendar |
 | `REMEDIATIONS` | Fix My Mistakes | Fix My Mistakes | Year 9 Assessment Diagnostic Remediation Portal |
+| `PROOF` | Proof Log | Proof Log | *(new August 2026)* |
 | `REWARDS` | Rewards | Rewards | Parent-Managed Rewards Ledger |
 | `TIMETABLE` | Timetable | Timetable | Guildford County School Rotational Timetable |
 | `GOALS` | Subjects & Goals | Subjects & Goals | GCSE Grade 9 Target Hierarchy |
@@ -663,3 +804,10 @@ Mastery Checklist".
 - **`toISOString()` is UTC.** During British Summer Time, "today" computed this way is wrong between
   00:00 and 01:00 local — a check-in at 00:30 files against yesterday and breaks the streak. All date
   handling goes through `src/utils/date.ts`.
+- **Clock-derived IDs are not unique.** `task_${Date.now()}` is unique on one device and nowhere
+  else; two devices creating a record in the same millisecond produce the same key and a sync keeps
+  one and destroys the other. All IDs come from `newId(prefix)` in `src/utils/id.ts`.
+- **Spreading one seed list into another double-adds.** `INITIAL_REWARDS` already spreads in
+  `MICRO_REWARDS`; seeding both failed the whole batch with a `ConstraintError` on first database
+  creation. The seeder now deduplicates its input by id, but the underlying trap remains: `bulkGet`
+  only tells you what is already in the database, not what is duplicated within your own array.

@@ -1,5 +1,106 @@
 # Changelog
 
+## August 2026 — Multi-device sync, proof log, and the data-integrity pass
+
+Started as a review of what would happen if the app were used on two devices at once. The answer was
+worse than expected, so the fixes came first, then the two features requested on the back of them.
+
+### Data loss, found by testing rather than reading
+
+A harness ran the real service code against `fake-indexeddb`, one Node process per simulated device.
+It reproduced, rather than predicted, the following:
+
+| Scenario | Result |
+| :--- | :--- |
+| Export from phone → restore on laptop | milestones **4 → 0**; laptop-only sanction and check-in destroyed |
+| Streak with one missed day | audit reported **1**, dashboard showed **6** |
+| Two devices, same-day check-in merged | 40 XP where 30 was correct |
+| Two devices create a record in the same millisecond | `ConstraintError`; a merge keeps one, destroys the other |
+| Restore a backup older than a schema change | rewards **9 → 5**, permanently |
+| Three 1,000 XP requests on a 1,200 XP balance | all approved; true balance −1,800, displayed as 0 |
+
+**`milestones` was missing from the export list**, so every restore wiped all key dates and exam
+milestones. Fixed structurally rather than by adding one line: the exporter now walks `db.tables`, so
+a new table cannot be forgotten again. Restore also stopped being a silent bulldozer — it shows a
+before → after row count, downloads a rescue copy of the current database first, and leaves tables a
+bundle predates alone instead of emptying them.
+
+The **LLM API key was being written into the backup file**, which is destined for Google Drive. It is
+now stripped from exports and excluded from sync.
+
+### Corrections to things the app asserted
+
+- **Streak.** Audits called the legacy `calculateStreak()`, which reset on any single missed day,
+  while the dashboard used the never-miss-twice rule. The parent's report contradicted the child's
+  screen. The legacy function is deleted.
+- **"Every change" in the change history** did not include deletions. A student could delete a task
+  or a key date and leave no trace. All five delete paths are now logged.
+- **Pending reward requests reserved nothing**, so the shop could be overdrawn and the overdraft
+  hidden by a `Math.max(0, …)`. Pending requests now hold their cost, and an approval that would
+  overdraw is refused.
+- **Goals could never be approved.** `APPROVED_LOCKED` existed in the type and the burnout engine
+  only counted goals in that state, but nothing could perform the transition — so the time-capacity
+  gauge had been ignoring every goal Tejas proposed. Parents now have Approve & Lock, and unlocked
+  goals show their hours struck through so the omission is visible.
+- **Live LLM audits never reached the provider.** The Anthropic browser header was misspelled, both
+  default models were retired, `max_tokens` truncated reports mid-sentence, OpenAI was offered in the
+  dropdown with no implementation, and every failure was swallowed. All fixed; the portal now says
+  *why* the offline engine ran.
+
+> Several of these were **already recorded in spec §8.2 and §8.4**, including the correct Anthropic
+> header. They were rediscovered by testing rather than read. Check §8 first.
+
+### Simpler entry
+
+One sheet now covers homework, key dates **and lessons**. Subjects and categories became icon chips
+instead of dropdowns. Lesson mode writes to **several days at once** — pick a period, tick Tue/Wed/Thu,
+one tap creates all three — which turns filling in a rotation from twenty repetitions into one pass.
+Period chips are ordered by clock time, so the default is Registration rather than whatever sorted
+first by primary key. `AddEventModal` is gone.
+
+### Proof Log
+
+Marked work recorded as evidence: score and grade, a question-by-question breakdown (topic, marks
+scored vs available, and *why* the marks went), teacher feedback, and photographs of the paper.
+Images are downscaled to 1600px on upload — a 6 MB phone photo becomes about 300 KB — so backups and
+sync stay usable. Questions that dropped marks optionally become fix-up tasks due in three days, so
+the log drives work rather than just recording it.
+
+This closes the "no assessment results" gap in §8.2. The per-subject average is displayed but
+deliberately **not** folded into the RAG score, because that would move every subject's status
+without an explicit decision.
+
+### Multi-device sync
+
+Dexie Cloud, chosen over Supabase/Firebase because it layers onto the existing Dexie schema rather
+than requiring the data layer to be rewritten, and because it keeps the offline-first behaviour.
+
+- Optional and off until someone signs in; the app is fully usable signed out
+- Sessions last months, so it is one login per device, not a daily ritual
+- `unsyncedProperties` keeps the LLM API key on its own device permanently
+- Photos are offloaded to blob storage automatically, away from the structured-data quota
+- Seeding moved from `on('populate')` to `on('ready')` per Dexie's guidance — `populate` fires on a
+  brand-new database, which is also the state a second device is in just before its first sync
+
+**Prerequisite:** every record ID is now a UUID. `task_${Date.now()}` was unique on one device and
+nowhere else.
+
+**Caught during setup:** `dexie-cloud create` writes `dexie-cloud.key` — a credential authorising
+administration of the cloud database — into the project root, and it was **not** gitignored in a
+public repo. Nothing leaked; it is ignored now.
+
+**Not done:** the parent/student boundary is still UI-level. The PIN hides buttons; devtools bypasses
+it entirely. Dexie Cloud realms and roles would make it real. See §8.2.
+
+### Also
+
+The project moved to `C:\dev\GCSE-Genie`. `npm install` cannot write package contents inside the
+Google Drive folder — every extracted file lands at zero bytes, even for a single 2 KB package — and
+Drive's filesystem rejects directory junctions, so there is no in-place workaround. The README had
+already warned about this; it was rediscovered the hard way.
+
+---
+
 ## August 2026 — Page headings matched to navigation
 
 The previous pass renamed the navigation tabs but not the pages behind them, so tapping *Fix My
