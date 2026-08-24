@@ -330,7 +330,16 @@ export interface ParentSettings {
    */
   auditChainTips?: Record<string, number>;
   googleDriveBackupPath: string;
-  googleDriveFolderUrl?: string; // Direct link to open Google Drive folder
+  /** The repository folder in Drive - clickable, works on mobile. */
+  googleDriveFolderUrl?: string;
+  /** Where Genie's JSON exports belong. */
+  backupsFolderUrl?: string;
+  /**
+   * The same folder as seen by Drive for Desktop. Shown so files can be
+   * found in Explorer; never rendered as a link, because a browser cannot
+   * open file:// from an https page.
+   */
+  workingFolderPath?: string;
   llmProvider: LLMProvider;
   llmApiKey?: string;
   llmModelName?: string;

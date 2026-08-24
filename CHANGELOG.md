@@ -1,5 +1,37 @@
 # Changelog
 
+## August 2026 — The Drive repository is wired up
+
+Every subject pointed at `https://drive.google.com/drive/folders/` — the bare stub, no folder ID —
+so tapping "Google Drive" opened an empty page. Ten of them, plus six topics with empty note URLs.
+
+The repository now exists: `GCSEAppWorkingFolder`, nine subject folders each holding
+`Notes` / `Papers` / `Practice`, plus `_Shared-Resources` and `_Genie-Backups`, with a README
+documenting the layout and a filename convention.
+
+Because the folders were readable directly from Drive, the nine links could be seeded rather than
+pasted by hand. Every seeded ID was then cross-checked against live Drive to confirm each subject
+points at its own correctly-named folder — a regex can prove a URL is well formed, but only a
+lookup catches Chemistry pointing at the Physics folder.
+
+Topics have no folder of their own, on purpose: the structure stops at subject level so there are
+27 folders to keep tidy rather than several hundred. A topic with no link falls back to its
+subject's folder, so the link is never simply absent.
+
+Two constraints are worth writing down, because both are permanent:
+
+- **Drive folder URLs are opaque IDs, not paths.** There is no way to derive the Maths folder's URL
+  from the parent folder's URL, which is why each subject carries its own rather than a base path
+  plus a name.
+- **A browser cannot open `G:\My Drive\…`.** That path is Drive for Desktop, and Chrome blocks
+  `file://` links from an https page. The path is shown so files can be found in Explorer; the URL
+  is the part that clicks.
+
+The Parent Portal gained direct links to the working folder and the backups folder, and its backup
+path now points at `_Genie-Backups` rather than a directory that never existed.
+
+---
+
 ## August 2026 — Two broken promises from the QA field test
 
 A hands-on field test worked through the app as a Year 10 student would and found

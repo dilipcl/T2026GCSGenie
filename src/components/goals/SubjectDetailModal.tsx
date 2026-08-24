@@ -3,6 +3,7 @@ import { db } from '../../db';
 import { SubjectConfig, SyllabusTopic, Task, RAGStatus } from '../../types';
 import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalculator';
 import { logAuditEvent } from '../../services/auditService';
+import { resolveTopicFolder } from '../../db/driveFolders';
 import { triggerCelebration } from '../../utils/confetti';
 import { todayISO, addDaysISO } from '../../utils/date';
 import {
@@ -247,7 +248,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
                 className="px-3 py-1.5 rounded-lg bg-teal-600/20 border border-teal-500/40 text-teal-300 hover:bg-teal-600/30 font-semibold text-xs flex items-center gap-1.5 transition-all"
               >
                 <Folder className="w-3.5 h-3.5" />
-                <span>Google Drive</span>
+                <span>Subject folder</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             )}
@@ -478,17 +479,29 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
                         <span className="text-xs font-medium text-white">{topic.title}</span>
                         <span className="text-[10px] text-slate-400 font-mono">[{topic.unit}]</span>
                       </div>
-                      {topic.driveNotesUrl && (
-                        <a
-                          href={topic.driveNotesUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[10px] text-teal-400 hover:underline flex items-center gap-0.5 mt-0.5"
-                        >
-                          <span>Notebook Link</span>
-                          <ExternalLink className="w-2.5 h-2.5" />
-                        </a>
-                      )}
+                      {/* Topics have no folder of their own - the structure stops
+                          at subject level on purpose. Falling back means "open my
+                          notes" always goes somewhere rather than being absent for
+                          every topic nobody has linked by hand. */}
+                      {(() => {
+                        const href = resolveTopicFolder(topic.subjectId, topic.driveNotesUrl);
+                        if (!href) return null;
+                        const isOwnLink = !!topic.driveNotesUrl?.trim();
+                        return (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={isOwnLink ? 'Notes linked to this topic' : 'No topic link yet - opens the subject folder'}
+                            className={`text-[10px] hover:underline flex items-center gap-0.5 mt-0.5 ${
+                              isOwnLink ? 'text-teal-400' : 'text-slate-500'
+                            }`}
+                          >
+                            <span>{isOwnLink ? 'Notes' : 'Subject folder'}</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        );
+                      })()}
                     </div>
                   </div>
 

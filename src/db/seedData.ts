@@ -13,6 +13,12 @@ import {
   Task,
 } from '../types';
 import { addDaysISO } from '../utils/date';
+import {
+  SUBJECT_DRIVE_FOLDERS,
+  WORKING_FOLDER_URL,
+  WORKING_FOLDER_PATH,
+  BACKUPS_FOLDER_URL,
+} from './driveFolders';
 
 /**
  * No credential is seeded. A published default of '1234' meant every install
@@ -20,8 +26,10 @@ import { addDaysISO } from '../utils/date';
  * instead of checking one.
  */
 export const INITIAL_PARENT_SETTINGS: ParentSettings = {
-  googleDriveBackupPath: 'G:/My Drive/Documents/UK/Family/Tejas/GCSE-Genie/Backups',
-  googleDriveFolderUrl: 'https://drive.google.com/drive/folders/',
+  googleDriveBackupPath: `${WORKING_FOLDER_PATH}\\_Genie-Backups`,
+  googleDriveFolderUrl: WORKING_FOLDER_URL,
+  backupsFolderUrl: BACKUPS_FOLDER_URL,
+  workingFolderPath: WORKING_FOLDER_PATH,
   llmProvider: 'GEMINI',
   llmModelName: 'gemini-1.5-pro',
 };
@@ -39,7 +47,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Mr. Davies (Maths Faculty)',
     teacherNotes: 'Strong algebra foundation; focus on independence probability proofs & coordinate centers.',
     examStructure: '3 x 1.5h written papers in Year 11 (Paper 1 Non-Calc, Papers 2 & 3 Calculator).',
-    driveFolderUrl: 'https://drive.google.com/drive/folders/',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.maths,
   },
   {
     id: 'english_lang',
@@ -53,7 +61,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Ms. Robinson',
     teacherNotes: 'Analyze fiction/non-fiction texts with precise linguistic terminology.',
     examStructure: 'Paper 1 (Explorations in Creative Reading & Writing) & Paper 2 (Writers Viewpoints).',
-    driveFolderUrl: 'https://drive.google.com/drive/folders/',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.english_lang,
   },
   {
     id: 'english_lit',
@@ -67,7 +75,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Ms. Robinson',
     teacherNotes: 'Master Shakespeare (Macbeth), 19th Century Prose, and Power & Conflict Poetry.',
     examStructure: 'Paper 1 (Shakespeare & 19th C Novel) & Paper 2 (Modern texts & Poetry).',
-    driveFolderUrl: 'https://drive.google.com/drive/folders/',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.english_lit,
   },
   {
     id: 'biology',
@@ -81,7 +89,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Dr. Evans',
     teacherNotes: 'Focus on cell biology, osmosis, enzymes, bioenergetics, and 7 required practicals.',
     examStructure: '2 x 1h 45m papers (50% each) for Triple Science award.',
-    driveFolderUrl: 'https://drive.google.com/drive/folders/',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.biology,
   },
   {
     id: 'chemistry',
@@ -95,7 +103,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Mr. Gallagher',
     teacherNotes: 'Chromatography Rf formulas, mole calculations, electrolysis, and quantitative chemistry.',
     examStructure: '2 x 1h 45m papers (50% each) for Triple Science award.',
-    driveFolderUrl: 'https://drive.google.com/drive/folders/',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.chemistry,
   },
   {
     id: 'physics',
@@ -109,7 +117,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Mr. Clarke',
     teacherNotes: 'Strict unit conversion discipline (minutes -> seconds, kW -> W) and energy formulas.',
     examStructure: '2 x 1h 45m papers (50% each) for Triple Science award.',
-    driveFolderUrl: 'https://drive.google.com/drive/folders/',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.physics,
   },
   {
     id: 'history',
@@ -123,7 +131,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'Mr. Harrison',
     teacherNotes: 'Weimar & Nazi Germany, Conflict & Tension (1918-1939), Health and the People, Normans.',
     examStructure: 'Paper 1 (Understanding Modern World - 2h) & Paper 2 (Shaping the Nation - 2h).',
-    driveFolderUrl: 'https://drive.google.com/drive/folders/',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.history,
   },
   {
     id: 'computer_science',
@@ -137,7 +145,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherName: 'AMN (Home Learning Lead)',
     teacherNotes: 'CRITICAL: Maintain daily homework completion consistency. Master SQL & Networking.',
     examStructure: 'Component 1 (Computer Systems - 1.5h) & Component 2 (Algorithms & Programming - 1.5h).',
-    driveFolderUrl: 'https://drive.google.com/drive/folders/',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.computer_science,
   },
   {
     id: 'art',
@@ -152,7 +160,7 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     teacherNotes: 'Component 1 Portfolio (60%) ongoing targets + prepare for 10-hour supervised exam.',
     courseworkWeight: 60,
     examStructure: '60% Coursework Portfolio + 40% Externally Set Assignment (10-hour practical).',
-    driveFolderUrl: 'https://drive.google.com/drive/folders/',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.art,
   },
 ];
 
