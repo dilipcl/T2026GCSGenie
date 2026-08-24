@@ -4,6 +4,8 @@ import { SubjectConfig, SyllabusTopic, Task, RAGStatus } from '../../types';
 import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalculator';
 import { logAuditEvent } from '../../services/auditService';
 import { resolveTopicFolder } from '../../db/driveFolders';
+import { attachmentCountsFor } from '../../services/attachmentService';
+import { TopicMaterialPanel } from './TopicMaterialPanel';
 import { triggerCelebration } from '../../utils/confetti';
 import { todayISO, addDaysISO } from '../../utils/date';
 import {
@@ -17,6 +19,7 @@ import {
   ExternalLink,
   Edit3,
   Trash2,
+  Paperclip,
   Save,
   Folder,
   Sliders,
@@ -44,6 +47,8 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
 
   // Subject Edit Mode
   const [isEditingSubject, setIsEditingSubject] = useState(false);
+  const [openTopicId, setOpenTopicId] = useState<string | null>(null);
+  const [materialCounts, setMaterialCounts] = useState<Record<string, number>>({});
   const [editedTeacher, setEditedTeacher] = useState('');
   const [editedNotes, setEditedNotes] = useState('');
   const [editedDriveUrl, setEditedDriveUrl] = useState('');
@@ -70,6 +75,10 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     }
   }, [subject, isOpen]);
 
+  const loadMaterialCounts = async (topicList: SyllabusTopic[]) => {
+    setMaterialCounts(await attachmentCountsFor('TOPIC', topicList.map((x) => x.id)));
+  };
+
   const loadSubjectData = async () => {
     if (!subject) return;
     const t = await db.syllabusTopics.where('subjectId').equals(subject.id).toArray();
@@ -77,6 +86,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     const ragRes = await calculateSubjectRAG(subject.id);
 
     setTopics(t);
+    await loadMaterialCounts(t);
     setTasks(taskList);
     setRag(ragRes);
   };
@@ -458,16 +468,17 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
               </div>
             </form>
 
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[26rem] overflow-y-auto pr-1">
               {topics.map((topic) => (
                 <div
                   key={topic.id}
-                  className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-2 transition-all ${
+                  className={`p-3 rounded-xl border transition-all ${
                     topic.isCompleted
                       ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
                       : 'bg-slate-800/40 border-slate-700/60 text-slate-300'
                   }`}
                 >
+                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5 flex-1 min-w-[200px]">
                     <button
                       type="button"
@@ -538,12 +549,37 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
 
                     <button
                       type="button"
+                      onClick={() => setOpenTopicId(openTopicId === topic.id ? null : topic.id)}
+                      aria-expanded={openTopicId === topic.id}
+                      title="Notes link and photos for this topic"
+                      className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-colors ${
+                        materialCounts[topic.id]
+                          ? 'bg-teal-600/20 border-teal-500/40 text-teal-300'
+                          : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Paperclip className="w-3 h-3" />
+                      <span>{materialCounts[topic.id] || 'Material'}</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => handleDeleteTopic(topic)}
+                      aria-label={`Delete topic ${topic.title}`}
+                      title={`Delete "${topic.title}"`}
                       className="p-1 text-slate-500 hover:text-rose-400 rounded transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                 </div>
+
+                  {openTopicId === topic.id && (
+                    <TopicMaterialPanel
+                      topic={topic}
+                      onChanged={loadSubjectData}
+                    />
+                  )}
                 </div>
               ))}
             </div>

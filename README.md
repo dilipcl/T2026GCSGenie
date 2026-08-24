@@ -280,6 +280,11 @@ GCSEAppWorkingFolder/
 └── _Genie-Backups/     Genie's JSON exports
 ```
 
+Each syllabus topic can hold its own material too — *Subjects & Goals* → a subject → **Material** on
+any topic row. That opens a notes link (NotebookLM, a Doc, a file in the subject folder) and photo
+capture for the things that would otherwise never get filed: a page of worked examples, a handout, a
+diagram off the board. The button shows a count once a topic has anything attached.
+
 Every subject links straight to its folder — *Subjects & Goals* → a subject → **Subject folder**.
 A topic with no notes link of its own falls back to its subject's folder, so "open my notes" always
 goes somewhere. All the links are editable per subject, so a folder that gets moved can be repointed
@@ -333,21 +338,18 @@ Documented honestly so they aren't rediscovered as bugs.
    deliberately.
 3. **Not a PWA.** No manifest, no service worker. Chrome will not offer "Install app", and while the
    data layer is offline-first the *assets* are not cached, so a cold load needs a network.
-4. **Icon-only buttons lack accessible labels.** The delete controls on tasks, key dates and
-   timetable blocks are icon buttons with no `aria-label`, so a screen reader announces nothing
-   useful. Found while testing the confirm dialogs; not yet fixed.
-5. **The audit chain is unsigned.** It now catches edits, mid-chain deletions and tail truncation,
+4. **The audit chain is unsigned.** It now catches edits, mid-chain deletions and tail truncation,
    but the hashes are not signed — a determined person who recomputes the whole chain after editing
    it would pass the check. Tamper-evident against casual editing; not tamper-proof.
-6. **The timetable is mostly empty.** Only Monday of the Odd week is seeded. Tuesday–Friday and the
+5. **The timetable is mostly empty.** Only Monday of the Odd week is seeded. Tuesday–Friday and the
    whole Even week still need entering — though Quick Add's multi-day Lesson mode makes that quick.
-7. **Tasks, key dates and timetable blocks still can't be edited** after creation, only created and
+6. **Tasks, key dates and timetable blocks still can't be edited** after creation, only created and
    deleted. Assessments in the Proof Log *can* be edited; subjects can be edited in place.
-8. **Assessment results don't feed the RAG score.** The subject average over marked papers is
+7. **Assessment results don't feed the RAG score.** The subject average over marked papers is
    calculated and displayed, but the health score is still 40% homework / 35% remediations / 25% topic
    mastery. Folding attainment in would move every subject's status, so it's a deliberate decision
    left open rather than an oversight.
-9. **Free-tier storage will bind eventually.** 75 MB of photo storage is roughly 250 downscaled
+8. **Free-tier storage will bind eventually.** 75 MB of photo storage is roughly 250 downscaled
    images — about a year at a realistic rate. The Pro tier (€3/month) raises that to 20 GB. The Parent
    Portal shows current usage so the trend is visible.
 

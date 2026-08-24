@@ -187,6 +187,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                   {!entry.isHardLocked && (
                     <button
                       onClick={() => handleDeleteEntry(entry)}
+                      aria-label={`Remove ${entry.activityName} from ${entry.dayOfWeek}`}
                       title="Remove schedule block"
                       className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors"
                     >
