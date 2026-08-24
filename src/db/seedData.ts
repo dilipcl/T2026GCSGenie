@@ -196,42 +196,6 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     taskTitle: 'Venn Diagram Probability Proofs',
     taskInstructions: 'Solve mock exam questions proving independence using the exact formula: P(B ∩ S) = P(B) × P(S). Explain step-by-step why the product equals the intersection. Provide Google Notebook proof of working.',
     formulaOrHint: 'Independent events definition: P(A ∩ B) = P(A) × P(B). If equality holds, events are statistically independent.',
-    sampleQuestions: [
-      {
-        question: 'Given P(A) = 0.4, P(B) = 0.5, and P(A ∩ B) = 0.2, prove whether A and B are independent.',
-        expectedOutcome: 'P(A) × P(B) = 0.4 × 0.5 = 0.2. Since P(A) × P(B) == P(A ∩ B), they are independent.',
-      },
-      {
-        question: 'In a class of 30: 15 play Football, 10 play Tennis, 5 play both. Are Football and Tennis independent?',
-        expectedOutcome: 'P(F) = 15/30 = 0.5, P(T) = 10/30 = 1/3. P(F) × P(T) = 1/6 (5/30). Since P(F ∩ T) = 5/30 = 1/6, they are independent.',
-      },
-    ],
-    comprehensiveQuestions: [
-      {
-        id: 'q-m1-1',
-        questionNumber: 'Q1 (a)',
-        questionText: 'A spinner has 5 sections numbered 1 to 5. Let A be the event of spinning an even number and B be spinning a number greater than 2. Calculate P(A), P(B), and P(A ∩ B).',
-        marksAllocated: 3,
-        modelAnswer: 'P(A) = 2/5 (numbers 2,4). P(B) = 3/5 (numbers 3,4,5). A ∩ B = {4}, so P(A ∩ B) = 1/5.',
-        markSchemeNotes: '1 mark for P(A), 1 mark for P(B), 1 mark for P(A ∩ B).'
-      },
-      {
-        id: 'q-m1-2',
-        questionNumber: 'Q1 (b)',
-        questionText: 'Using your answers from part (a), determine with proof whether events A and B are statistically independent.',
-        marksAllocated: 2,
-        modelAnswer: 'P(A) × P(B) = (2/5) × (3/5) = 6/25 (0.24). Since P(A ∩ B) = 1/5 = 5/25 (0.20), P(A ∩ B) ≠ P(A) × P(B). Therefore, events A and B are NOT independent.',
-        markSchemeNotes: '1 mark for calculating product 6/25. 1 mark for explicit comparison statement and conclusion.'
-      },
-      {
-        id: 'q-m1-3',
-        questionNumber: 'Q2',
-        questionText: 'In a survey of 100 students: 60 study Biology (B), 40 study Chemistry (C), and 24 study both. Prove whether choosing a Biology student and choosing a Chemistry student are independent events.',
-        marksAllocated: 3,
-        modelAnswer: 'P(B) = 60/100 = 0.6. P(C) = 40/100 = 0.4. P(B ∩ C) = 24/100 = 0.24. Product: P(B) × P(C) = 0.6 × 0.4 = 0.24. Since 0.24 == 0.24, the events are independent.',
-        markSchemeNotes: '1 mark for probabilities, 1 mark for product calculation, 1 mark for conclusive proof statement.'
-      }
-    ],
     xpReward: 200,
     isCompleted: false,
   },
@@ -243,22 +207,6 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     taskTitle: 'Scale-Factor Enlargements with Coordinate Centers',
     taskInstructions: 'Perform graph-based shape enlargement with negative fractional scale factors (e.g. -1/2, -2) from specified (X,Y) centers of origin. Upload notebook drawing proof.',
     formulaOrHint: 'Negative scale factors invert the shape through the center of enlargement: Distance = Scale Factor × Distance from Center.',
-    sampleQuestions: [
-      {
-        question: 'Enlarge triangle A with vertices at (2,2), (4,2), (2,6) by scale factor -1/2 with center (0,0).',
-        expectedOutcome: 'New vertices: (-1, -1), (-2, -1), (-1, -3).',
-      },
-    ],
-    comprehensiveQuestions: [
-      {
-        id: 'q-m2-1',
-        questionNumber: 'Q1',
-        questionText: 'Triangle T has vertices at (3, 1), (5, 1), (3, 4). Enlarge Triangle T by scale factor -2 with center of enlargement (1, 1). State the coordinates of the 3 new vertices.',
-        marksAllocated: 3,
-        modelAnswer: 'Vector from (1,1) to (3,1) is (2,0) -> (-4,0) -> Vertex 1: (-3, 1). Vector to (5,1) is (4,0) -> (-8,0) -> Vertex 2: (-7, 1). Vector to (3,4) is (2,3) -> (-4,-6) -> Vertex 3: (-3, -5).',
-        markSchemeNotes: '1 mark for correct method of ray lines/vectors from center (1,1). 2 marks for all 3 correct coordinates.'
-      }
-    ],
     xpReward: 150,
     isCompleted: false,
   },
@@ -270,12 +218,6 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     taskTitle: 'Double Bracket Quadratic Expansion & Factorization',
     taskInstructions: 'Solve complex expanding and factorizing quadratic expressions to reinforce strict sign consistency when subtracting expressions.',
     formulaOrHint: '(2x+3)^2 = 4x^2 + 12x + 9. (2x+3)(x-5) = 2x^2 - 7x - 15. Subtracting gives: (4x^2 + 12x + 9) - (2x^2 - 7x - 15) = 2x^2 + 19x + 24.',
-    sampleQuestions: [
-      {
-        question: 'Simplify completely: (2x+3)^2 - (2x+3)(x-5)',
-        expectedOutcome: '2x^2 + 19x + 24 (or factorized: (2x+3)(x+8))',
-      },
-    ],
     xpReward: 100,
     isCompleted: false,
   },
@@ -287,12 +229,6 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     taskTitle: 'Chromatography Rf Value Safety Check',
     taskInstructions: 'Solve 5 chromatogram calculation problems. Ensure formula Rf = (Distance moved by solute) / (Distance moved by solvent) is strictly applied, and verify output < 1.0.',
     formulaOrHint: 'SAFETY RULE: Solute can never travel further than solvent front! Therefore, Rf is ALWAYS <= 1.0 (between 0 and 1).',
-    sampleQuestions: [
-      {
-        question: 'Solute distance = 4.2 cm, Solvent distance = 7.0 cm. Calculate Rf.',
-        expectedOutcome: 'Rf = 4.2 / 7.0 = 0.60 (Valid since < 1.0).',
-      },
-    ],
     xpReward: 150,
     isCompleted: false,
   },
@@ -304,12 +240,6 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     taskTitle: 'Physics Power-to-Energy Unit Conversion Safety Step',
     taskInstructions: 'Solve energy transfer problems involving E = P × t. Explicitly write the "Unit Safety Conversion" step (t in seconds) before multiplying.',
     formulaOrHint: '1 minute = 60 seconds. Energy (Joules) = Power (Watts) × Time (Seconds). 65W × (25 × 60s) = 65W × 1500s = 97,500 J (97.5 kJ).',
-    sampleQuestions: [
-      {
-        question: 'A 100W light bulb runs for 15 minutes. Calculate energy transferred in Joules.',
-        expectedOutcome: 'Time = 15 × 60 = 900s. E = 100 × 900 = 90,000 Joules (90 kJ).',
-      },
-    ],
     xpReward: 200,
     isCompleted: false,
   },
@@ -321,12 +251,6 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     taskTitle: 'Reparations & Treaty of Versailles Keyword Mastery',
     taskInstructions: 'Match and define key terms: Reparations (£6.6 billion war damage compensation), Diktat, Demilitarisation (Rhineland), Lebensraum, Propaganda.',
     formulaOrHint: 'Reparations = £6.6 Billion (fixed in 1921 under Article 231 War Guilt Clause).',
-    sampleQuestions: [
-      {
-        question: 'What exact financial figure was demanded from Germany as reparations in 1921?',
-        expectedOutcome: '£6.6 Billion (132 billion gold marks).',
-      },
-    ],
     xpReward: 100,
     isCompleted: false,
   },
@@ -338,12 +262,6 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     taskTitle: '12-Mark Essay Comparative Skeleton Quest',
     taskInstructions: 'Outline a standard 3-paragraph GCS essay skeleton that directly compares two historical causes and concludes with a definitive, justified judgment.',
     formulaOrHint: 'Paragraph 1: Factor A (Land losses). Paragraph 2: Factor B (Reparations). Paragraph 3: Direct comparative synthesis concluding which was primary.',
-    sampleQuestions: [
-      {
-        question: 'Outline the judgment comparing why military restrictions hurt German national pride more than financial reparations.',
-        expectedOutcome: 'Synthesizes military humiliation as existential dishonor vs reparations as economic burden.',
-      },
-    ],
     xpReward: 250,
     isCompleted: false,
   },
@@ -355,12 +273,6 @@ export const INITIAL_REMEDIATION_ACTIONS: RemediationAction[] = [
     taskTitle: 'CS Homework Consistency 14-Day Challenge',
     taskInstructions: 'Maintain a 14-day streak of logging and completing Computer Science tasks on the exact day they are set by teacher AMN.',
     formulaOrHint: 'Zero overdue assignments for 14 consecutive days.',
-    sampleQuestions: [
-      {
-        question: 'Log today\'s Computer Science assignment and mark as completed.',
-        expectedOutcome: 'Increments CS Homework Streak towards 14-day milestone.',
-      },
-    ],
     xpReward: 300,
     isCompleted: false,
   },

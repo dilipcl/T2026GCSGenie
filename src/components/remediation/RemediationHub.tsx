@@ -155,7 +155,6 @@ export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }
             </p>
 
             <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
-              <span>{quest.sampleQuestions.length} Practice Questions</span>
               <span className="text-amber-400 group-hover:translate-x-1 transition-transform flex items-center gap-1 font-semibold">
                 <span>{quest.isCompleted ? 'Review Quest' : 'Solve & Claim XP'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
