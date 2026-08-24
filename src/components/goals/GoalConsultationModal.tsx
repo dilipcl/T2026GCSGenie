@@ -4,6 +4,7 @@ import { Goal } from '../../types';
 import { calculateBurnoutCapacity } from '../../services/burnoutEngine';
 import { logAuditEvent } from '../../services/auditService';
 import { X, Target, AlertTriangle, Sparkles } from 'lucide-react';
+import { newId } from '../../utils/id';
 
 interface GoalConsultationModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export const GoalConsultationModal: React.FC<GoalConsultationModalProps> = ({
     if (!title.trim()) return;
 
     const newGoal: Goal = {
-      id: `goal_${Date.now()}`,
+      id: newId('goal'),
       title: title.trim(),
       category,
       smartSpecific: specific.trim(),

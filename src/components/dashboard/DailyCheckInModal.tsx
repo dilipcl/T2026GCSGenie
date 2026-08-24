@@ -16,6 +16,7 @@ import {
   ArrowRight,
   BookmarkCheck,
 } from 'lucide-react';
+import { newId } from '../../utils/id';
 
 interface DailyCheckInModalProps {
   isOpen: boolean;
@@ -130,7 +131,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       const isDailyBase = !hasCheckedInToday;
 
       // 1. Record Structured Check-in
-      const checkInId = `checkin_${todayStr}_${now}`;
+      const checkInId = newId('checkin');
       await db.checkIns.add({
         id: checkInId,
         date: todayStr,
@@ -167,7 +168,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       if (followUpSubject) {
         if (createActionTask && actionForTomorrow.trim()) {
           spawned.push({
-            id: `task_${now}_action`,
+            id: newId('task'),
             subjectId: followUpSubject,
             title: actionForTomorrow.trim(),
             description: 'Added from your check-in as tomorrow\'s action.',
@@ -183,7 +184,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
 
         if (createQuestionTask && blockersAndQuestions.trim()) {
           spawned.push({
-            id: `task_${now}_question`,
+            id: newId('task'),
             subjectId: followUpSubject,
             title: `Ask: ${blockersAndQuestions.trim()}`,
             description: 'Question you noted at check-in. Ask in your next lesson.',
