@@ -13,6 +13,7 @@ import {
   GraduationCap,
   Award,
 } from 'lucide-react';
+import { newId } from '../../utils/id';
 
 interface RemediationSolveModalProps {
   quest: RemediationAction | null;
@@ -128,7 +129,7 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
     }
 
     const subQuest: RemediationAction = {
-      id: `rem-sub-${Date.now()}`,
+      id: newId('remsub'),
       subjectId: quest.subjectId,
       sourceDoc: `Follow-up to ${quest.taskTitle}`,
       diagnosticError: `Identified deficit during self-study: ${weakArea.trim()}`,

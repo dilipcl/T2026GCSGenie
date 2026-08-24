@@ -13,7 +13,7 @@ For what the app actually does today, read in this order:
 
 Figures in this brief that have since changed are flagged inline with [SUPERSEDED].
 A summary of the significant divergences is at the end of this file.
-Last reconciled: August 2026.
+Last reconciled: August 2026 (multi-device sync / Proof Log pass).
 ================================================================================
 
 GCSE Genie - Master Software Specification & Prompt Blueprint (v3)
@@ -23,6 +23,10 @@ It is tailored for a student (Tejas Dilip, GCS Year 10) preparing for GCSE exams
 
 1. System Philosophy & Core Constraints
 100% Manual, Private, & Offline: Zero integrations with external school portals (Sparx, Bromcom, MCAS, Teams). Everything is manually entered by the student or parents. Teachers have no access.
+[SUPERSEDED] "Offline" and "nothing leaves the device" no longer hold in full. Optional Dexie Cloud
+sync was added in August 2026 so parent oversight works across devices; it is off until a user signs
+in. Zero school-portal integration and zero teacher access remain true. The LLM API key is excluded
+from sync and from backups.
 Zero-Administrative Overhead: The student's dashboard is optimized for rapid, frictionless interactions. Daily check-ins must take under 2 minutes using quick-toggle buttons, sliders, and tap-to-complete check-ins.
 Multi-User Collaborative Access:
 Student Role: Complete daily tasks, log homework, check off revision blocks, view current XP, and request real-world rewards.
@@ -162,34 +166,51 @@ DELIVERED AS SPECIFIED
   - Careers hub, teacher directory, curated free revision links
 
 DELIVERED DIFFERENTLY
+  - Sync is Dexie Cloud, not encrypted JSON bundles in Google Drive. The JSON
+    export remains, but as backup only - it is a whole-database replace and was
+    never a safe reconciliation mechanism.
   - Weekly ceiling is 60h, not 45h. At 44h of fixed commitments a 45h ceiling
     left under an hour a week for homework, so the burnout gauge read CRITICAL
     permanently and carried no signal.
   - RAG weighting is 40% homework / 35% remediations / 25% topic mastery. The
     brief's 35% "assessment average" term was dropped because no assessment
-    results are stored anywhere in the app.
+    results were stored anywhere in the app. [UPDATED Aug 2026] Assessment
+    results now exist (Proof Log) and the per-subject average is calculated and
+    displayed, but is still not folded into the score - doing so would move
+    every subject's RAG status and is left as an explicit open decision.
   - Navigation is tiered by frequency of use (daily vs weekly) rather than by
     module. Goal creation and amendment is a weekly-tier activity; adding
     homework and key dates is a floating action button on every screen.
 
+BUILT SINCE THIS BRIEF WAS LAST RECONCILED (August 2026)
+  - Parental review and LOCKING of proposed goals. Parents now have Approve &
+    Lock; unlocked goals display their weekly hours struck through, so the fact
+    that they are not counted in the time budget is visible rather than silent.
+  - Assessment/mock result tracking, as the Proof Log: per-question marks, the
+    cause of each dropped mark, teacher feedback, and photographs of the paper.
+    Wrong answers optionally become fix-up tasks due in three days.
+  - Cross-device sync, via Dexie Cloud. Optional, off until sign-in, one login
+    per device lasting months.
+
 NOT BUILT
-  - Parental review and LOCKING of proposed goals. This brief describes it as the
-    mechanism by which goals "generate daily/weekly habits added to his calendar".
-    The status enum exists and the burnout engine only counts locked goals, but
-    nothing in the app performs the transition. Proposed goals are inert.
-  - Assessment/mock result tracking, so the app cannot answer whether real
-    performance is trending toward Grade 9.
+  - Enforced parent authority. The PIN gates the interface, not the data: anyone
+    with devtools can rewrite IndexedDB and approve their own rewards. Dexie
+    Cloud realms and roles would make it real. This is now the largest remaining
+    gap in the parent-facing half of this brief.
   - Offline capability and PWA installation (no manifest, no service worker).
-  - Cross-device sync. Data is per-device IndexedDB, so the parent-facing half of
-    this brief only functions on the student's own device or via manual JSON
-    export/import.
+    The data layer is offline-first; the assets are not cached.
   - Sleep logging in the check-in (energy and focus only).
 
 KNOWN DEFECTS
-  - Live LLM audits never reach Gemini or Claude: the Anthropic browser header is
-    wrong and both default model IDs are retired. Failures are swallowed and the
-    offline rules engine runs instead, without telling the parent.
-  - The audit ledger is described as tamper-evident and hash-chained. Each entry
-    is hashed independently with no previous-hash link, and rows are deletable.
-  - Only Monday of the Odd week is seeded in the timetable.
+  - [FIXED Aug 2026] Live LLM audits never reached Gemini or Claude. The header,
+    both default models, the token ceiling and the missing OpenAI path are all
+    corrected, and the portal now states why the offline engine ran when it does.
+  - [FIXED Aug 2026] Backup export omitted the milestones table, so every restore
+    destroyed all key dates and exam milestones. The exporter now walks the live
+    schema so no table can be omitted, and restore takes a rescue copy first.
+  - The audit ledger is described in this brief as tamper-evident and hash-chained.
+    Each entry is hashed independently with no previous-hash link, and rows are
+    deletable. Still true; the UI wording was corrected to "Change History".
+  - Only Monday of the Odd week is seeded in the timetable. Quick Add can now
+    write a lesson to several days at once, which makes filling it in quick.
 ================================================================================

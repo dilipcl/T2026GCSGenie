@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
 import { TimetableEntry, WeekType, DayOfWeek } from '../../types';
-import { AddEventModal } from './AddEventModal';
+import { QuickAddSheet } from '../shared/QuickAddSheet';
+import { logAuditEvent } from '../../services/auditService';
 import {
   Calendar,
   Clock,
@@ -51,8 +52,19 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
     )
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-  const handleDeleteEntry = async (id: string) => {
-    await db.timetableEntries.delete(id);
+  const handleDeleteEntry = async (entry: TimetableEntry) => {
+    if (!confirm(`Remove "${entry.activityName}" from ${entry.dayOfWeek}? This is recorded in the change history.`)) {
+      return;
+    }
+
+    await db.timetableEntries.delete(entry.id);
+    await logAuditEvent({
+      user: 'STUDENT',
+      action: 'DELETE',
+      entity: 'TimetableEntry',
+      entityId: entry.id,
+      oldValue: `${entry.activityName} (${entry.weekType} ${entry.dayOfWeek} ${entry.startTime}-${entry.endTime})`,
+    });
     loadEntries();
   };
 
@@ -87,7 +99,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
             className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-950/50 flex items-center gap-1.5 transition-all"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Block / Reminder</span>
+            <span>Add lessons</span>
           </button>
         </div>
       </div>
@@ -122,9 +134,9 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
         {filteredEntries.length === 0 ? (
           <div className="p-8 bg-slate-900/40 rounded-2xl border border-slate-800 text-center">
             <Clock className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-slate-300">No scheduled sessions for this day</p>
+            <p className="text-sm font-semibold text-slate-300">Nothing scheduled for this day yet</p>
             <p className="text-xs text-slate-500 mt-1">
-              Click "Add Block / Reminder" to schedule a revision session or custom activity.
+              Tap "Add lessons" - you can pick a period and tick several days at once.
             </p>
           </div>
         ) : (
@@ -168,7 +180,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
 
                   {!entry.isHardLocked && (
                     <button
-                      onClick={() => handleDeleteEntry(entry.id)}
+                      onClick={() => handleDeleteEntry(entry)}
                       title="Remove schedule block"
                       className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors"
                     >
@@ -182,11 +194,13 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
         )}
       </div>
 
-      <AddEventModal
+      <QuickAddSheet
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={loadEntries}
+        defaultMode="LESSON"
         defaultWeek={activeWeek}
+        defaultDay={selectedDay}
       />
     </div>
   );

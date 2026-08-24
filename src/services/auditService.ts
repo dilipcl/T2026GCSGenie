@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { AuditLogEntry, UserRole } from '../types';
 import { sha256 } from '../utils/hash';
+import { newId } from '../utils/id';
 
 export async function logAuditEvent(params: {
   user: UserRole;
@@ -16,7 +17,7 @@ export async function logAuditEvent(params: {
   const hash = await sha256(rawPayload);
 
   const entry: AuditLogEntry = {
-    id: `audit_${timestamp}_${Math.random().toString(36).substring(2, 7)}`,
+    id: newId('audit'),
     timestamp,
     user: params.user,
     action: params.action,

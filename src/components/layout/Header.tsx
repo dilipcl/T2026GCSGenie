@@ -3,6 +3,7 @@ import { UserRole, WeekType } from '../../types';
 import { calculateTotalXP } from '../../services/ragCalculator';
 import { calculateStreakStats, StreakStats } from '../../services/habitEngine';
 import { Sparkles, Flame, Calendar, Lock, Unlock } from 'lucide-react';
+import { SyncStatus } from './SyncStatus';
 
 interface HeaderProps {
   currentRole: UserRole;
@@ -123,6 +124,8 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <span>⚡ Check in</span>
           </button>
+
+          <SyncStatus />
 
           {/* Role Switcher (Student / Parent Mode) */}
           <button

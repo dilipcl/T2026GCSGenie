@@ -2,7 +2,12 @@
 
 **A daily organiser for GCSE work — built for Tejas Dilip (Year 10, Guildford County School).**
 
-Everything runs locally in the browser. No school-portal integrations, no accounts, no data leaving the device.
+Offline-first in the browser, with optional sync across the family's devices. No school-portal integrations.
+
+> Data lives in IndexedDB on each device and works with no login at all. Signing in enables
+> [Dexie Cloud](https://dexie.org/cloud/) sync so a check-in on Tejas's phone reaches a parent's
+> laptop. The LLM API key is explicitly excluded from sync and never leaves the device it was
+> entered on.
 
 ---
 
@@ -15,7 +20,7 @@ The interface is organised by **how often you actually use something**, not by h
 | Tier | Sections | Typical use |
 | :--- | :--- | :--- |
 | **Every day** | Home · My Work · Key Dates · Fix My Mistakes | Check what's due, log the day, tick things off |
-| **Weekly** | Rewards · Timetable · Subjects & Goals · Careers & Help | Planning, review, spending XP |
+| **Weekly** | Proof Log · Rewards · Timetable · Subjects & Goals · Careers & Help | Logging marked work, planning, review, spending XP |
 | **Parent only** | Parent Portal | Audits, sanctions, backups, PIN |
 
 On mobile the four daily sections are the bottom bar; the rest live behind **More**. On desktop they're separated by a `WEEKLY` divider.
@@ -27,7 +32,16 @@ Section names are deliberately plain — *My Work*, *Key Dates*, *Fix My Mistake
 ## Core features
 
 ### Quick Add — two taps from anywhere
-A floating **+** button on every screen. Choose **Homework** or **Key date**, type it, tap a date chip (Today / Tomorrow / In 3 days / Next week), pick a subject. Priority, category and notes are folded behind *More options* because they're rarely changed.
+A floating **+** button on every screen, with three modes: **Homework**, **Key date** and **Lesson**.
+
+Subjects and categories are icon chips rather than dropdowns — the whole set is visible and one tap
+away. Dates use chips (Today / Tomorrow / In 3 days / Next week) with a picker underneath. Priority
+and notes stay folded behind *More options*.
+
+**Lesson** mode adds timetable entries and can write to **several days at once**: pick a period from
+the preset chips (ordered by clock time, taken from the school day), tick Tue + Wed + Thu, and one
+tap creates all three. Filling in a rotation no longer means retyping the same period twenty times.
+Leaving the name blank takes it from the subject.
 
 ### What's next
 The top card on Home. Overdue first, then due today, then the next seven days, with upcoming key dates counting down beneath. Tasks can be ticked off without leaving the page.
@@ -66,6 +80,23 @@ Real errors from Tejas's Year 9 scripts and GCS interim reports, converted into 
 
 Each records a self-marked score, optional Google Notebook proof link, and working notes. A weak area can spawn a targeted follow-up sub-quest.
 
+### Proof Log — marked work with the evidence attached
+Every class test, mock, past paper or marked homework, recorded as evidence rather than a claim:
+
+- Score with a live percentage, grade awarded, and the date sat
+- **Question-by-question breakdown** — question number, topic tested, marks scored vs available, and
+  *why* the marks went (careless / method / didn't know / misread / ran out of time), plus the
+  question, your answer and the mark scheme
+- **Photograph the paper.** Images are downscaled to 1600px on upload — a 6 MB phone photo becomes
+  roughly 300 KB — so backups and sync stay a sensible size. PDFs are stored as-is.
+- Teacher feedback and topics to revisit
+- A parent can mark a result **Verified**
+
+Questions that dropped marks optionally become **fix-up tasks due in three days**, so the log drives
+work rather than just recording it. The subject average across marked papers is reported alongside
+the RAG score — deliberately *not* folded into it, because changing the 40/35/25 weighting would
+move every subject's status without anyone asking for that.
+
 ### Subjects & RAG status
 Live Red/Amber/Green per subject, weighted **40% homework · 35% remediations · 25% topic mastery**, with a manual override if the calculated value is misleading. Covers Edexcel Maths, AQA English Lang & Lit, AQA Triple Science (+ required practicals), AQA History, OCR Computer Science, AQA Art & Design.
 
@@ -83,14 +114,25 @@ Tracks total committed hours against a safe weekly ceiling and warns before a ne
 
 XP is banked once. Homework ticked off inside a check-in is credited through the task itself, not twice.
 
+**Pending reward requests reserve their cost.** The balance shown is what can actually be spent; XP
+held against requests awaiting a parent's decision is displayed separately. Without this the shop
+could be overdrawn — three 1,000 XP requests each passed the affordability check individually
+against a 1,200 XP balance, and approving all three took the true balance to −1,800, which the
+old `Math.max(0, …)` then displayed as a tidy zero.
+
 The rewards catalogue runs from **50 XP** (pick tonight's dinner music, skip a chore) up to 5,000 XP,
 sorted cheapest first, with a progress bar to the next affordable item. Small rewards matter: if the
 cheapest thing on the shelf is ten days away, nothing reinforces the effort made today.
 
 ### Parent Portal (PIN-protected)
-Audit reports, rewards approval queue, sanction logger, full JSON backup/restore, a **Change History** of every mutation, and the PIN change form.
+Audit reports, rewards approval queue, sanction logger, backup/restore, a **Change History** of every
+mutation (deletes included), proof-log storage usage, and the PIN change form.
 
 > The change history is *not* a tamper-proof ledger. Each row carries a SHA-256 checksum of its own payload, but there is no previous-hash chain and rows remain deletable. It is labelled accordingly in the UI.
+
+> The parent PIN gates the *interface*, not the data. Anyone who opens devtools can read and rewrite
+> IndexedDB directly — approve their own reward requests, lift their own sanctions, edit the log.
+> Making that boundary real needs Dexie Cloud realms and roles; see *Known limitations*.
 
 ---
 
@@ -159,56 +201,111 @@ Only the SHA-256 hash is stored, and the PIN is never written to the audit log.
 
 ---
 
-## Data & backups
+## Sync across devices
 
-Everything is stored in the browser's IndexedDB on the device it was entered on. To back up, use **Parent Portal → Export Complete Backup JSON** and save the file to Google Drive.
+Sync is optional and off until someone signs in. Tap the sync chip in the header (**This device only**
+→ sign in) and authenticate by email one-time code or Google. Sessions are long-lived — months, or
+until an explicit logout — so it is a one-time step per device, not a daily login.
 
-> ⚠️ **Restoring wipes the current database before importing.** There is no merge and no undo. Export first.
+The chip then reports state: **Synced**, **Saving…**, **Updating…**, **Offline**, or **Sync problem**.
+Tap it any time to force a sync.
+
+| | |
+| :--- | :--- |
+| Backend | [Dexie Cloud](https://dexie.org/cloud/) — free tier covers 3 users, 25 MB structured data + 75 MB photos |
+| Works signed out | Yes — full local functionality, syncs once you log in |
+| **Never synced** | The LLM API key (`unsyncedProperties`), so it stays on the device that entered it |
+| Photos | Offloaded to separate blob storage, not the structured-data quota |
+
+New devices must be added to the origin whitelist before they can reach the database
+(`npx dexie-cloud whitelist <origin>`). Currently whitelisted: the GitHub Pages site plus
+`localhost:3000` and `localhost:5173` for development.
+
+> ⚠️ `dexie-cloud.key` in the project root authorises administration of the cloud database. It is
+> gitignored — **keep it that way**, and never paste it anywhere.
+
+## Backups
+
+**Parent Portal → Export everything** writes a JSON bundle covering every table, including the proof
+log and its photos. *Export without photos* produces a much smaller file for quick copies.
+
+The export walks the live schema rather than a hand-written table list, so a newly added table cannot
+be silently omitted — which is exactly how every key date and exam milestone used to be destroyed on
+restore.
+
+> ⚠️ **Restoring replaces this device's data. It does not merge.** Anything logged here since the
+> backup was taken is lost. Before clearing anything the app shows a before → after row count and
+> automatically downloads a rescue copy of the current database.
 >
-> ⚠️ The backup JSON includes parent settings, which contain the **LLM API key in plain text**. Treat the file as a secret.
+> Tables the backup predates are left alone rather than emptied, and *without photos* bundles leave
+> existing photos on the device untouched.
+
+The LLM API key is **stripped from the export**, so the bundle is safe to keep in Google Drive. The
+PIN hash is still included so a restore keeps the same PIN.
 
 ---
 
 ## Known limitations
 
-Documented honestly so they aren't rediscovered as bugs:
+Documented honestly so they aren't rediscovered as bugs.
 
-1. **Data does not sync between devices.** IndexedDB is per-device and per-browser. A reward requested on Tejas's phone will not appear in the approval queue on a parent's phone. The parent-oversight features only work on the device the student uses, or via manual JSON export/import.
-2. **Not a PWA.** No manifest, no service worker, no offline support.
-3. **Goals cannot be approved or locked.** Proposed SMART goals enter `PENDING_DISCUSSION` and stay there — there is no approval UI, so they never count toward the time budget and can't be completed or deleted.
-4. **No assessment results tracking.** There is nowhere to record "IR1 Maths: 62/80". The RAG score therefore measures *effort*, not *attainment*.
-5. **The audit log is not chained.** Each entry carries a SHA-256 of its own payload; there is no previous-hash link, and Dexie permits deletion. It is a checksummed log, not a tamper-proof ledger.
-6. **Live LLM audits fall back silently.** The Anthropic browser header and both default model IDs are out of date, and OpenAI has no implementation, so the audit quietly uses the built-in offline rules engine. The offline engine works fine; the label just doesn't explain why.
-7. **The timetable is mostly empty.** Only Monday of the Odd week is seeded. Tuesday–Friday and the entire Even week need entering by hand.
-8. **Nothing is editable after creation.** Tasks, key dates, goals and timetable blocks can be created and deleted, but not edited.
-
----
+1. **Sync is configured but unproven in the field.** The wiring is verified — cold start, seeding,
+   unsynced API key, whitelisted origins — but no two real devices have yet been signed in and
+   reconciled. Treat multi-device as untested until that happens.
+2. **Parent governance is UI-level, not enforced.** The PIN hides buttons; it does not protect data.
+   Anyone with devtools can edit IndexedDB directly. Dexie Cloud realms and roles could make the
+   student/parent boundary real, and that work has not been done.
+3. **Not a PWA.** No manifest, no service worker. Chrome will not offer "Install app", and while the
+   data layer is offline-first the *assets* are not cached, so a cold load needs a network.
+4. **The audit log is not chained.** Each entry carries a SHA-256 of its own payload; there is no
+   previous-hash link, and Dexie permits deletion. A checksummed log, not a tamper-proof ledger.
+5. **The timetable is mostly empty.** Only Monday of the Odd week is seeded. Tuesday–Friday and the
+   whole Even week still need entering — though Quick Add's multi-day Lesson mode makes that quick.
+6. **Tasks, key dates and timetable blocks still can't be edited** after creation, only created and
+   deleted. Assessments in the Proof Log *can* be edited; subjects can be edited in place.
+7. **Assessment results don't feed the RAG score.** The subject average over marked papers is
+   calculated and displayed, but the health score is still 40% homework / 35% remediations / 25% topic
+   mastery. Folding attainment in would move every subject's status, so it's a deliberate decision
+   left open rather than an oversight.
+8. **Free-tier storage will bind eventually.** 75 MB of photo storage is roughly 250 downscaled
+   images — about a year at a realistic rate. The Pro tier (€3/month) raises that to 20 GB. The Parent
+   Portal shows current usage so the trend is visible.
 
 ## Project layout
 
 ```
 src/
 ├── components/
-│   ├── shared/QuickAddSheet.tsx      # unified add - homework or key date
+│   ├── shared/QuickAddSheet.tsx      # unified add - homework / key date / lesson
+│   ├── shared/ProofUploader.tsx      # photo & PDF capture, thumbnails, cleanup
+│   ├── assessments/                   # Proof Log: entry modal + log view
 │   ├── dashboard/                     # Home: what's next, check-in, schedule, quests
 │   ├── tasks/  calendar/  goals/      # My Work, Key Dates, Subjects & Goals
 │   ├── remediation/                   # Fix My Mistakes
 │   ├── timetable/  rewards/  guidance/
 │   ├── parent/                        # PIN + Parent Portal
-│   └── layout/                        # Header, Navigation (daily vs weekly tiers)
+│   └── layout/                        # Header, Navigation, SyncStatus chip
 ├── services/
-│   ├── ragCalculator.ts               # subject health, XP totals, streak
+│   ├── ragCalculator.ts               # subject health, XP ledger (incl. reservations)
+│   ├── habitEngine.ts                 # streaks, never-miss-twice, heat-map
+│   ├── attachmentService.ts           # proof files: downscale, store, tally
 │   ├── burnoutEngine.ts               # weekly time budget
 │   ├── llmAgentService.ts             # agentic audit (live + offline)
-│   ├── backupService.ts               # JSON export/import
+│   ├── backupService.ts               # schema-walking export, safe restore
 │   └── auditService.ts                # append-only change log
-├── db/                                # Dexie schema + seed data
+├── db/                                # Dexie schema (+ Dexie Cloud) + seed data
 ├── utils/date.ts                      # local-date helpers (see below)
+├── utils/id.ts                        # globally unique record IDs (see below)
 └── types/                             # shared type definitions
 ```
 
-### Two traps worth knowing about
+### Three traps worth knowing about
 
 **Booleans cannot be indexed in IndexedDB.** Fields like `completed` and `isCompleted` appear in the Dexie schema strings but are never actually indexed, so `.where('completed').equals(0)` silently returns an empty array. Always filter booleans in memory: `.filter(t => !t.completed)`.
+
+**Never build IDs from the clock.** `task_${Date.now()}` is unique on one device and nowhere else —
+two devices creating a record in the same millisecond produce the same key, and a sync then keeps one
+and destroys the other. Dexie Cloud requires primary keys with "sufficient entropy for global
+uniqueness". Use `newId('task')` from `src/utils/id.ts`, which pairs a readable prefix with a UUID.
 
 **Never use `toISOString()` for "today".** It resolves in UTC, so during British Summer Time anything between 00:00 and 01:00 local returns the *previous* day — a check-in at 00:30 lands on yesterday and breaks the streak. Use the helpers in `src/utils/date.ts` (`todayISO`, `addDaysISO`, `daysUntil`, `formatFriendlyDate`, `formatCountdown`).

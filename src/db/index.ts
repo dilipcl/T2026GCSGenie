@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import dexieCloud from 'dexie-cloud-addon';
 import {
   SubjectConfig,
   SyllabusTopic,
@@ -17,6 +18,8 @@ import {
   AgentAuditReport,
   CareerGuidanceResource,
   FreeRevisionLink,
+  Assessment,
+  ProofAttachment,
 } from '../types';
 import {
   INITIAL_SUBJECTS,
@@ -31,7 +34,28 @@ import {
   INITIAL_GOALS,
   INITIAL_PARENT_SETTINGS,
   MICRO_REWARDS,
+  INITIAL_TASKS,
 } from './seedData';
+
+/**
+ * The Dexie Cloud database backing sync. This is a public endpoint, not a
+ * secret - access is granted by the signed-in user's token, not by knowing the
+ * URL - so it belongs in source alongside the schema it serves.
+ *
+ * Override at build time with VITE_DEXIE_CLOUD_URL to point a branch at a
+ * throwaway database instead of the family's real one.
+ */
+/**
+ * dexie-cloud-addon needs browser APIs (WebSocket, WebCrypto, service workers).
+ * Node tooling that exercises the data layer - the multi-device consistency
+ * harness, for one - loads this module with fake-indexeddb, where `indexedDB`
+ * exists but `window` does not. Sync is a browser concern, so it is simply left
+ * off there rather than half-initialised.
+ */
+const IS_BROWSER = typeof window !== 'undefined';
+
+const CLOUD_DATABASE_URL =
+  import.meta.env?.VITE_DEXIE_CLOUD_URL || 'https://z80xp4ajs.dexie.cloud';
 
 /**
  * IMPORTANT: IndexedDB cannot index boolean values. Fields such as `completed`,
@@ -60,9 +84,11 @@ export class GCSEGenieDatabase extends Dexie {
   agentAuditReports!: Table<AgentAuditReport, string>;
   careerResources!: Table<CareerGuidanceResource, string>;
   revisionLinks!: Table<FreeRevisionLink, string>;
+  assessments!: Table<Assessment, string>;
+  attachments!: Table<ProofAttachment, string>;
 
   constructor() {
-    super('GCSEGenieDB');
+    super('GCSEGenieDB', IS_BROWSER ? { addons: [dexieCloud] } : {});
 
     this.version(2).stores({
       subjects: 'id, examBoard, targetGrade',
@@ -94,85 +120,87 @@ export class GCSEGenieDatabase extends Dexie {
       }
     });
 
-    this.on('populate', () => {
-      this.populateInitialData();
+    // v4 adds the proof log: marked assessments and the binary evidence behind
+    // them. No upgrade function is needed - new tables start empty on both a
+    // fresh install and an existing one.
+    this.version(4).stores({
+      assessments: 'id, subjectId, date, type, createdAt',
+      // ownerType+ownerId is the lookup that matters; booleans are never indexed
+      attachments: 'id, ownerId, ownerType, createdAt, [ownerType+ownerId]',
+    });
+
+    /**
+     * Dexie Cloud's guidance is explicit: do not write data from `populate`,
+     * because it fires on a brand new local database - which is also the state
+     * a second device is in moments before its first sync delivers everything.
+     * Seeding there gives every new device its own copy of the starter content.
+     *
+     * `ready` fires on every open, so the seeding it triggers has to be
+     * idempotent. `seedMissingRows` only inserts rows whose primary key is
+     * absent, so it can never overwrite an edit made on another device.
+     */
+    this.on('ready', async () => {
+      await this.seedMissingRows();
+    });
+
+    this.cloud?.configure({
+      databaseUrl: CLOUD_DATABASE_URL,
+      /**
+       * The app has to keep working on a phone with no signal and before anyone
+       * has logged in. With requireAuth off, everything runs locally and starts
+       * syncing the moment a user authenticates.
+       */
+      requireAuth: false,
+      /**
+       * The parent's LLM API key must never leave the device. The PIN hash is
+       * deliberately still synced so the same PIN works everywhere.
+       */
+      unsyncedProperties: {
+        parentSettings: ['llmApiKey'],
+      },
     });
   }
 
-  async populateInitialData() {
-    await this.subjects.bulkAdd(INITIAL_SUBJECTS);
-    await this.syllabusTopics.bulkAdd(INITIAL_SYLLABUS_TOPICS);
-    await this.remediations.bulkAdd(INITIAL_REMEDIATION_ACTIONS);
-    await this.milestones.bulkAdd(INITIAL_MILESTONES);
-    await this.timetableSlots.bulkAdd(INITIAL_TIMETABLE_SLOTS);
-    await this.timetableEntries.bulkAdd(INITIAL_TIMETABLE_ENTRIES);
-    await this.rewards.bulkAdd(INITIAL_REWARDS);
-    await this.careerResources.bulkAdd(INITIAL_CAREER_RESOURCES);
-    await this.revisionLinks.bulkAdd(INITIAL_FREE_REVISION_LINKS);
-    await this.goals.bulkAdd(INITIAL_GOALS);
-    await this.parentSettings.add({
-      ...INITIAL_PARENT_SETTINGS,
-      id: 'active_settings',
-    });
+  /**
+   * Inserts starter content, skipping anything already present.
+   *
+   * Never uses put/bulkPut: on a device that has just synced, the seed rows
+   * already exist and may carry edits - a ticked-off topic, a teacher note, a
+   * manual RAG override. Overwriting them with pristine copies would quietly
+   * undo real work.
+   */
+  private async seedMissingRows() {
+    const addMissing = async <T extends { id: string }>(table: Table<T, string>, rows: T[]) => {
+      // Deduplicate the input first. bulkGet only reports what is already in the
+      // database, so a seed array containing the same id twice - which is easy
+      // to produce by spreading one seed list into another - still reaches
+      // bulkAdd twice and fails the whole batch with a ConstraintError.
+      const unique = [...new Map(rows.map((r) => [r.id, r])).values()];
+      if (unique.length === 0) return;
 
-    // Initial Starter Tasks with Priorities and Goal Linkage
-    await this.tasks.bulkAdd([
-      {
-        id: 't-maths-hw-1',
-        subjectId: 'maths',
-        title: 'Edexcel Paper 1 Past Paper Questions (Venn & Trig)',
-        description: 'Complete questions 12 to 18 on independence probability proofs.',
-        dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
-        priority: 'HIGH',
-        isHomework: true,
-        isRemediation: false,
-        linkedGoalId: 'g-academic-maths',
-        xpValue: 50,
-        completed: false,
-        createdAt: Date.now(),
-      },
-      {
-        id: 't-cs-hw-1',
-        subjectId: 'computer_science',
-        title: 'OCR CS Network Protocols (TCP/IP 4-Layer Model)',
-        description: 'Summarize Application, Transport, Network, and Link layers for teacher AMN.',
-        dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-        priority: 'HIGH',
-        isHomework: true,
-        isRemediation: false,
-        linkedGoalId: 'g-academic-cs',
-        xpValue: 50,
-        completed: false,
-        createdAt: Date.now(),
-      },
-      {
-        id: 't-art-hw-1',
-        subjectId: 'art',
-        title: 'Portfolio AO2 Media Experimentation Sheet',
-        description: 'Complete 2 mixed-media color studies for Component 1.',
-        dueDate: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0],
-        priority: 'MEDIUM',
-        isHomework: true,
-        isRemediation: false,
-        xpValue: 50,
-        completed: false,
-        createdAt: Date.now(),
-      },
-      {
-        id: 't-sci-hw-1',
-        subjectId: 'physics',
-        title: 'Physics Energy Transfer Safety Step Problems',
-        description: 'Solve 5 questions converting time to seconds before calculating E=Pxt.',
-        dueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-        priority: 'MEDIUM',
-        isHomework: true,
-        isRemediation: false,
-        xpValue: 50,
-        completed: false,
-        createdAt: Date.now(),
-      },
-    ]);
+      const found = await table.bulkGet(unique.map((r) => r.id));
+      const missing = unique.filter((_, i) => found[i] === undefined);
+      if (missing.length) await table.bulkAdd(missing);
+    };
+
+    await addMissing(this.subjects, INITIAL_SUBJECTS);
+    await addMissing(this.syllabusTopics, INITIAL_SYLLABUS_TOPICS);
+    await addMissing(this.remediations, INITIAL_REMEDIATION_ACTIONS);
+    await addMissing(this.milestones, INITIAL_MILESTONES);
+    await addMissing(this.timetableSlots, INITIAL_TIMETABLE_SLOTS);
+    await addMissing(this.timetableEntries, INITIAL_TIMETABLE_ENTRIES);
+    // INITIAL_REWARDS already spreads in MICRO_REWARDS - do not add both
+    await addMissing(this.rewards, INITIAL_REWARDS);
+    await addMissing(this.careerResources, INITIAL_CAREER_RESOURCES);
+    await addMissing(this.revisionLinks, INITIAL_FREE_REVISION_LINKS);
+    await addMissing(this.goals, INITIAL_GOALS);
+    await addMissing(this.tasks, INITIAL_TASKS);
+
+    if (!(await this.parentSettings.get('active_settings'))) {
+      await this.parentSettings.add({ ...INITIAL_PARENT_SETTINGS, id: 'active_settings' });
+    }
   }
+
 }
 
 export const db = new GCSEGenieDatabase();

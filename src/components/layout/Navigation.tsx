@@ -10,6 +10,7 @@ import {
   Shield,
   ListTodo,
   CalendarDays,
+  ClipboardCheck,
   MoreHorizontal,
   X,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ export type NavTab =
   | 'DASHBOARD'
   | 'TASKS'
   | 'CALENDAR'
+  | 'PROOF'
   | 'GOALS'
   | 'TIMETABLE'
   | 'REMEDIATIONS'
@@ -49,6 +51,8 @@ export const Navigation: React.FC<NavigationProps> = ({
     { id: 'TASKS', label: 'My Work', shortLabel: 'Work', icon: ListTodo, tier: 'daily' },
     { id: 'CALENDAR', label: 'Key Dates', shortLabel: 'Dates', icon: CalendarDays, tier: 'daily' },
     { id: 'REMEDIATIONS', label: 'Fix My Mistakes', shortLabel: 'Fix Ups', icon: Wrench, tier: 'daily' },
+    // Logged when a marked paper comes back - a weekly rhythm, not a daily one
+    { id: 'PROOF', label: 'Proof Log', shortLabel: 'Proof', icon: ClipboardCheck, tier: 'weekly' },
     { id: 'REWARDS', label: 'Rewards', shortLabel: 'Rewards', icon: Gift, tier: 'weekly' },
     { id: 'TIMETABLE', label: 'Timetable', shortLabel: 'Timetable', icon: Calendar, tier: 'weekly' },
     { id: 'GOALS', label: 'Subjects & Goals', shortLabel: 'Subjects', icon: Target, tier: 'weekly' },

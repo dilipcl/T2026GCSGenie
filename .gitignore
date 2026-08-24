@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Dexie Cloud client credentials - dexie-cloud.key authorises administration of
+# the cloud database (whitelisting origins, managing users). Never commit it.
+dexie-cloud.key
