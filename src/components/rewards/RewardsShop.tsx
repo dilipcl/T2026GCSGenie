@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
 import { RewardItem, RewardRedemption, UserRole } from '../../types';
-import { calculateTotalXP } from '../../services/ragCalculator';
+import { calculateTotalXP, XPLedger } from '../../services/ragCalculator';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
 import {
@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
+import { newId } from '../../utils/id';
 
 interface RewardsShopProps {
   currentRole: UserRole;
@@ -20,11 +21,13 @@ interface RewardsShopProps {
 export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
   const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [redemptions, setRedemptions] = useState<RewardRedemption[]>([]);
-  const [xpData, setXpData] = useState({
+  const [xpData, setXpData] = useState<XPLedger>({
     totalXP: 0,
     availableXP: 0,
+    reservedXP: 0,
     redeemedXP: 0,
     penaltyXP: 0,
+    overdraftXP: 0,
     isShopFrozen: false,
   });
 
@@ -48,12 +51,17 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
     }
 
     if (xpData.availableXP < item.costXP) {
-      alert(`Insufficient XP! You need ${item.costXP.toLocaleString()} XP (Current balance: ${xpData.availableXP.toLocaleString()} XP).`);
+      alert(
+        `Not enough XP. "${item.title}" costs ${item.costXP.toLocaleString()} XP and you have ${xpData.availableXP.toLocaleString()} XP to spend` +
+          (xpData.reservedXP > 0
+            ? `, with ${xpData.reservedXP.toLocaleString()} XP already held against requests waiting for approval.`
+            : '.')
+      );
       return;
     }
 
     const redemption: RewardRedemption = {
-      id: `red_${Date.now()}`,
+      id: newId('red'),
       rewardId: item.id,
       rewardTitle: item.title,
       costXP: item.costXP,
@@ -78,6 +86,24 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
     redemption: RewardRedemption,
     status: 'APPROVED' | 'DENIED'
   ) => {
+    // Pending requests already reserve their cost, so approving one is normally
+    // balance-neutral. This guard catches redemptions logged before reservation
+    // existed, which could still take the balance negative.
+    if (status === 'APPROVED') {
+      const earnedAfterPenalties = xpData.totalXP - xpData.penaltyXP;
+      if (earnedAfterPenalties - xpData.redeemedXP - redemption.costXP < 0) {
+        const over = Math.abs(earnedAfterPenalties - xpData.redeemedXP - redemption.costXP);
+        alert(
+          `Approving "${redemption.rewardTitle}" would overdraw the balance by ${over.toLocaleString()} XP.\n\n` +
+            `Earned after penalties: ${earnedAfterPenalties.toLocaleString()} XP\n` +
+            `Already redeemed: ${xpData.redeemedXP.toLocaleString()} XP\n` +
+            `This request: ${redemption.costXP.toLocaleString()} XP\n\n` +
+            'Deny it, or wait until more XP has been earned.'
+        );
+        return;
+      }
+    }
+
     await db.redemptions.update(redemption.id, {
       status,
       resolvedAt: Date.now(),
@@ -122,11 +148,16 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
         <div className="flex items-center gap-4 bg-slate-900/90 px-5 py-3 rounded-2xl border border-slate-800">
           <div>
             <span className="block text-[10px] uppercase font-bold text-slate-400">
-              Available Banked XP
+              XP you can spend
             </span>
             <span className="text-xl font-extrabold text-indigo-400">
               {xpData.availableXP.toLocaleString()} XP
             </span>
+            {xpData.reservedXP > 0 && (
+              <span className="block text-[10px] text-amber-300 font-semibold mt-0.5">
+                {xpData.reservedXP.toLocaleString()} XP held for requests awaiting approval
+              </span>
+            )}
           </div>
           <Sparkles className="w-8 h-8 text-amber-400" />
         </div>

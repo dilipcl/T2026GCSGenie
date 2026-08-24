@@ -12,7 +12,10 @@ import {
   exportDatabaseToJSON,
   importDatabaseFromJSON,
   generateAgentAuditPackage,
+  describeBackup,
+  summariseCurrentDatabase,
 } from '../../services/backupService';
+import { totalAttachmentBytes, formatBytes } from '../../services/attachmentService';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
 import { todayISO } from '../../utils/date';
@@ -27,6 +30,7 @@ import {
   Sparkles,
   KeyRound,
 } from 'lucide-react';
+import { newId } from '../../utils/id';
 
 /** SHA-256 of '1234' - the seeded default. */
 const DEFAULT_PIN_HASH =
@@ -45,6 +49,8 @@ export const ParentPortal: React.FC = () => {
   const [isRunningAudit, setIsRunningAudit] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [sanctions, setSanctions] = useState<Sanction[]>([]);
+  const [proofUsage, setProofUsage] = useState({ count: 0, bytes: 0 });
+  const [isRestoring, setIsRestoring] = useState(false);
 
   // Change PIN form
   const [currentPin, setCurrentPin] = useState('');
@@ -70,6 +76,8 @@ export const ParentPortal: React.FC = () => {
 
     const sancList = await db.sanctions.orderBy('date').reverse().toArray();
     setSanctions(sancList);
+
+    setProofUsage(await totalAttachmentBytes());
   };
 
   useEffect(() => {
@@ -167,33 +175,108 @@ export const ParentPortal: React.FC = () => {
     alert(`Audit bundle downloaded! Save to your Google Drive path: ${settings.googleDriveBackupPath}`);
   };
 
-  const handleExportFullBackup = async () => {
-    const jsonStr = await exportDatabaseToJSON();
+  const downloadJSON = (jsonStr: string, filename: string) => {
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `GCSE_Genie_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };
 
+  const handleExportFullBackup = async (includeAttachments: boolean) => {
+    const jsonStr = await exportDatabaseToJSON({ includeAttachments });
+    const suffix = includeAttachments ? '' : '_no_photos';
+    downloadJSON(
+      jsonStr,
+      `GCSE_Genie_Backup_${new Date().toISOString().split('T')[0]}${suffix}.json`
+    );
+  };
+
+  /**
+   * Restore replaces the database. Two things have to happen before anything is
+   * cleared: the parent has to see what they are trading away, and the current
+   * state has to be written to a rescue file. Previously this ran straight into
+   * a destructive overwrite behind a single "Invalid file format" catch.
+   */
   const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = '';
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const text = evt.target?.result as string;
-        await importDatabaseFromJSON(text);
-        alert('Database successfully restored from backup JSON!');
-        window.location.reload();
-      } catch (err) {
-        alert('Failed to restore backup: Invalid file format.');
+    setIsRestoring(true);
+    try {
+      const text = await file.text();
+      const summary = describeBackup(text);
+      const current = await summariseCurrentDatabase();
+
+      const changed = Object.keys(summary.counts)
+        .filter((table) => (current[table] || 0) !== summary.counts[table])
+        .map((table) => `  ${table}: ${current[table] || 0} → ${summary.counts[table]}`);
+
+      const lines = [
+        `Restore the backup taken ${
+          summary.exportDateISO ? new Date(summary.exportDateISO).toLocaleString('en-GB') : 'at an unknown time'
+        }?`,
+        '',
+        'This REPLACES what is on this device. Anything logged here since that backup was taken will be lost.',
+        '',
+        changed.length ? `Row counts that change:\n${changed.join('\n')}` : 'Row counts are unchanged.',
+      ];
+
+      if (summary.missingTables.length) {
+        lines.push(
+          '',
+          `This backup predates these tables, so they will be left as they are rather than emptied:\n  ${summary.missingTables.join(', ')}`
+        );
       }
-    };
-    reader.readAsText(file);
+      if (summary.attachmentsOmitted) {
+        lines.push('', 'This backup was exported without proof photos. Existing photos on this device are kept.');
+      }
+
+      lines.push('', 'A rescue copy of the current database will download first.');
+
+      if (!confirm(lines.join('\n'))) {
+        setIsRestoring(false);
+        return;
+      }
+
+      // Rescue export first - if the restore turns out to be the wrong file,
+      // this is the only way back.
+      const rescue = await exportDatabaseToJSON({ includeAttachments: true });
+      downloadJSON(
+        rescue,
+        `GCSE_Genie_RESCUE_before_restore_${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+      );
+
+      const result = await importDatabaseFromJSON(text);
+
+      await logAuditEvent({
+        user: 'PARENT',
+        action: 'UPDATE',
+        entity: 'Database',
+        entityId: 'restore',
+        newValue: `Restored from backup dated ${summary.exportDateISO || 'unknown'}. Tables replaced: ${
+          Object.keys(result.restored).length
+        }. Tables preserved: ${result.preserved.join(', ') || 'none'}.`,
+      });
+
+      const preservedNote = result.preserved.length
+        ? `\n\nLeft untouched (not in the backup): ${result.preserved.join(', ')}`
+        : '';
+      alert(`Restore complete.${preservedNote}\n\nThe app will now reload.`);
+      window.location.reload();
+    } catch (err) {
+      console.error('Restore failed:', err);
+      alert(
+        `Restore failed, and nothing was changed.\n\n${
+          err instanceof Error ? err.message : 'The file could not be read.'
+        }`
+      );
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   const handleLogSanction = async (e: React.FormEvent) => {
@@ -201,7 +284,7 @@ export const ParentPortal: React.FC = () => {
     if (!sanctionReason.trim()) return;
 
     const newSanction: Sanction = {
-      id: `sanc_${Date.now()}`,
+      id: newId('sanc'),
       type: 'DETENTION',
       reason: sanctionReason.trim(),
       date: todayISO(),
@@ -371,8 +454,8 @@ export const ParentPortal: React.FC = () => {
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
               >
                 <option value="GEMINI">Google Gemini (Default)</option>
-                <option value="CLAUDE">Anthropic Claude (Claude 3.5 Sonnet)</option>
-                <option value="OPENAI">OpenAI (GPT-4o)</option>
+                <option value="CLAUDE">Anthropic Claude</option>
+                <option value="OPENAI">OpenAI</option>
                 <option value="LOCAL">Built-in Offline Rule Agent</option>
               </select>
             </div>
@@ -385,9 +468,18 @@ export const ParentPortal: React.FC = () => {
                 type="text"
                 value={settings.llmModelName || ''}
                 onChange={(e) => setSettings({ ...settings, llmModelName: e.target.value })}
-                placeholder="e.g. gemini-1.5-pro or claude-3-5-sonnet-20241022"
+                placeholder={
+                  settings.llmProvider === 'CLAUDE'
+                    ? 'claude-opus-5'
+                    : settings.llmProvider === 'OPENAI'
+                    ? 'gpt-4o'
+                    : 'gemini-1.5-pro'
+                }
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
               />
+              <p className="mt-1 text-[10px] text-slate-500">
+                Leave blank to use the default for the selected provider.
+              </p>
             </div>
 
             <div>
@@ -470,6 +562,18 @@ export const ParentPortal: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 text-xs">
+              {/* The fallback used to be visible only as a change in the
+                  "Generated By" line, which does not explain a bad API key. */}
+              {activeReport.fallbackReason && (
+                <div className="p-3 bg-amber-950/40 rounded-xl border border-amber-500/50 flex items-start gap-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-amber-300">Ran offline instead of the live model</h4>
+                    <p className="text-amber-100 mt-0.5">{activeReport.fallbackReason}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between">
                 <div>
                   <span className="text-slate-400">Generated By:</span>
@@ -611,26 +715,60 @@ export const ParentPortal: React.FC = () => {
           <h3 className="font-bold text-sm text-white">Backup & Restore</h3>
         </div>
 
-        <p className="text-xs text-slate-300 mb-4">
-          All your data is stored offline on this device. Use one-click JSON export to backup your
-          entire database directly to your Google Drive backup folder.
+        <p className="text-xs text-slate-300 mb-3">
+          All data is stored on this device only. The export covers every table, including key
+          dates and the proof log. The API key is deliberately left out of the file.
         </p>
+
+        <div className="mb-4 p-3 bg-amber-950/30 border border-amber-500/40 rounded-xl text-xs text-amber-100 flex items-start gap-2">
+          <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+          <span>
+            Restoring <strong>replaces</strong> this device's data - it does not merge. If Tejas has
+            checked in on his phone since this backup was taken, that will be lost. A rescue copy
+            downloads automatically before anything is cleared.
+          </span>
+        </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={handleExportFullBackup}
+            onClick={() => handleExportFullBackup(true)}
             className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-lg shadow-teal-950/50 flex items-center gap-2"
           >
             <Download className="w-4 h-4" />
-            <span>Export Complete Backup JSON</span>
+            <span>Export everything</span>
           </button>
 
-          <label className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 flex items-center gap-2 cursor-pointer transition-all">
+          <button
+            onClick={() => handleExportFullBackup(false)}
+            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 flex items-center gap-2 transition-all"
+          >
+            <Download className="w-4 h-4 text-slate-400" />
+            <span>Export without photos</span>
+          </button>
+
+          <label
+            className={`px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 flex items-center gap-2 transition-all ${
+              isRestoring ? 'opacity-50 cursor-wait' : 'cursor-pointer'
+            }`}
+          >
             <Upload className="w-4 h-4 text-slate-400" />
-            <span>Restore from Backup JSON</span>
-            <input type="file" accept=".json" onChange={handleImportBackup} className="hidden" />
+            <span>{isRestoring ? 'Restoring...' : 'Restore from backup'}</span>
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportBackup}
+              disabled={isRestoring}
+              className="hidden"
+            />
           </label>
         </div>
+
+        <p className="mt-3 text-[11px] text-slate-400">
+          Proof log currently holds <strong className="text-slate-200">{proofUsage.count}</strong>{' '}
+          file{proofUsage.count === 1 ? '' : 's'} totalling{' '}
+          <strong className="text-slate-200">{formatBytes(proofUsage.bytes)}</strong>. Photos are
+          downscaled on upload, but a full export grows by roughly a third of this once encoded.
+        </p>
       </div>
 
       {/* Immutable Write-Only Audit Log Viewer */}

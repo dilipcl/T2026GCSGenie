@@ -17,6 +17,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
+import { newId } from '../../utils/id';
 
 interface MilestoneCalendarViewProps {
   refreshKey?: number;
@@ -64,7 +65,7 @@ export const MilestoneCalendarView: React.FC<MilestoneCalendarViewProps> = ({
     if (!newTitle.trim()) return;
 
     const newMilestone: MilestoneReminder = {
-      id: `mile_${Date.now()}`,
+      id: newId('mile'),
       title: newTitle.trim(),
       date: newDate,
       category: newCategory,
@@ -99,11 +100,18 @@ export const MilestoneCalendarView: React.FC<MilestoneCalendarViewProps> = ({
     loadMilestones();
   };
 
-  const handleDeleteMilestone = async (id: string) => {
-    if (confirm('Delete this milestone reminder?')) {
-      await db.milestones.delete(id);
-      loadMilestones();
-    }
+  const handleDeleteMilestone = async (milestone: MilestoneReminder) => {
+    if (!confirm(`Delete "${milestone.title}"? This is recorded in the change history.`)) return;
+
+    await db.milestones.delete(milestone.id);
+    await logAuditEvent({
+      user: 'STUDENT',
+      action: 'DELETE',
+      entity: 'MilestoneReminder',
+      entityId: milestone.id,
+      oldValue: `${milestone.title} (${milestone.date}, ${milestone.category})`,
+    });
+    loadMilestones();
   };
 
   const prevMonth = () => {
@@ -392,7 +400,7 @@ export const MilestoneCalendarView: React.FC<MilestoneCalendarViewProps> = ({
                   )}
 
                   <button
-                    onClick={() => handleDeleteMilestone(m.id)}
+                    onClick={() => handleDeleteMilestone(m)}
                     className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />

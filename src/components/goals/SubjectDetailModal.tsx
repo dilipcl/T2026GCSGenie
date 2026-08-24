@@ -20,6 +20,7 @@ import {
   Folder,
   Sliders,
 } from 'lucide-react';
+import { newId } from '../../utils/id';
 
 interface SubjectDetailModalProps {
   subject: SubjectConfig | null;
@@ -107,7 +108,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     if (!newTopicTitle.trim()) return;
 
     const newTopic: SyllabusTopic = {
-      id: `topic_${Date.now()}`,
+      id: newId('topic'),
       subjectId: subject.id,
       unit: newTopicUnit.trim() || 'Year 10',
       title: newTopicTitle.trim(),
@@ -136,12 +137,21 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     onRefresh();
   };
 
-  const handleDeleteTopic = async (id: string) => {
-    if (confirm('Delete this topic from the syllabus checklist?')) {
-      await db.syllabusTopics.delete(id);
-      loadSubjectData();
-      onRefresh();
+  const handleDeleteTopic = async (topic: SyllabusTopic) => {
+    if (!confirm(`Delete "${topic.title}" from the syllabus checklist? This is recorded in the change history.`)) {
+      return;
     }
+
+    await db.syllabusTopics.delete(topic.id);
+    await logAuditEvent({
+      user: 'STUDENT',
+      action: 'DELETE',
+      entity: 'SyllabusTopic',
+      entityId: topic.id,
+      oldValue: `${topic.title} (${topic.subjectId} / ${topic.unit})`,
+    });
+    loadSubjectData();
+    onRefresh();
   };
 
   const toggleTopicMastery = async (topic: SyllabusTopic) => {
@@ -169,7 +179,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     if (!newTaskTitle.trim()) return;
 
     const newTask: Task = {
-      id: `task_${Date.now()}`,
+      id: newId('task'),
       subjectId: subject.id,
       title: newTaskTitle.trim(),
       dueDate: addDaysISO(2),
@@ -509,7 +519,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => handleDeleteTopic(topic.id)}
+                      onClick={() => handleDeleteTopic(topic)}
                       className="p-1 text-slate-500 hover:text-rose-400 rounded transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

@@ -59,11 +59,20 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({ refreshKey = 0
     loadData();
   };
 
-  const handleDeleteTask = async (id: string) => {
-    if (confirm('Delete this task?')) {
-      await db.tasks.delete(id);
-      loadData();
-    }
+  const handleDeleteTask = async (task: Task) => {
+    if (!confirm(`Delete "${task.title}"? This is recorded in the change history.`)) return;
+
+    await db.tasks.delete(task.id);
+    // Deletes were previously the one change that left no trace, while the
+    // Parent Portal advertised a log of every change.
+    await logAuditEvent({
+      user: 'STUDENT',
+      action: 'DELETE',
+      entity: 'Task',
+      entityId: task.id,
+      oldValue: `${task.title} [${task.subjectId}, due ${task.dueDate}, ${task.completed ? 'completed' : 'not completed'}]`,
+    });
+    loadData();
   };
 
   // Filter tasks
@@ -263,7 +272,7 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({ refreshKey = 0
                   </span>
 
                   <button
-                    onClick={() => handleDeleteTask(task.id)}
+                    onClick={() => handleDeleteTask(task)}
                     className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />

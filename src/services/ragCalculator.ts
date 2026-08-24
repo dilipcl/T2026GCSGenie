@@ -1,6 +1,5 @@
 import { db } from '../db';
 import { RAGStatus, SubjectId } from '../types';
-import { todayISO, addDaysISO, parseISODate, toLocalISODate } from '../utils/date';
 
 export interface SubjectRAGResult {
   subjectId: SubjectId;
@@ -11,6 +10,14 @@ export interface SubjectRAGResult {
   remediationCompletionRate: number; // 0 - 100
   topicsMastered: number;
   totalTopics: number;
+  /**
+   * Mean percentage across every marked assessment logged for this subject.
+   * Reported alongside the health score rather than folded into it: the score's
+   * weighting is a deliberate 40/35/25 split and quietly changing it would move
+   * every subject's RAG status without anyone asking for that.
+   */
+  assessmentAveragePercent: number;
+  assessmentCount: number;
   details: string;
 }
 
@@ -32,6 +39,13 @@ export async function calculateSubjectRAG(subjectId: SubjectId): Promise<Subject
   const topics = await db.syllabusTopics.where('subjectId').equals(subjectId).toArray();
   const masteredTopics = topics.filter((t) => t.isCompleted || t.confidenceRating >= 4);
   const topicRate = topics.length > 0 ? (masteredTopics.length / topics.length) * 100 : 80;
+
+  // 4. Marked work actually handed back by a teacher
+  const assessments = await db.assessments.where('subjectId').equals(subjectId).toArray();
+  const assessmentAveragePercent =
+    assessments.length > 0
+      ? Math.round(assessments.reduce((sum, a) => sum + (a.percentage || 0), 0) / assessments.length)
+      : 0;
 
   // Health Score Weighted: 40% Homework, 35% Remediations, 25% Topics Mastered
   let score = Math.round(hwRate * 0.4 + remRate * 0.35 + topicRate * 0.25);
@@ -72,17 +86,29 @@ export async function calculateSubjectRAG(subjectId: SubjectId): Promise<Subject
     remediationCompletionRate: Math.round(remRate),
     topicsMastered: masteredTopics.length,
     totalTopics: topics.length,
+    assessmentAveragePercent,
+    assessmentCount: assessments.length,
     details,
   };
 }
 
-export async function calculateTotalXP(): Promise<{
+export interface XPLedger {
   totalXP: number;
+  /** What can actually be spent right now: earned, less penalties, redemptions and pending requests. */
   availableXP: number;
+  /** Held against redemption requests the parent has not resolved yet. */
+  reservedXP: number;
   redeemedXP: number;
   penaltyXP: number;
+  /**
+   * Negative balance carried by data that predates XP reservation, or by a
+   * parent overriding the block. Surfaced rather than hidden by the clamp.
+   */
+  overdraftXP: number;
   isShopFrozen: boolean;
-}> {
+}
+
+export async function calculateTotalXP(): Promise<XPLedger> {
   // Check-ins XP (daily base + task/revision bonuses across all check-ins)
   const checkIns = await db.checkIns.toArray();
   const checkInXP = checkIns.reduce((sum, c) => sum + (c.xpEarned || 0), 0);
@@ -100,51 +126,31 @@ export async function calculateTotalXP(): Promise<{
   const penaltyXP = sanctions.reduce((sum, s) => sum + Math.abs(s.penaltyXP || 0), 0);
   const isShopFrozen = sanctions.some((s) => s.shopFrozen && !s.resolvedAt);
 
-  // Redeemed XP
+  // Redeemed and reserved XP.
+  //
+  // A PENDING request has to hold its cost aside. Counting only APPROVED rows
+  // let the student queue three 1000 XP rewards against a 1200 XP balance -
+  // each request passed the affordability check on its own, and approving all
+  // three took the true balance to -1800, which the old Math.max(0, ...) then
+  // hid as a clean zero.
   const redemptions = await db.redemptions.toArray();
   const redeemedXP = redemptions
     .filter((r) => r.status === 'APPROVED')
     .reduce((sum, r) => sum + (r.costXP || 0), 0);
+  const reservedXP = redemptions
+    .filter((r) => r.status === 'PENDING')
+    .reduce((sum, r) => sum + (r.costXP || 0), 0);
 
   const totalEarned = checkInXP + taskXP + remXP;
-  const availableXP = Math.max(0, totalEarned - penaltyXP - redeemedXP);
+  const trueBalance = totalEarned - penaltyXP - redeemedXP - reservedXP;
 
   return {
     totalXP: totalEarned,
-    availableXP,
+    availableXP: Math.max(0, trueBalance),
+    reservedXP,
     redeemedXP,
     penaltyXP,
+    overdraftXP: trueBalance < 0 ? Math.abs(trueBalance) : 0,
     isShopFrozen,
   };
-}
-
-export async function calculateStreak(): Promise<number> {
-  const checkIns = await db.checkIns.orderBy('date').reverse().toArray();
-  if (checkIns.length === 0) return 0;
-
-  // Deduplicate by distinct calendar dates
-  const uniqueDates = Array.from(new Set(checkIns.map((c) => c.date)));
-
-  const todayStr = todayISO();
-  const yesterdayStr = addDaysISO(-1);
-
-  const latestDate = uniqueDates[0];
-  if (latestDate !== todayStr && latestDate !== yesterdayStr) {
-    return 0;
-  }
-
-  let streak = 0;
-  // Local dates throughout: toISOString() is UTC and would drop a day during BST
-  let currentDate = parseISODate(latestDate);
-
-  for (const d of uniqueDates) {
-    if (d === toLocalISODate(currentDate)) {
-      streak++;
-      currentDate.setDate(currentDate.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-
-  return streak;
 }

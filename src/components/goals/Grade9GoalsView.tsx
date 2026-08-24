@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
-import { SubjectConfig, Goal } from '../../types';
+import { SubjectConfig, Goal, UserRole } from '../../types';
 import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalculator';
+import { logAuditEvent } from '../../services/auditService';
+import { triggerCelebration } from '../../utils/confetti';
 import { SubjectDetailModal } from './SubjectDetailModal';
 import { GoalConsultationModal } from './GoalConsultationModal';
-import { Target, Plus, ShieldCheck } from 'lucide-react';
+import { Target, Plus, ShieldCheck, Lock, Unlock } from 'lucide-react';
 
-export const Grade9GoalsView: React.FC = () => {
+interface Grade9GoalsViewProps {
+  currentRole: UserRole;
+}
+
+export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole }) => {
   const [subjects, setSubjects] = useState<SubjectConfig[]>([]);
   const [ragData, setRagData] = useState<Record<string, SubjectRAGResult>>({});
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -29,6 +35,47 @@ export const Grade9GoalsView: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  /**
+   * Locking a goal is what makes it real: burnoutEngine only counts the weekly
+   * hours of APPROVED_LOCKED goals, so until a parent does this the time
+   * capacity gauge is ignoring the commitment entirely.
+   */
+  const handleToggleLock = async (goal: Goal) => {
+    const lock = goal.status !== 'APPROVED_LOCKED';
+
+    if (lock) {
+      const confirmed = confirm(
+        `Approve and lock "${goal.title}"?\n\n${goal.weeklyHoursRequired} hrs/week will start counting towards the weekly time capacity.`
+      );
+      if (!confirmed) return;
+    }
+
+    await db.goals.update(goal.id, {
+      status: lock ? 'APPROVED_LOCKED' : 'PENDING_DISCUSSION',
+      lockedAt: lock ? Date.now() : undefined,
+    });
+
+    await logAuditEvent({
+      user: 'PARENT',
+      action: 'UPDATE',
+      entity: 'Goal',
+      entityId: goal.id,
+      fieldChanged: 'status',
+      oldValue: goal.status,
+      newValue: lock
+        ? `APPROVED_LOCKED (+${goal.weeklyHoursRequired} hrs/week now counted in burnout capacity)`
+        : 'PENDING_DISCUSSION (hours no longer counted)',
+    });
+
+    if (lock) triggerCelebration({ particleCount: 40 });
+    loadData();
+  };
+
+  const pendingCount = goals.filter((g) => g.status === 'PENDING_DISCUSSION').length;
+  const lockedHours = goals
+    .filter((g) => g.status === 'APPROVED_LOCKED')
+    .reduce((sum, g) => sum + (g.weeklyHoursRequired || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -139,8 +186,22 @@ export const Grade9GoalsView: React.FC = () => {
             <Target className="w-5 h-5 text-indigo-400" />
             <h3 className="font-bold text-sm text-white">Your goals</h3>
           </div>
-          <span className="text-xs text-slate-400">{goals.length} Goals Registered</span>
+          <span className="text-xs text-slate-400">
+            {goals.length} registered · {lockedHours} hrs/week locked in
+          </span>
         </div>
+
+        {pendingCount > 0 && (
+          <div className="mb-4 p-3 bg-amber-950/30 border border-amber-500/40 rounded-xl text-xs text-amber-100 flex items-start gap-2">
+            <Lock className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <span>
+              {pendingCount} goal{pendingCount === 1 ? '' : 's'} waiting to be approved.{' '}
+              {currentRole === 'PARENT'
+                ? 'Until a goal is locked, its hours are not counted in the weekly time capacity.'
+                : 'Ask a parent to unlock the Parent view and approve them - until then their hours are not counted in the weekly time capacity.'}
+            </span>
+          </div>
+        )}
 
         <div className="space-y-3">
           {goals.map((g) => (
@@ -184,14 +245,49 @@ export const Grade9GoalsView: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="text-xs font-mono text-slate-300 bg-slate-800 px-2.5 py-1 rounded border border-slate-700">
+                <span
+                  className={`text-xs font-mono px-2.5 py-1 rounded border ${
+                    g.status === 'APPROVED_LOCKED'
+                      ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30'
+                      : 'text-slate-400 bg-slate-800 border-slate-700 line-through decoration-slate-600'
+                  }`}
+                  title={
+                    g.status === 'APPROVED_LOCKED'
+                      ? 'Counted in the weekly time capacity'
+                      : 'Not counted until a parent approves this goal'
+                  }
+                >
                   {g.weeklyHoursRequired} hrs/wk
                 </span>
-                {g.parentNotes && (
+
+                {g.status === 'APPROVED_LOCKED' && (
                   <span className="text-[11px] text-emerald-400 flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Parent Locked</span>
+                    <span>Locked</span>
                   </span>
+                )}
+
+                {currentRole === 'PARENT' && (
+                  <button
+                    onClick={() => handleToggleLock(g)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                      g.status === 'APPROVED_LOCKED'
+                        ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                        : 'bg-emerald-600 border-emerald-500 text-white hover:bg-emerald-500'
+                    }`}
+                  >
+                    {g.status === 'APPROVED_LOCKED' ? (
+                      <>
+                        <Unlock className="w-3.5 h-3.5" />
+                        <span>Unlock</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Approve &amp; Lock</span>
+                      </>
+                    )}
+                  </button>
                 )}
               </div>
             </div>
