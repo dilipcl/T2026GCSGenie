@@ -1,5 +1,36 @@
 # Changelog
 
+## August 2026 — In-app toasts and confirms replace 24 native dialogs
+
+The app leaned on `window.alert` and `window.confirm` in 24 places: 16 alerts and 8 confirms, for
+everything from "+150 XP sub-quest added!" to every delete confirmation. Unstyled OS boxes that
+block the whole page, in an app that otherwise fires confetti — the QA field test called it out, and
+it was right.
+
+One `FeedbackProvider` now supplies both:
+
+- **Toasts** in four tones, stacked above the mobile bottom bar so they never cover the nav.
+  `role="status"`, or `role="alert"` for errors, which linger longer because they usually need
+  acting on. A `celebrate` tone fires confetti — the sub-quest reward finally gets the same
+  treatment as the daily check-in.
+- **A promise-based confirm**, so `if (await confirm({...}))` reads much like the call it replaces.
+  Escape cancels, the backdrop cancels, the confirm button takes focus, and destructive actions get
+  a red treatment. It can carry preformatted detail, which the restore pre-flight needs for its
+  before/after row counts — something a native confirm could only render as a wall of text.
+
+Several messages got better in the move, because a toast has a title *and* a description where an
+alert had one string. "Not enough XP" now names the reward, the cost and the balance separately.
+
+Verified by overriding `window.alert` and `window.confirm` in the running page to record any call,
+then exercising the flows: zero native calls, Escape cancelled without deleting, confirming deleted,
+and the celebrate toast rendered with confetti.
+
+**Found while testing:** the delete buttons on tasks, key dates and timetable blocks are icon-only
+with no `aria-label` — a screen reader announces nothing. Recorded in the README's known
+limitations rather than fixed in passing.
+
+---
+
 ## August 2026 — The Drive repository is wired up
 
 Every subject pointed at `https://drive.google.com/drive/folders/` — the bare stub, no folder ID —

@@ -36,8 +36,10 @@ import {
   FileWarning,
 } from 'lucide-react';
 import { newId } from '../../utils/id';
+import { useFeedback } from '../shared/FeedbackProvider';
 
 export const ParentPortal: React.FC = () => {
+  const { toast, confirm } = useFeedback();
   const [settings, setSettings] = useState<ParentSettings>({
 
     googleDriveBackupPath: `${WORKING_FOLDER_PATH}\\_Genie-Backups`,
@@ -104,7 +106,7 @@ export const ParentPortal: React.FC = () => {
       googleDriveBackupPath: settings.googleDriveBackupPath,
       googleDriveFolderUrl: settings.googleDriveFolderUrl,
     });
-    alert('Parent AI & Google Drive settings saved successfully.');
+    toast.success('Settings saved');
   };
 
   const handleChangePin = async (e: React.FormEvent) => {
@@ -147,7 +149,7 @@ export const ParentPortal: React.FC = () => {
       loadData();
     } catch (err) {
       console.error('Audit failed:', err);
-      alert('Audit generation encountered an error. Deterministic rules fallback will be used.');
+      toast.error('Audit failed', 'The built-in offline engine will be used instead.');
     } finally {
       setIsRunningAudit(false);
     }
@@ -162,7 +164,7 @@ export const ParentPortal: React.FC = () => {
     a.download = bundle.filename;
     a.click();
     URL.revokeObjectURL(url);
-    alert(`Audit bundle downloaded! Save to your Google Drive path: ${settings.googleDriveBackupPath}`);
+    toast.success('Audit bundle downloaded', `Save it to ${settings.googleDriveBackupPath}`);
   };
 
   const downloadJSON = (jsonStr: string, filename: string) => {
@@ -227,7 +229,14 @@ export const ParentPortal: React.FC = () => {
 
       lines.push('', 'A rescue copy of the current database will download first.');
 
-      if (!confirm(lines.join('\n'))) {
+      const proceed = await confirm({
+        title: 'Restore this backup?',
+        body: 'This REPLACES what is on this device. Anything logged here since the backup was taken will be lost. A rescue copy of the current database downloads first.',
+        details: lines.join('\n'),
+        confirmLabel: 'Replace my data',
+        tone: 'danger',
+      });
+      if (!proceed) {
         setIsRestoring(false);
         return;
       }
@@ -255,14 +264,13 @@ export const ParentPortal: React.FC = () => {
       const preservedNote = result.preserved.length
         ? `\n\nLeft untouched (not in the backup): ${result.preserved.join(', ')}`
         : '';
-      alert(`Restore complete.${preservedNote}\n\nThe app will now reload.`);
-      window.location.reload();
+      toast.success('Restore complete', `Reloading now.${preservedNote}`);
+      window.setTimeout(() => window.location.reload(), 1200);
     } catch (err) {
       console.error('Restore failed:', err);
-      alert(
-        `Restore failed, and nothing was changed.\n\n${
-          err instanceof Error ? err.message : 'The file could not be read.'
-        }`
+      toast.error(
+        'Restore failed - nothing was changed',
+        err instanceof Error ? err.message : 'The file could not be read.'
       );
     } finally {
       setIsRestoring(false);
@@ -295,7 +303,10 @@ export const ParentPortal: React.FC = () => {
 
     setSanctionReason('');
     loadData();
-    alert('School sanction logged: -500 XP applied and Rewards Shop has been FROZEN until remediation quest is completed.');
+    toast.success(
+      'Sanction logged',
+      '-500 XP applied and the Rewards Shop is frozen until the remediation quest is approved.'
+    );
   };
 
   const handleLiftSanction = async (sanction: Sanction) => {
@@ -315,7 +326,7 @@ export const ParentPortal: React.FC = () => {
     });
 
     loadData();
-    alert('Sanction resolved! Rewards shop is now UNLOCKED.');
+    toast.success('Sanction lifted', 'The Rewards Shop is unlocked again.');
   };
 
   return (

@@ -16,6 +16,7 @@ import { todayISO, addDaysISO, formatFriendlyDate } from '../../utils/date';
 import { ProofUploader } from '../shared/ProofUploader';
 import { X, Plus, Trash2, Check, Calculator, ChevronDown, ChevronUp } from 'lucide-react';
 import { newId } from '../../utils/id';
+import { useFeedback } from '../shared/FeedbackProvider';
 
 interface AssessmentEntryModalProps {
   isOpen: boolean;
@@ -70,6 +71,7 @@ export const AssessmentEntryModal: React.FC<AssessmentEntryModalProps> = ({
   onSaved,
   existing,
 }) => {
+  const { toast } = useFeedback();
   const [draftId, setDraftId] = useState('');
   const [subjectId, setSubjectId] = useState<SubjectId | ''>('');
   const [title, setTitle] = useState('');
@@ -231,7 +233,7 @@ export const AssessmentEntryModal: React.FC<AssessmentEntryModalProps> = ({
       onClose();
     } catch (err) {
       console.error('Could not save assessment:', err);
-      alert('Could not save that. Please try again.');
+      toast.error('Could not save that', 'Nothing was lost - try saving again.');
     } finally {
       setIsSaving(false);
     }

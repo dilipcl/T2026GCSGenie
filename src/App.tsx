@@ -10,6 +10,7 @@ import { BurnoutAlertBanner } from './components/dashboard/BurnoutAlertBanner';
 import { DueSoonCard } from './components/dashboard/DueSoonCard';
 import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
 import { QuickAddSheet } from './components/shared/QuickAddSheet';
+import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { TaskManagerView } from './components/tasks/TaskManagerView';
 import { MilestoneCalendarView } from './components/calendar/MilestoneCalendarView';
 import { AssessmentLogView } from './components/assessments/AssessmentLogView';
@@ -56,6 +57,7 @@ export const App: React.FC = () => {
   };
 
   return (
+    <FeedbackProvider>
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-24 md:pb-8">
       {/* Header Bar */}
       <Header
@@ -216,6 +218,7 @@ export const App: React.FC = () => {
         onSuccess={handleParentUnlockSuccess}
       />
     </div>
+    </FeedbackProvider>
   );
 };
 

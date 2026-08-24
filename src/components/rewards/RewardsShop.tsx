@@ -3,7 +3,6 @@ import { db } from '../../db';
 import { RewardItem, RewardRedemption, UserRole } from '../../types';
 import { calculateTotalXP, XPLedger } from '../../services/ragCalculator';
 import { logAuditEvent } from '../../services/auditService';
-import { triggerCelebration } from '../../utils/confetti';
 import {
   Gift,
   Sparkles,
@@ -13,12 +12,14 @@ import {
   XCircle,
 } from 'lucide-react';
 import { newId } from '../../utils/id';
+import { useFeedback } from '../shared/FeedbackProvider';
 
 interface RewardsShopProps {
   currentRole: UserRole;
 }
 
 export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
+  const { toast } = useFeedback();
   const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [redemptions, setRedemptions] = useState<RewardRedemption[]>([]);
   const [xpData, setXpData] = useState<XPLedger>({
@@ -46,15 +47,19 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
 
   const handleRequestRedemption = async (item: RewardItem) => {
     if (xpData.isShopFrozen) {
-      alert('The Rewards Shop is frozen due to an active school sanction. Complete the parent-assigned remediation quest to unlock!');
+      toast.error(
+        'Rewards are frozen',
+        'A school sanction is active. Complete the remediation quest a parent set to unlock the shop.'
+      );
       return;
     }
 
     if (xpData.availableXP < item.costXP) {
-      alert(
-        `Not enough XP. "${item.title}" costs ${item.costXP.toLocaleString()} XP and you have ${xpData.availableXP.toLocaleString()} XP to spend` +
+      toast.error(
+        `Not enough XP for "${item.title}"`,
+        `It costs ${item.costXP.toLocaleString()} XP and you have ${xpData.availableXP.toLocaleString()} XP to spend` +
           (xpData.reservedXP > 0
-            ? `, with ${xpData.reservedXP.toLocaleString()} XP already held against requests waiting for approval.`
+            ? `, with ${xpData.reservedXP.toLocaleString()} XP held against requests awaiting approval.`
             : '.')
       );
       return;
@@ -78,7 +83,10 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
       newValue: `Requested: ${item.title} (-${item.costXP} XP, Status: PENDING)`,
     });
 
-    triggerCelebration({ particleCount: 50 });
+    toast.celebrate(
+      `Requested "${item.title}"`,
+      `${item.costXP.toLocaleString()} XP is held until a parent approves it.`
+    );
     loadData();
   };
 
@@ -93,12 +101,9 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
       const earnedAfterPenalties = xpData.totalXP - xpData.penaltyXP;
       if (earnedAfterPenalties - xpData.redeemedXP - redemption.costXP < 0) {
         const over = Math.abs(earnedAfterPenalties - xpData.redeemedXP - redemption.costXP);
-        alert(
-          `Approving "${redemption.rewardTitle}" would overdraw the balance by ${over.toLocaleString()} XP.\n\n` +
-            `Earned after penalties: ${earnedAfterPenalties.toLocaleString()} XP\n` +
-            `Already redeemed: ${xpData.redeemedXP.toLocaleString()} XP\n` +
-            `This request: ${redemption.costXP.toLocaleString()} XP\n\n` +
-            'Deny it, or wait until more XP has been earned.'
+        toast.error(
+          `That would overdraw the balance by ${over.toLocaleString()} XP`,
+          `Earned after penalties ${earnedAfterPenalties.toLocaleString()} XP, already redeemed ${xpData.redeemedXP.toLocaleString()} XP, this request ${redemption.costXP.toLocaleString()} XP. Deny it, or wait until more XP has been earned.`
         );
         return;
       }
@@ -119,7 +124,11 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
       newValue: status,
     });
 
-    if (status === 'APPROVED') triggerCelebration({ particleCount: 70 });
+    if (status === 'APPROVED') {
+      toast.celebrate(`Approved "${redemption.rewardTitle}"`, `${redemption.costXP.toLocaleString()} XP spent.`);
+    } else {
+      toast.info(`Denied "${redemption.rewardTitle}"`, 'The held XP has been returned.');
+    }
     loadData();
   };
 

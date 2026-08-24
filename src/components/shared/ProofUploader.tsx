@@ -7,6 +7,7 @@ import {
   formatBytes,
 } from '../../services/attachmentService';
 import { Camera, FileText, Trash2, Loader2 } from 'lucide-react';
+import { useFeedback } from './FeedbackProvider';
 
 interface ProofUploaderProps {
   ownerType: ProofAttachment['ownerType'];
@@ -33,6 +34,7 @@ export const ProofUploader: React.FC<ProofUploaderProps> = ({
   hint = 'Photograph the question paper, your answers, and the mark scheme.',
   readOnly = false,
 }) => {
+  const { confirm } = useFeedback();
   const [attachments, setAttachments] = useState<ProofAttachment[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [isUploading, setIsUploading] = useState(false);
@@ -82,7 +84,13 @@ export const ProofUploader: React.FC<ProofUploaderProps> = ({
   };
 
   const handleRemove = async (att: ProofAttachment) => {
-    if (!confirm(`Remove "${att.fileName}"?`)) return;
+    const ok = await confirm({
+      title: `Remove "${att.fileName}"?`,
+      body: 'The file is deleted from this device and from sync.',
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await deleteAttachment(att.id);
     await reload();
   };

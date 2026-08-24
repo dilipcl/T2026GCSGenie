@@ -11,6 +11,7 @@ import {
   Lock,
   MapPin,
 } from 'lucide-react';
+import { useFeedback } from '../shared/FeedbackProvider';
 
 interface TimetableManagerProps {
   activeWeek: WeekType;
@@ -21,6 +22,7 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
   activeWeek,
   onToggleWeek,
 }) => {
+  const { confirm } = useFeedback();
   const [entries, setEntries] = useState<TimetableEntry[]>([]);
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MON');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -53,9 +55,13 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const handleDeleteEntry = async (entry: TimetableEntry) => {
-    if (!confirm(`Remove "${entry.activityName}" from ${entry.dayOfWeek}? This is recorded in the change history.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Remove "${entry.activityName}"?`,
+      body: `It will be taken off ${entry.dayOfWeek}. This is recorded in the change history.`,
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!ok) return;
 
     await db.timetableEntries.delete(entry.id);
     await logAuditEvent({

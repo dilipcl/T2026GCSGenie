@@ -14,6 +14,7 @@ import {
   Award,
 } from 'lucide-react';
 import { newId } from '../../utils/id';
+import { useFeedback } from '../shared/FeedbackProvider';
 
 interface RemediationSolveModalProps {
   quest: RemediationAction | null;
@@ -28,6 +29,7 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { toast } = useFeedback();
   const [driveUrl, setDriveUrl] = useState('');
   const [marksScored, setMarksScored] = useState<number>(0);
   const [totalMarks, setTotalMarks] = useState<number>(20);
@@ -84,7 +86,7 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
     if (isSaving || !canClaim) return;
 
     if (marksScored > totalMarks) {
-      alert('Marks scored cannot be more than the total marks available.');
+      toast.error('Check the marks', 'Marks scored cannot be more than the total available.');
       return;
     }
 
@@ -128,7 +130,7 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
       onClose();
     } catch (err) {
       console.error('Failed to save quest:', err);
-      alert('Could not save this quest. Please try again.');
+      toast.error('Could not save this quest', 'Nothing was lost - try again.');
     } finally {
       setIsSaving(false);
     }
@@ -136,7 +138,7 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
 
   const handleCreateSubQuest = async () => {
     if (!weakArea.trim()) {
-      alert('Please describe the specific weak area or question number.');
+      toast.error('Describe the weak area first', 'Name the sub-topic or question number the sub-quest should target.');
       return;
     }
 
@@ -162,7 +164,7 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
       newValue: `Generated Follow-up Sub-Quest: ${subQuest.taskTitle}`,
     });
 
-    alert('Follow-up sub-quest generated and added to your Remediation Portal (+150 XP)!');
+    toast.celebrate('Sub-quest created', `"${subQuest.taskTitle}" is now in Fix My Mistakes, worth +150 XP.`);
     setWeakArea('');
     setShowSubQuestForm(false);
     onSuccess();
