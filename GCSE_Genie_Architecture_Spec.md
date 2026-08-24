@@ -394,6 +394,37 @@ Attachments are stored as real `Blob`s, never base64 — Dexie Cloud offloads bi
 blob storage, which a base64 string would defeat, and the size difference decides whether a backup
 bundle is still a file a person can put in Drive.
 
+### 4.10. Module 10: Tamper-evident change history *(added August 2026)*
+
+The change history is the only record of who did what, and it was the one table a student could edit
+without leaving a trace. Every entry is now hashed together with its predecessor.
+
+```
+hash(n) = SHA-256( deviceId | sequence | hash(n-1) | timestamp | user | action
+                   | entity | entityId | fieldChanged | oldValue | newValue )
+```
+
+**Chains are per device.** With sync, two devices can both append while offline. A single global
+chain would fork every time that happened and report tampering where none occurred; per-device
+chains make that fork impossible by construction, so any break is genuine.
+
+| Attack | Caught by |
+| :--- | :--- |
+| Edit a row, leave its hash | Recomputed hash no longer matches |
+| Edit a row and fix its hash | The successor still points at the old hash |
+| Delete from the middle | Gap in the sequence numbers |
+| Delete the newest rows | `auditChainTips` high-water mark in `parentSettings` — the remaining chain is internally valid, so nothing *inside* the log can reveal this |
+| Recompute the entire chain | **Not caught.** The hashes are unsigned |
+
+The last row is the honest limit. Signing would need a key derived from the parent passphrase, which
+is achievable but was judged disproportionate for the actual threat model; detection plus a visible
+report in the Parent Portal was chosen instead.
+
+**Implementation note.** `logAuditEvent` reads the chain tail and appends inside one Dexie
+transaction, because two events logged in the same tick would otherwise claim the same sequence
+number. The SHA-256 call inside that transaction must be wrapped in `Dexie.waitFor()` — awaiting a
+WebCrypto promise directly lets IndexedDB auto-commit and throws `PrematureCommitError`.
+
 ---
 
 ## 5. Comprehensive Database Schema (IndexedDB / Dexie.js)
@@ -630,6 +661,7 @@ export interface ProofAttachment {
 | 2 | Initial 17-table schema |
 | 3 | `MICRO_REWARDS` back-filled into existing installs |
 | 4 | `assessments` and `attachments` (Proof Log) |
+| 5 | `auditLogs` gains `deviceId` and a `[deviceId+sequence]` compound index for the chain |
 
 `attachments` carries a compound index `[ownerType+ownerId]`, which is the only lookup that matters.
 Booleans are never indexed — see 8.6.
@@ -725,10 +757,13 @@ not rediscovered as bugs. Last reviewed: **August 2026** (post multi-device / Pr
 
 ### 8.2. Specified but not implemented
 
-1. **Enforced parent authority.** The PIN hides controls; it does not protect data. Anyone with
-   devtools can rewrite IndexedDB directly and approve their own rewards. Dexie Cloud realms and
-   roles are the mechanism that would make this real; that work has not started. *This is now the
-   largest remaining gap in the parent-oversight half of the design.*
+1. **Enforced parent authority.** Still not achieved, and now a deliberate choice rather than an
+   oversight. Dexie Cloud enforces permissions by *identity*: it rejects writes on sync based on
+   which user made them. With one shared family account there is no student identity for the server
+   to distinguish, so realms and roles cannot enforce anything. The August 2026 pass therefore built
+   *detection* instead — a hash-chained change history plus a PBKDF2 passphrase (see 4.10). Moving
+   to prevention requires giving Tejas his own login, at the cost of a second sign-in and a
+   parent-first setup ordering.
 2. **Overdue escalation.** Overdue tasks tint red and add a small stress surcharge. They do not
    downgrade RAG status, notify anyone, or gate the rewards shop.
 3. **PWA install / offline assets.** No `manifest.json` and no service worker, despite the iOS/Android
@@ -746,7 +781,8 @@ not rediscovered as bugs. Last reviewed: **August 2026** (post multi-device / Pr
 | RAG weighting | 35/35/20/10 incl. assessments | 40/35/25. Assessment data now exists and the per-subject average is computed and displayed, but is deliberately **not** folded into the score — doing so would move every subject's status without an explicit decision |
 | Sync | Encrypted JSON bundles to Google Drive | Dexie Cloud; JSON export retained as backup only |
 | Verification of quests | — | Self-marked. Proof Log assessments *do* carry a parent verification flag |
-| Audit ledger | "Cryptographically chained" | Per-entry SHA-256 only; **no chain**, and rows are deletable |
+| Audit ledger | "Cryptographically chained" | Now genuinely chained per device, with a high-water mark catching tail truncation. Still **unsigned**, so a full recompute would pass — tamper-evident, not tamper-proof |
+| Parent credential | 4-digit PIN, bare SHA-256, default `1234` | Passphrase, PBKDF2-SHA256 with random salt over 600,000 iterations, no default — first use sets it |
 | Record IDs | — | UUID-based (`utils/id.ts`). Clock-derived IDs were unique per device only and collided across devices |
 
 ### 8.4. Known defects in dependencies of the design
