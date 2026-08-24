@@ -267,6 +267,33 @@ New devices must be added to the origin whitelist before they can reach the data
 (`npx dexie-cloud whitelist <origin>`). Currently whitelisted: the GitHub Pages site plus
 `localhost:3000` and `localhost:5173` for development.
 
+## The material repository
+
+Genie records *where* work lives; Google Drive holds the files.
+
+```
+GCSEAppWorkingFolder/
+├── Mathematics/        Notes · Papers · Practice
+├── English-Language/   …and the same three for every subject
+├── …
+├── _Shared-Resources/  anything spanning subjects
+└── _Genie-Backups/     Genie's JSON exports
+```
+
+Every subject links straight to its folder — *Subjects & Goals* → a subject → **Subject folder**.
+A topic with no notes link of its own falls back to its subject's folder, so "open my notes" always
+goes somewhere. All the links are editable per subject, so a folder that gets moved can be repointed
+without a code change.
+
+> **Why one link per subject rather than a base path?** Drive folder URLs are opaque IDs
+> (`/drive/folders/1a2b3c…`), not paths — the Maths folder's link cannot be derived from the parent's.
+> And the `G:\` path is Drive for Desktop, which a browser cannot open: Chrome blocks `file://` from
+> an https page. So the path is shown for finding files in Explorer, and the URL is what's clickable.
+
+Photos captured inside the app stay in the app's database and sync via Dexie Cloud — writing to
+Drive needs upload permissions Genie doesn't ask for. Quick captures live in Genie; filed material
+lives in Drive.
+
 > ⚠️ `dexie-cloud.key` in the project root authorises administration of the cloud database. It is
 > gitignored — **keep it that way**, and never paste it anywhere.
 
