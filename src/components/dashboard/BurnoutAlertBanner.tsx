@@ -40,7 +40,7 @@ export const BurnoutAlertBanner: React.FC<BurnoutAlertBannerProps> = ({ refreshK
           )}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-white">
-              Weekly Time Capacity Budget ({burnout.stressIndex}% Stress Index)
+              This Week's Workload ({burnout.stressIndex}%)
             </h4>
             <p className="text-[11px] text-slate-300">
               {burnout.totalScheduledHours} hrs total / {burnout.safeWeeklyHoursLimit} hrs safe weekly

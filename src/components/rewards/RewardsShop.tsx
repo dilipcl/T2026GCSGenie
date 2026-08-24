@@ -111,11 +111,11 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
             <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
               🎁
             </span>
-            <h2 className="text-xl font-bold text-white">Parent-Managed Rewards Ledger</h2>
+            <h2 className="text-xl font-bold text-white">Rewards</h2>
           </div>
           <p className="text-xs text-slate-300 max-w-xl">
-            XP earned from daily 2-minute check-ins, on-time homework, and Year 9 remediation quests
-            can be redeemed for real-world incentives.
+            Spend the XP you've earned from check-ins, homework and fix-ups. Requests go to your
+            parents to approve.
           </p>
         </div>
 
@@ -174,7 +174,7 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
       <div>
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3 flex items-center gap-2">
           <Gift className="w-4 h-4 text-indigo-400" />
-          <span>Real-World Reward Catalog</span>
+          <span>What you can spend XP on</span>
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -225,7 +225,7 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
       <div className="glass-card p-6">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-4 flex items-center gap-2">
           <Clock className="w-4 h-4 text-indigo-400" />
-          <span>Redemption History & Parent Approval Queue</span>
+          <span>Your requests</span>
         </h3>
 
         {redemptions.length === 0 ? (

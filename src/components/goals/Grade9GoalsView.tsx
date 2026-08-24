@@ -39,11 +39,11 @@ export const Grade9GoalsView: React.FC = () => {
             <span className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               🏆
             </span>
-            <h2 className="text-xl font-bold text-white">GCSE Grade 9 Target Hierarchy</h2>
+            <h2 className="text-xl font-bold text-white">Subjects &amp; Goals</h2>
           </div>
           <p className="text-xs text-slate-300 max-w-xl">
-            Live Red/Amber/Green status indicators mapped to Edexcel, AQA, and OCR assessment specifications.
-            Click any subject to inspect syllabus checklists and 21 Required Practicals.
+            How each subject is tracking against your Grade 9 target. Tap a subject for its topic
+            checklist, required practicals and teacher notes.
           </p>
         </div>
 
@@ -137,7 +137,7 @@ export const Grade9GoalsView: React.FC = () => {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Target className="w-5 h-5 text-indigo-400" />
-            <h3 className="font-bold text-sm text-white">Active SMART Goals & Co-Curricular Ledger</h3>
+            <h3 className="font-bold text-sm text-white">Your goals</h3>
           </div>
           <span className="text-xs text-slate-400">{goals.length} Goals Registered</span>
         </div>

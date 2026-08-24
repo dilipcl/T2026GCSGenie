@@ -37,8 +37,8 @@ export const CheckInHistoryModal: React.FC<CheckInHistoryModalProps> = ({
             <BookmarkCheck className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">Daily Learning & Check-in Timeline</h2>
-            <p className="text-xs text-slate-400">Chronological history of learning takeaways, teacher follow-ups, and study sessions</p>
+            <h2 className="text-xl font-bold text-white">Your check-in history</h2>
+            <p className="text-xs text-slate-400">What you learned, what you asked, and how much you studied</p>
           </div>
         </div>
 

@@ -20,6 +20,8 @@ The interface is organised by **how often you actually use something**, not by h
 
 On mobile the four daily sections are the bottom bar; the rest live behind **More**. On desktop they're separated by a `WEEKLY` divider.
 
+Section names are deliberately plain — *My Work*, *Key Dates*, *Fix My Mistakes* — and **each page banner repeats its navigation label exactly**, so tapping a tab never lands on a page that appears to be something else. Exam boards, rotations and other real detail live in the subtitle. See spec §8.5.
+
 ---
 
 ## Core features
@@ -86,7 +88,9 @@ sorted cheapest first, with a progress bar to the next affordable item. Small re
 cheapest thing on the shelf is ten days away, nothing reinforces the effort made today.
 
 ### Parent Portal (PIN-protected)
-Agentic audit reports, rewards approval queue, sanction logger, full JSON backup/restore, an append-only audit log of every change, and the PIN change form.
+Audit reports, rewards approval queue, sanction logger, full JSON backup/restore, a **Change History** of every mutation, and the PIN change form.
+
+> The change history is *not* a tamper-proof ledger. Each row carries a SHA-256 checksum of its own payload, but there is no previous-hash chain and rows remain deletable. It is labelled accordingly in the UI.
 
 ---
 

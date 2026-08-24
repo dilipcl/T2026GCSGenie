@@ -28,9 +28,9 @@ export const ActiveQuestsCard: React.FC<ActiveQuestsCardProps> = ({ onSelectQues
             <Wrench className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-white">Year 9 Diagnostic Quests</h3>
+            <h3 className="font-bold text-sm text-white">Fix My Mistakes</h3>
             <p className="text-[11px] text-slate-400">
-              High-value remediation actions based on exam diagnostic errors
+              Practice built from marks you dropped in Year 9
             </p>
           </div>
         </div>

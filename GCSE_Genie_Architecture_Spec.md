@@ -19,7 +19,7 @@
 |  |  * Grade 9 Goal RAG Visualizer    |    |  * Reward Redemption Approval Ledger              |  |
 |  |  * Configurable 08:30 Timetable   |    |  * Schedule Overrides & Sanction Logger           |  |
 |  |  * Remediation Quests (+XP)       |    |  * Model-Agnostic Agentic Audit (Gemini / Claude) |  |
-|  |  * Career & Guidance Hub          |    |  * Immutable Write-Only Audit Log Viewer          |  |
+|  |  * Career & Guidance Hub          |    |  * Change History Viewer (per-entry hash)            |  |
 |  +-----------------+-----------------+    +-------------------------+-------------------------+  |
 |                    |                                                |                            |
 |  +-----------------v------------------------------------------------v-------------------------+  |
@@ -356,7 +356,7 @@ Accessible via a secure 4-digit Parent PIN:
    - **Burnout & Stress Analysis**: Capacity and sleep integrity evaluation.
    - **Subject Balance Alerts**: Highlights neglected homework or revision deficits (e.g. Computer Science).
    - **Actionable Adjustments**: Concrete calendar & habit recommendations.
-4. **Immutable Write-Only Audit Log Viewer**:
+4. **Change History Viewer** (labelled "Change History" in the UI - see 8.3; it is NOT immutable or hash-chained):
    - Displays all historical events: `[Timestamp | User | Field | Action | Old Value | New Value]`.
 
 ---
@@ -631,7 +631,31 @@ not rediscovered as bugs. Last reviewed: **August 2026**.
   Reviewing Agent" prompt never reaches the user.
 - **Seed timetable is incomplete.** Only Monday of the Odd week has lessons; the Even week is empty.
 
-### 8.5. Platform traps
+### 8.5. Naming — nav label and page heading must match
+
+The app is used daily by a 14 year old, so section names are written in plain English. **The page
+banner must repeat the navigation label verbatim.** An earlier pass renamed the tabs but not the
+pages behind them, so tapping *Fix My Mistakes* landed on a page headed "Year 9 Assessment
+Diagnostic Remediation Portal" — which defeats the point of the rename.
+
+| Tab | Nav label | Page banner | Old name |
+| :--- | :--- | :--- | :--- |
+| `DASHBOARD` | Home | *(dashboard cards)* | Dashboard |
+| `TASKS` | My Work | My Work | Workload Prioritization & Homework Planning |
+| `CALENDAR` | Key Dates | Key Dates | Academic Milestones, Mocks & Reminders Calendar |
+| `REMEDIATIONS` | Fix My Mistakes | Fix My Mistakes | Year 9 Assessment Diagnostic Remediation Portal |
+| `REWARDS` | Rewards | Rewards | Parent-Managed Rewards Ledger |
+| `TIMETABLE` | Timetable | Timetable | Guildford County School Rotational Timetable |
+| `GOALS` | Subjects & Goals | Subjects & Goals | GCSE Grade 9 Target Hierarchy |
+| `GUIDANCE` | Careers & Help | Careers & Help | General Guidance, Free Revision Links & Career Pathways |
+| `PARENT` | Parent Portal | Parent Portal | Parent Portal & Agentic Governance |
+
+Detail that carries real information (exam boards, the Odd/Even rotation, what a section is for)
+moved into the subtitle rather than being deleted. Sub-headings follow the same rule: "What you can
+spend XP on" rather than "Real-World Reward Catalog", "Topics covered" rather than "Year 10 Syllabus
+Mastery Checklist".
+
+### 8.6. Platform traps
 
 - **IndexedDB cannot index booleans.** `completed`, `isCompleted`, `isHomework` and `shopFrozen`
   appear in Dexie schema strings but are never indexed. `.where('completed').equals(0)` silently

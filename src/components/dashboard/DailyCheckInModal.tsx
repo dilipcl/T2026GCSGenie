@@ -247,7 +247,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-white">Daily Check-in & Learning Log</h2>
+              <h2 className="text-xl font-bold text-white">Log today</h2>
               {todayCheckInCount > 0 && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800">
                   Log #{todayCheckInCount + 1} Today
@@ -424,7 +424,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
           <div className="p-3.5 bg-slate-800/50 rounded-2xl border border-slate-700/70 space-y-3">
             <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
               <Lightbulb className="w-4 h-4 text-amber-400" />
-              <span>Structured Daily Learning & Follow-Up Log</span>
+              <span>Three quick questions</span>
             </h4>
 
             {/* Q1: Key Concept */}

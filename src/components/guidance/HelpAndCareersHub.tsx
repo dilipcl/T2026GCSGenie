@@ -28,22 +28,20 @@ export const HelpAndCareersHub: React.FC = () => {
           <span className="p-2 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
             🧭
           </span>
-          <h2 className="text-xl font-bold text-white">
-            General Guidance, Free Revision Links & Career Pathways
-          </h2>
+          <h2 className="text-xl font-bold text-white">Careers &amp; Help</h2>
         </div>
         <p className="text-xs text-slate-300 max-w-xl">
-          Connect Grade 9 achievement to A-Level choices, Degree Apprenticeships, and future
-          aerospace, software, and engineering careers.
+          Where these grades actually lead — A-Levels, degree apprenticeships and careers — plus
+          free revision sites and who teaches what.
         </p>
       </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
         {[
-          { id: 'CAREERS', label: '🚀 Post-GCSE & Career Pathways', icon: Rocket },
-          { id: 'REVISION_SITES', label: '📚 Free Revision & Mock Tests', icon: BookOpen },
-          { id: 'TEACHERS', label: '👨‍🏫 Teacher Directory & Notes', icon: UserCheck },
+          { id: 'CAREERS', label: '🚀 Where this leads', icon: Rocket },
+          { id: 'REVISION_SITES', label: '📚 Free revision sites', icon: BookOpen },
+          { id: 'TEACHERS', label: '👨‍🏫 Your teachers', icon: UserCheck },
         ].map((tab) => {
           const Icon = tab.icon;
           return (

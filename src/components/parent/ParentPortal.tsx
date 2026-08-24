@@ -253,11 +253,11 @@ export const ParentPortal: React.FC = () => {
           <span className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
             🛡️
           </span>
-          <h2 className="text-xl font-bold text-white">Parent Portal & Agentic Governance</h2>
+          <h2 className="text-xl font-bold text-white">Parent Portal</h2>
         </div>
         <p className="text-xs text-slate-300 max-w-xl">
-          Trigger model-agnostic AI agent audits, manage the real-world rewards ledger, log school
-          sanctions, and inspect the tamper-evident audit trail.
+          Run an audit, log a school sanction, back up the data, change the PIN, and review the
+          full history of changes.
         </p>
       </div>
 
@@ -355,7 +355,7 @@ export const ParentPortal: React.FC = () => {
         <div className="glass-card p-5 space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
             <Bot className="w-5 h-5 text-indigo-400" />
-            <h3 className="font-bold text-sm text-white">Model-Agnostic Agent Engine</h3>
+            <h3 className="font-bold text-sm text-white">AI Audit Settings</h3>
           </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-3">
@@ -446,12 +446,12 @@ export const ParentPortal: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Latest Plan Alignment Report */}
+        {/* Right: Latest Audit Report */}
         <div className="lg:col-span-2 glass-card p-5">
           <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-amber-400" />
-              <h3 className="font-bold text-sm text-white">Latest Plan Alignment Report</h3>
+              <h3 className="font-bold text-sm text-white">Latest Audit Report</h3>
             </div>
             {activeReport && (
               <span className="text-[11px] text-slate-400">
@@ -528,7 +528,7 @@ export const ParentPortal: React.FC = () => {
       <div className="glass-card p-6">
         <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-800">
           <ShieldAlert className="w-5 h-5 text-rose-400" />
-          <h3 className="font-bold text-sm text-white">Manual School Sanction & Detention Logger</h3>
+          <h3 className="font-bold text-sm text-white">Log a School Sanction</h3>
         </div>
 
         <form onSubmit={handleLogSanction} className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -608,7 +608,7 @@ export const ParentPortal: React.FC = () => {
       <div className="glass-card p-6">
         <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-800">
           <Database className="w-5 h-5 text-teal-400" />
-          <h3 className="font-bold text-sm text-white">Database Backup & Google Drive Sync (Option A)</h3>
+          <h3 className="font-bold text-sm text-white">Backup & Restore</h3>
         </div>
 
         <p className="text-xs text-slate-300 mb-4">
@@ -638,9 +638,12 @@ export const ParentPortal: React.FC = () => {
         <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <History className="w-5 h-5 text-indigo-400" />
-            <h3 className="font-bold text-sm text-white">Immutable Write-Only Audit Ledger</h3>
+            <h3 className="font-bold text-sm text-white">Change History</h3>
           </div>
-          <span className="text-xs text-slate-400">Cryptographically Chained with SHA-256</span>
+          {/* Deliberately not called "immutable" or "chained": each row carries a
+              SHA-256 of its own payload, but there is no previous-hash link and
+              rows remain deletable. Claiming tamper-evidence would be false. */}
+          <span className="text-xs text-slate-400">Every change, with a SHA-256 checksum per entry</span>
         </div>
 
         <div className="overflow-x-auto max-h-64 overflow-y-auto">

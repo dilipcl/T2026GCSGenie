@@ -257,7 +257,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
           <form onSubmit={handleSaveSubjectSettings} className="p-4 bg-slate-800/80 rounded-2xl border border-slate-700 mb-5 space-y-3">
             <h4 className="text-xs font-bold text-indigo-300 uppercase flex items-center gap-1.5">
               <Sliders className="w-4 h-4" />
-              <span>Configure Subject & RAG Override</span>
+              <span>Subject settings</span>
             </h4>
 
             <div className="grid grid-cols-2 gap-3">
@@ -387,7 +387,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
             <div className="flex items-center justify-between mb-2.5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <GraduationCap className="w-4 h-4 text-indigo-400" />
-                <span>Year 10 Syllabus Mastery Checklist ({topics.filter((t) => t.isCompleted).length}/{topics.length})</span>
+                <span>Topics covered ({topics.filter((t) => t.isCompleted).length}/{topics.length})</span>
               </h3>
             </div>
 
@@ -525,7 +525,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <BookOpen className="w-4 h-4 text-emerald-400" />
-                <span>Active Homework & Action Items</span>
+                <span>Homework for this subject</span>
               </span>
               <span className="text-[11px] text-indigo-400 font-normal">+50 XP per task</span>
             </h3>

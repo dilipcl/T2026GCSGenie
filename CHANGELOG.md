@@ -1,5 +1,35 @@
 # Changelog
 
+## August 2026 — Page headings matched to navigation
+
+The previous pass renamed the navigation tabs but not the pages behind them, so tapping *Fix My
+Mistakes* landed on a page headed "Year 9 Assessment Diagnostic Remediation Portal". Every page
+banner now repeats its nav label verbatim, with the useful detail moved into the subtitle:
+
+| Page | Was | Now |
+| :--- | :--- | :--- |
+| Remediation hub | Year 9 Assessment Diagnostic Remediation Portal | Fix My Mistakes |
+| Dashboard quests card | Year 9 Diagnostic Quests | Fix My Mistakes |
+| Goals | GCSE Grade 9 Target Hierarchy | Subjects & Goals |
+| Rewards | Parent-Managed Rewards Ledger | Rewards |
+| Careers | General Guidance, Free Revision Links & Career Pathways | Careers & Help |
+| Timetable | Guildford County School Rotational Timetable | Timetable |
+| Parent portal | Parent Portal & Agentic Governance | Parent Portal |
+
+Sub-headings followed: "What you can spend XP on" (was "Real-World Reward Catalog"), "Your
+requests", "Your goals", "Topics covered", "Homework for this subject", "Three quick questions",
+"This Week's Workload", "Log today", "Your check-in history", "AI Audit Settings", "Log a School
+Sanction", "Backup & Restore".
+
+**Corrected a false claim while in there.** The audit log was headed *"Immutable Write-Only Audit
+Ledger"* with the subtitle *"Cryptographically Chained with SHA-256"*. Neither is true: each entry
+carries a SHA-256 of its own payload with no previous-hash link, and rows remain deletable. It now
+reads **"Change History — Every change, with a SHA-256 checksum per entry"**, which is accurate. The
+architecture spec has been corrected in the same way, and section 8.5 records the naming rule so
+nav labels and page headings cannot drift apart again.
+
+---
+
 ## August 2026 — Habit mechanics (Atomic Habits)
 
 Four changes drawn from James Clear's *Atomic Habits*, chosen for behavioural impact per line of

@@ -63,12 +63,10 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Calendar className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-xl font-bold text-white">
-              Guildford County School Rotational Timetable
-            </h2>
+            <h2 className="text-xl font-bold text-white">Timetable</h2>
           </div>
           <p className="text-xs text-slate-400">
-            08:30 Registration start with Odd/Even bi-weekly lesson presets and fixed cadet blocks.
+            Your GCS week, on the Odd/Even rotation. Cadets, art and drums are fixed blocks.
           </p>
         </div>
 

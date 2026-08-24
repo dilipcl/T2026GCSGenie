@@ -54,13 +54,11 @@ export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }
             <span className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               🛠️
             </span>
-            <h2 className="text-xl font-bold text-white">
-              Year 9 Assessment Diagnostic Remediation Portal
-            </h2>
+            <h2 className="text-xl font-bold text-white">Fix My Mistakes</h2>
           </div>
           <p className="text-xs text-slate-300 max-w-xl">
-            Directly converts specific errors from Tejas's real-world Year 9 test scripts and GCS
-            interim reports (IR3) into high-value active quests.
+            The exact things you dropped marks on in your Year 9 papers and reports, turned into
+            practice you can actually do something about.
           </p>
         </div>
 
