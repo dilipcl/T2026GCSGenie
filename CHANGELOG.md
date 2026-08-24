@@ -1,5 +1,62 @@
 # Changelog
 
+## August 2026 — Tamper-evident change history and a real parent passphrase
+
+A QA field test put it plainly: the Parent Portal "is a client-side gate, not a real lock." True,
+and the lock was weaker than it looked — a bare SHA-256 of four digits, with `1234` shipped as a
+published default. Ten thousand candidates against one fast hash is milliseconds of guessing.
+
+Server-enforced roles were considered and ruled out: Dexie Cloud enforces permissions by identity,
+and on a single shared family account there is no student identity for the server to distinguish.
+Prevention was therefore off the table, so this pass builds **detection** instead.
+
+### The change history now catches tampering
+
+Every entry is hashed together with its predecessor, forming a chain per device.
+
+| Attack | Caught by |
+| :--- | :--- |
+| Edit a row, leave its hash | Recomputed hash no longer matches |
+| Edit a row and fix its hash | The successor still points at the old hash |
+| Delete from the middle | Gap in the sequence numbers |
+| Delete the newest rows | A high-water mark kept outside the log |
+| Recompute the whole chain | **Not caught** — the hashes are unsigned |
+
+Chains are per device because sync makes a single global chain fork every time two devices append
+while offline, which would cry tampering when nothing happened.
+
+Tail truncation was the interesting case: deleting the newest entries leaves a shorter but
+internally valid chain, so nothing inside the log can reveal it. The fix is a high-water mark in
+parent settings. I got this wrong first time and wrote a test asserting it was undetectable; the
+test was right that it failed, wrong about why.
+
+**Parent Portal → Change history integrity → Run check** reports it in plain English.
+
+### The passphrase
+
+No default any more — first use *sets* one rather than checking one, because a published default is
+worse than no lock in that it looks like protection. PBKDF2-SHA256, random 16-byte salt, 600,000
+iterations (~310ms per attempt, measured), escalating lockout after three failures capped at five
+minutes. An existing four-digit PIN works once and then must be replaced.
+
+### Two bugs found while building this
+
+`logAuditEvent` reads the chain tail and appends in one transaction, and awaiting WebCrypto's
+promise inside it let IndexedDB auto-commit before the write — `PrematureCommitError`. Wrapped in
+`Dexie.waitFor()`, which exists for exactly this.
+
+`handleSaveSettings` did a whole-object `put` from React state, which would have silently erased the
+new passphrase credential, the lockout counters and the audit high-water marks every time the AI
+settings were saved. Narrowed to the fields that form actually owns.
+
+Verified with 33 new assertions plus the existing 24, and in a real browser: tampering with a
+redemption row and deleting the newest entry were both reported.
+
+**Still not achieved:** the boundary is detective, not preventive. Anyone with devtools can still
+edit the database; they just cannot do it invisibly.
+
+---
+
 ## August 2026 — Multi-device sync, proof log, and the data-integrity pass
 
 Started as a review of what would happen if the app were used on two devices at once. The answer was

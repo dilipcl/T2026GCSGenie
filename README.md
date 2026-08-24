@@ -193,11 +193,44 @@ Add to the home screen for a full-screen, chrome-free experience:
 
 ---
 
-## Parent PIN
+## Parent passphrase
 
-The default is `1234`. **Change it on first use** — Parent Portal → *Parent PIN*. Until you do, a warning banner appears on both the unlock screen and inside the portal, because anyone who has seen the app can otherwise open the Parent Portal, approve their own reward requests and lift their own sanctions.
+**There is no default.** The first time anyone opens the Parent Portal they are asked to *set* a
+passphrase rather than enter one, so do it on a parent device before handing the app over — whoever
+sets it first controls the portal. A published default of `1234` meant every install shipped with a
+known parent credential, which is worse than no lock at all because it looks like one.
 
-Only the SHA-256 hash is stored, and the PIN is never written to the audit log.
+Stored as PBKDF2-SHA256 with a random 16-byte salt over 600,000 iterations, so each guess costs
+around a third of a second rather than being instant. Three wrong attempts start an escalating
+lockout, capped at five minutes. The passphrase itself is never written to the change history —
+only the fact that it changed.
+
+> **What this does and does not do.** It locks the *interface*. It does not protect the *data*:
+> anyone who can open browser devtools can still edit IndexedDB directly. What changed is that doing
+> so now breaks the change history's hash chain, and the Parent Portal will tell you. See
+> *Change history integrity* below.
+
+An older four-digit PIN, if one exists, still works once — and then the app requires you to replace
+it with a passphrase before continuing.
+
+## Change history integrity
+
+Every entry is hashed together with the one before it, forming a chain per device. **Parent Portal →
+Change history integrity → Run check** recomputes every hash and every link.
+
+| Tampering | Detected by |
+| :--- | :--- |
+| A row's contents edited | Its hash no longer matches what the contents produce |
+| Edited *and* its hash recomputed | The next row still points at the old hash |
+| A row deleted from the middle | A gap in the sequence numbers |
+| The newest rows deleted | A high-water mark kept outside the log, in parent settings |
+
+Chains are **per device, not global**. With sync, two devices can both append while offline; a single
+global chain would fork every time that happened and cry tampering when nothing had happened.
+
+> This is tamper-**evident**, not tamper-proof. The hashes are unsigned, so someone who recomputes
+> the entire chain after editing it would pass the check. Resisting that needs a signing key the
+> student does not have, which a single shared account cannot provide — see *Known limitations*.
 
 ---
 
@@ -252,13 +285,17 @@ Documented honestly so they aren't rediscovered as bugs.
 1. **Sync is configured but unproven in the field.** The wiring is verified — cold start, seeding,
    unsynced API key, whitelisted origins — but no two real devices have yet been signed in and
    reconciled. Treat multi-device as untested until that happens.
-2. **Parent governance is UI-level, not enforced.** The PIN hides buttons; it does not protect data.
-   Anyone with devtools can edit IndexedDB directly. Dexie Cloud realms and roles could make the
-   student/parent boundary real, and that work has not been done.
+2. **Parent governance is detective, not preventive.** The passphrase hides buttons; it does not
+   protect data. Anyone with devtools can still edit IndexedDB directly — but the change history is
+   now hash-chained, so edits and deletions show up in the integrity check. Genuine *prevention*
+   needs server-enforced roles, which requires Tejas to have his own login; on a single shared
+   account Dexie Cloud cannot tell who is acting, so it cannot enforce anything. That trade was made
+   deliberately.
 3. **Not a PWA.** No manifest, no service worker. Chrome will not offer "Install app", and while the
    data layer is offline-first the *assets* are not cached, so a cold load needs a network.
-4. **The audit log is not chained.** Each entry carries a SHA-256 of its own payload; there is no
-   previous-hash link, and Dexie permits deletion. A checksummed log, not a tamper-proof ledger.
+4. **The audit chain is unsigned.** It now catches edits, mid-chain deletions and tail truncation,
+   but the hashes are not signed — a determined person who recomputes the whole chain after editing
+   it would pass the check. Tamper-evident against casual editing; not tamper-proof.
 5. **The timetable is mostly empty.** Only Monday of the Odd week is seeded. Tuesday–Friday and the
    whole Even week still need entering — though Quick Add's multi-day Lesson mode makes that quick.
 6. **Tasks, key dates and timetable blocks still can't be edited** after creation, only created and
@@ -289,13 +326,16 @@ src/
 │   ├── ragCalculator.ts               # subject health, XP ledger (incl. reservations)
 │   ├── habitEngine.ts                 # streaks, never-miss-twice, heat-map
 │   ├── attachmentService.ts           # proof files: downscale, store, tally
+│   ├── parentLockService.ts           # claim / unlock / change the passphrase
+│   ├── auditService.ts                # hash-chained change log + verification
 │   ├── burnoutEngine.ts               # weekly time budget
 │   ├── llmAgentService.ts             # agentic audit (live + offline)
 │   ├── backupService.ts               # schema-walking export, safe restore
-│   └── auditService.ts                # append-only change log
 ├── db/                                # Dexie schema (+ Dexie Cloud) + seed data
 ├── utils/date.ts                      # local-date helpers (see below)
 ├── utils/id.ts                        # globally unique record IDs (see below)
+├── utils/credential.ts                # PBKDF2 passphrase hashing + lockout curve
+├── utils/device.ts                    # stable per-browser id (never synced)
 └── types/                             # shared type definitions
 ```
 

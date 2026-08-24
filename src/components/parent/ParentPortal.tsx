@@ -19,7 +19,9 @@ import { totalAttachmentBytes, formatBytes } from '../../services/attachmentServ
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
 import { todayISO } from '../../utils/date';
-import { sha256 } from '../../utils/hash';
+import { setPassphrase, getLockState, LockState } from '../../services/parentLockService';
+import { MIN_PASSPHRASE_LENGTH, PBKDF2_ITERATIONS } from '../../utils/credential';
+import { verifyAuditChain, ChainVerification } from '../../services/auditService';
 import {
   ShieldAlert,
   Bot,
@@ -29,16 +31,14 @@ import {
   History,
   Sparkles,
   KeyRound,
+  ShieldCheck,
+  FileWarning,
 } from 'lucide-react';
 import { newId } from '../../utils/id';
 
-/** SHA-256 of '1234' - the seeded default. */
-const DEFAULT_PIN_HASH =
-  '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4';
-
 export const ParentPortal: React.FC = () => {
   const [settings, setSettings] = useState<ParentSettings>({
-    parentPinHash: '',
+
     googleDriveBackupPath: 'G:/My Drive/Documents/UK/Family/Tejas/GCSE-Genie/Backups',
     llmProvider: 'GEMINI',
     llmModelName: 'gemini-1.5-pro',
@@ -57,6 +57,9 @@ export const ParentPortal: React.FC = () => {
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [pinMessage, setPinMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [lockState, setLockState] = useState<LockState | null>(null);
+  const [integrity, setIntegrity] = useState<ChainVerification | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Sanction form
   const [sanctionReason, setSanctionReason] = useState('');
@@ -78,6 +81,7 @@ export const ParentPortal: React.FC = () => {
     setSanctions(sancList);
 
     setProofUsage(await totalAttachmentBytes());
+    setLockState(await getLockState());
   };
 
   useEffect(() => {
@@ -86,13 +90,18 @@ export const ParentPortal: React.FC = () => {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    const stored = await db.parentSettings.get('active_settings');
-    await db.parentSettings.put({
-      ...settings,
-      // The PIN is owned by the change-PIN form; never let this form overwrite it
-      // (the default state has an empty hash and would silently reset it).
-      parentPinHash: stored?.parentPinHash || settings.parentPinHash,
-      id: 'active_settings',
+    /**
+     * Update only the fields this form owns. A whole-object `put` from React
+     * state would erase everything the state does not carry - the passphrase
+     * credential, the lockout counters and the audit chain high-water marks -
+     * silently unlocking the portal and blinding the tamper check.
+     */
+    await db.parentSettings.update('active_settings', {
+      llmProvider: settings.llmProvider,
+      llmModelName: settings.llmModelName,
+      llmApiKey: settings.llmApiKey,
+      googleDriveBackupPath: settings.googleDriveBackupPath,
+      googleDriveFolderUrl: settings.googleDriveFolderUrl,
     });
     alert('Parent AI & Google Drive settings saved successfully.');
   };
@@ -101,51 +110,31 @@ export const ParentPortal: React.FC = () => {
     e.preventDefault();
     setPinMessage(null);
 
-    if (!/^\d{4}$/.test(newPin)) {
-      setPinMessage({ ok: false, text: 'The new PIN must be exactly 4 digits.' });
-      return;
-    }
     if (newPin !== confirmPin) {
-      setPinMessage({ ok: false, text: 'The two new PIN entries do not match.' });
+      setPinMessage({ ok: false, text: 'The two new entries do not match.' });
       return;
     }
 
-    const stored = await db.parentSettings.get('active_settings');
-    const expectedHash = stored?.parentPinHash || DEFAULT_PIN_HASH;
-
-    if ((await sha256(currentPin)) !== expectedHash) {
-      setPinMessage({ ok: false, text: 'Current PIN is incorrect.' });
+    const result = await setPassphrase(newPin, currentPin || undefined);
+    if (!result.ok) {
+      setPinMessage({ ok: false, text: result.message || 'Could not change the passphrase.' });
       return;
     }
-
-    const newHash = await sha256(newPin);
-    if (newHash === DEFAULT_PIN_HASH) {
-      setPinMessage({ ok: false, text: 'Please choose something other than the default 1234.' });
-      return;
-    }
-
-    await db.parentSettings.put({
-      ...settings,
-      ...stored,
-      parentPinHash: newHash,
-      id: 'active_settings',
-    });
-
-    // Deliberately records only that the PIN changed - never the PIN or its hash.
-    await logAuditEvent({
-      user: 'PARENT',
-      action: 'UPDATE',
-      entity: 'ParentSettings',
-      entityId: 'active_settings',
-      fieldChanged: 'parentPinHash',
-      newValue: 'Parent PIN changed',
-    });
 
     setCurrentPin('');
     setNewPin('');
     setConfirmPin('');
-    setPinMessage({ ok: true, text: 'Parent PIN updated.' });
+    setPinMessage({ ok: true, text: 'Parent passphrase updated.' });
     loadData();
+  };
+
+  const handleVerifyIntegrity = async () => {
+    setIsVerifying(true);
+    try {
+      setIntegrity(await verifyAuditChain());
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const handleRunAudit = async () => {
@@ -339,25 +328,34 @@ export const ParentPortal: React.FC = () => {
           <h2 className="text-xl font-bold text-white">Parent Portal</h2>
         </div>
         <p className="text-xs text-slate-300 max-w-xl">
-          Run an audit, log a school sanction, back up the data, change the PIN, and review the
-          full history of changes.
+          Run an audit, log a school sanction, back up the data, change the passphrase, and check
+          the change history for tampering.
         </p>
       </div>
 
-      {/* Parent PIN */}
+      {/* Parent passphrase */}
       <div className="glass-card p-6">
         <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-800">
           <KeyRound className="w-5 h-5 text-amber-400" />
-          <h3 className="font-bold text-sm text-white">Parent PIN</h3>
+          <h3 className="font-bold text-sm text-white">Parent passphrase</h3>
         </div>
 
-        {(!settings.parentPinHash || settings.parentPinHash === DEFAULT_PIN_HASH) && (
+        {lockState?.status === 'UNCLAIMED' && (
           <div className="mb-4 p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl text-xs text-amber-200 flex items-start gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
             <span>
-              This PIN is still the factory default (1234). Anyone who has seen the app can
-              open the Parent Portal, approve their own reward requests and lift their own
-              sanctions. Please change it.
+              No passphrase is set. Anyone opening the app can claim the Parent Portal and approve
+              their own reward requests. Set one now.
+            </span>
+          </div>
+        )}
+
+        {lockState?.status === 'LEGACY_PIN' && (
+          <div className="mb-4 p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl text-xs text-amber-200 flex items-start gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <span>
+              A four-digit PIN is still in place. Ten thousand possibilities against a fast hash is
+              a few milliseconds of guessing - replace it with a passphrase.
             </span>
           </div>
         )}
@@ -365,49 +363,45 @@ export const ParentPortal: React.FC = () => {
         <form onSubmit={handleChangePin} className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-              Current PIN
+              Current
             </label>
             <input
               type="password"
-              inputMode="numeric"
-              maxLength={4}
-              autoComplete="off"
+              autoComplete="current-password"
               value={currentPin}
-              onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
-              required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white tracking-widest"
+              onChange={(e) => setCurrentPin(e.target.value)}
+              disabled={lockState?.status === 'UNCLAIMED'}
+              placeholder={lockState?.status === 'UNCLAIMED' ? 'None set' : ''}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white disabled:opacity-40"
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-              New PIN
+              New passphrase
             </label>
             <input
               type="password"
-              inputMode="numeric"
-              maxLength={4}
-              autoComplete="off"
+              autoComplete="new-password"
               value={newPin}
-              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setNewPin(e.target.value)}
               required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white tracking-widest"
+              minLength={MIN_PASSPHRASE_LENGTH}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-              Confirm New PIN
+              Confirm
             </label>
             <input
               type="password"
-              inputMode="numeric"
-              maxLength={4}
-              autoComplete="off"
+              autoComplete="new-password"
               value={confirmPin}
-              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setConfirmPin(e.target.value)}
               required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white tracking-widest"
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
             />
           </div>
 
@@ -416,7 +410,7 @@ export const ParentPortal: React.FC = () => {
               type="submit"
               className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-950/50"
             >
-              Update PIN
+              {lockState?.status === 'UNCLAIMED' ? 'Set passphrase' : 'Update'}
             </button>
           </div>
         </form>
@@ -429,6 +423,74 @@ export const ParentPortal: React.FC = () => {
           >
             {pinMessage.text}
           </p>
+        )}
+
+        <p className="mt-3 text-[11px] text-slate-400">
+          Stored as PBKDF2-SHA256 with a random salt over {PBKDF2_ITERATIONS.toLocaleString()}{' '}
+          iterations, so each guess costs real time, and repeated failures lock the portal for an
+          escalating period. This protects the passphrase, not the database - see the integrity
+          check below.
+        </p>
+      </div>
+
+      {/* Change-history integrity */}
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between gap-2 mb-3 pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            <h3 className="font-bold text-sm text-white">Change history integrity</h3>
+          </div>
+          <button
+            onClick={handleVerifyIntegrity}
+            disabled={isVerifying}
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-bold text-slate-200 disabled:opacity-50"
+          >
+            {isVerifying ? 'Checking...' : 'Run check'}
+          </button>
+        </div>
+
+        <p className="text-xs text-slate-300 mb-3">
+          Each entry is hashed together with the one before it, per device. Editing or deleting a
+          row breaks the chain from that point on, which this check will find.
+        </p>
+
+        {!integrity ? (
+          <p className="text-[11px] text-slate-500">Not checked yet this session.</p>
+        ) : integrity.ok ? (
+          <div className="p-3 bg-emerald-950/30 border border-emerald-500/40 rounded-xl text-xs text-emerald-200 flex items-start gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+            <span>
+              Intact. {integrity.totalEntries} entries across {integrity.deviceCount} device
+              {integrity.deviceCount === 1 ? '' : 's'} verified.
+              {integrity.legacyEntries > 0 &&
+                ` ${integrity.legacyEntries} older entries predate chaining and cannot be verified.`}
+            </span>
+          </div>
+        ) : (
+          <div className="p-3 bg-rose-950/40 border border-rose-500/50 rounded-xl text-xs text-rose-100">
+            <div className="flex items-start gap-2 mb-2">
+              <FileWarning className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+              <span className="font-bold text-rose-200">
+                {integrity.faults.length} problem{integrity.faults.length === 1 ? '' : 's'} found -
+                the change history has been altered.
+              </span>
+            </div>
+            <ul className="list-disc list-inside space-y-1 ml-1">
+              {integrity.faults.slice(0, 8).map((f, i) => (
+                <li key={i}>
+                  <span className="font-mono text-[10px] text-rose-300">
+                    #{f.sequence} {f.kind}
+                  </span>{' '}
+                  {f.detail}
+                </li>
+              ))}
+            </ul>
+            {integrity.faults.length > 8 && (
+              <p className="mt-1.5 text-[11px] text-rose-300">
+                ...and {integrity.faults.length - 8} more.
+              </p>
+            )}
+          </div>
         )}
       </div>
 
@@ -778,10 +840,12 @@ export const ParentPortal: React.FC = () => {
             <History className="w-5 h-5 text-indigo-400" />
             <h3 className="font-bold text-sm text-white">Change History</h3>
           </div>
-          {/* Deliberately not called "immutable" or "chained": each row carries a
-              SHA-256 of its own payload, but there is no previous-hash link and
-              rows remain deletable. Claiming tamper-evidence would be false. */}
-          <span className="text-xs text-slate-400">Every change, with a SHA-256 checksum per entry</span>
+          {/* Now genuinely chained per device, so "tamper-evident" is accurate.
+              Still not tamper-PROOF: the hashes are unsigned, so someone who
+              recomputes the whole chain after editing it would pass the check. */}
+          <span className="text-xs text-slate-400">
+            Hash-chained per device - edits and deletions are detectable
+          </span>
         </div>
 
         <div className="overflow-x-auto max-h-64 overflow-y-auto">
