@@ -10,7 +10,9 @@ import {
   Goal,
   ParentSettings,
   MilestoneReminder,
+  Task,
 } from '../types';
+import { addDaysISO } from '../utils/date';
 
 export const INITIAL_PARENT_SETTINGS: ParentSettings = {
   parentPinHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', // SHA-256 for '1234'
@@ -566,3 +568,65 @@ export const INITIAL_GOALS: Goal[] = [
     createdAt: Date.now(),
   },
 ];
+
+/**
+ * Starter homework so the dashboard is not empty on first run. Dates are
+ * relative to first open, and use the local-date helper rather than
+ * toISOString(), which resolves in UTC and drops a day during BST.
+ */
+export const INITIAL_TASKS: Task[] = [
+      {
+      id: 't-maths-hw-1',
+      subjectId: 'maths',
+      title: 'Edexcel Paper 1 Past Paper Questions (Venn & Trig)',
+      description: 'Complete questions 12 to 18 on independence probability proofs.',
+      dueDate: addDaysISO(2),
+      priority: 'HIGH',
+      isHomework: true,
+      isRemediation: false,
+      linkedGoalId: 'g-academic-maths',
+      xpValue: 50,
+      completed: false,
+      createdAt: Date.now(),
+      },
+      {
+      id: 't-cs-hw-1',
+      subjectId: 'computer_science',
+      title: 'OCR CS Network Protocols (TCP/IP 4-Layer Model)',
+      description: 'Summarize Application, Transport, Network, and Link layers for teacher AMN.',
+      dueDate: addDaysISO(1),
+      priority: 'HIGH',
+      isHomework: true,
+      isRemediation: false,
+      linkedGoalId: 'g-academic-cs',
+      xpValue: 50,
+      completed: false,
+      createdAt: Date.now(),
+      },
+      {
+      id: 't-art-hw-1',
+      subjectId: 'art',
+      title: 'Portfolio AO2 Media Experimentation Sheet',
+      description: 'Complete 2 mixed-media color studies for Component 1.',
+      dueDate: addDaysISO(4),
+      priority: 'MEDIUM',
+      isHomework: true,
+      isRemediation: false,
+      xpValue: 50,
+      completed: false,
+      createdAt: Date.now(),
+      },
+      {
+      id: 't-sci-hw-1',
+      subjectId: 'physics',
+      title: 'Physics Energy Transfer Safety Step Problems',
+      description: 'Solve 5 questions converting time to seconds before calculating E=Pxt.',
+      dueDate: addDaysISO(3),
+      priority: 'MEDIUM',
+      isHomework: true,
+      isRemediation: false,
+      xpValue: 50,
+      completed: false,
+      createdAt: Date.now(),
+      },
+    ];
