@@ -409,6 +409,8 @@ export const MilestoneCalendarView: React.FC<MilestoneCalendarViewProps> = ({
 
                   <button
                     onClick={() => handleDeleteMilestone(m)}
+                    aria-label={`Delete key date ${m.title}`}
+                    title={`Delete "${m.title}"`}
                     className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />

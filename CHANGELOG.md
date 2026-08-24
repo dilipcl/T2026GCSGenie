@@ -1,5 +1,30 @@
 # Changelog
 
+## August 2026 — Material capture on syllabus topics
+
+The last of the P0s, and the smallest, because the pieces were already there: `ProofUploader`
+existed, and `ProofAttachment.ownerType` only needed `TOPIC` adding to it.
+
+Each topic row in the subject checklist gains a **Material** button that opens a notes link and
+photo capture. The link accepts anything — NotebookLM, a Doc, a file in the subject folder — and
+saves on blur, on Enter, or from an explicit Save button that appears once the field is dirty. Blur
+alone is not enough on a phone, where the keyboard's "go" often moves focus nowhere.
+
+The button carries a count once a topic has material, loaded for the whole checklist in one query
+rather than one per row.
+
+This completes the repository model: Drive holds the filed material, Genie records what exists and
+where, and the photos in the app are the quick captures that would otherwise never be filed at all.
+
+**Also fixed:** the icon-only delete buttons on tasks, key dates, timetable blocks and topics now
+carry `aria-label` and `title`. That gap was logged as a known limitation last week after a test
+could not find the buttons by label either; it is closed rather than carried.
+
+12 new assertions, including that an assessment file sharing an id with a topic is not miscounted as
+topic material, and that both the photos and the link survive a backup round trip. 154 in total.
+
+---
+
 ## August 2026 — In-app toasts and confirms replace 24 native dialogs
 
 The app leaned on `window.alert` and `window.confirm` in 24 places: 16 alerts and 8 confirms, for

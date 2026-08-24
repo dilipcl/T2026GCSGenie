@@ -249,7 +249,7 @@ export interface Assessment {
  */
 export interface ProofAttachment {
   id: string;
-  ownerType: 'ASSESSMENT' | 'TASK' | 'REMEDIATION' | 'MILESTONE';
+  ownerType: 'ASSESSMENT' | 'TASK' | 'REMEDIATION' | 'MILESTONE' | 'TOPIC';
   ownerId: string;
   fileName: string;
   mimeType: string;

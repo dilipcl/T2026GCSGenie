@@ -120,6 +120,27 @@ export async function getAttachmentsFor(
   return list.sort((a, b) => a.createdAt - b.createdAt);
 }
 
+/**
+ * How many files each owner has, in a single query.
+ *
+ * A per-row count would issue one lookup per topic on every render of the
+ * subject checklist, which is a lot of round trips for a badge.
+ */
+export async function attachmentCountsFor(
+  ownerType: ProofAttachment['ownerType'],
+  ownerIds: string[]
+): Promise<Record<string, number>> {
+  if (ownerIds.length === 0) return {};
+
+  const rows = await db.attachments.where('ownerType').equals(ownerType).toArray();
+  const wanted = new Set(ownerIds);
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    if (wanted.has(row.ownerId)) counts[row.ownerId] = (counts[row.ownerId] || 0) + 1;
+  }
+  return counts;
+}
+
 export async function deleteAttachment(id: string): Promise<void> {
   const existing = await db.attachments.get(id);
   await db.attachments.delete(id);

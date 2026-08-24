@@ -281,6 +281,8 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({ refreshKey = 0
 
                   <button
                     onClick={() => handleDeleteTask(task)}
+                    aria-label={`Delete task ${task.title}`}
+                    title={`Delete "${task.title}"`}
                     className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
