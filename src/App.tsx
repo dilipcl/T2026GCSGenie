@@ -12,6 +12,7 @@ import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
 import { QuickAddSheet } from './components/shared/QuickAddSheet';
 import { TaskManagerView } from './components/tasks/TaskManagerView';
 import { MilestoneCalendarView } from './components/calendar/MilestoneCalendarView';
+import { AssessmentLogView } from './components/assessments/AssessmentLogView';
 import { Grade9GoalsView } from './components/goals/Grade9GoalsView';
 import { TimetableManager } from './components/timetable/TimetableManager';
 import { RemediationHub } from './components/remediation/RemediationHub';
@@ -146,7 +147,15 @@ export const App: React.FC = () => {
           <MilestoneCalendarView refreshKey={refreshKey} onAdd={() => setIsQuickAddOpen(true)} />
         )}
 
-        {activeTab === 'GOALS' && <Grade9GoalsView />}
+        {activeTab === 'PROOF' && (
+          <AssessmentLogView
+            currentRole={currentRole}
+            refreshKey={refreshKey}
+            onChanged={refreshData}
+          />
+        )}
+
+        {activeTab === 'GOALS' && <Grade9GoalsView currentRole={currentRole} />}
 
         {activeTab === 'TIMETABLE' && (
           <TimetableManager
@@ -183,8 +192,11 @@ export const App: React.FC = () => {
         isOpen={isQuickAddOpen}
         onClose={() => setIsQuickAddOpen(false)}
         onSuccess={refreshData}
-        // Adding from the calendar almost always means a key date, not homework
-        defaultMode={activeTab === 'CALENDAR' ? 'REMINDER' : 'TASK'}
+        // Match the sheet to the screen it was opened from
+        defaultMode={
+          activeTab === 'CALENDAR' ? 'REMINDER' : activeTab === 'TIMETABLE' ? 'LESSON' : 'TASK'
+        }
+        defaultWeek={activeWeek}
       />
 
       <DailyCheckInModal
