@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { useFeedback } from '../shared/FeedbackProvider';
 
 interface AssessmentLogViewProps {
   currentRole: UserRole;
@@ -50,6 +51,7 @@ export const AssessmentLogView: React.FC<AssessmentLogViewProps> = ({
   refreshKey = 0,
   onChanged,
 }) => {
+  const { confirm } = useFeedback();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [filterSubject, setFilterSubject] = useState<SubjectId | 'ALL'>('ALL');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -76,13 +78,16 @@ export const AssessmentLogView: React.FC<AssessmentLogViewProps> = ({
   const withProof = visible.filter((a) => a.attachmentIds.length > 0).length;
 
   const handleDelete = async (record: Assessment) => {
-    if (
-      !confirm(
-        `Delete "${record.title}" and its ${record.attachmentIds.length} proof file(s)? This is recorded in the change history.`
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Delete "${record.title}"?`,
+      body:
+        record.attachmentIds.length > 0
+          ? `Its ${record.attachmentIds.length} proof file${record.attachmentIds.length === 1 ? '' : 's'} will be deleted too. This is recorded in the change history.`
+          : 'This is recorded in the change history.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
 
     const removedFiles = await deleteAttachmentsFor('ASSESSMENT', record.id);
     await db.assessments.delete(record.id);

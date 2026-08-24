@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { newId } from '../../utils/id';
+import { useFeedback } from '../shared/FeedbackProvider';
 
 interface MilestoneCalendarViewProps {
   refreshKey?: number;
@@ -28,6 +29,7 @@ export const MilestoneCalendarView: React.FC<MilestoneCalendarViewProps> = ({
   refreshKey = 0,
   onAdd,
 }) => {
+  const { confirm } = useFeedback();
   const [milestones, setMilestones] = useState<MilestoneReminder[]>([]);
   // Opens on the month you are actually in, not a hardcoded one
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -101,7 +103,13 @@ export const MilestoneCalendarView: React.FC<MilestoneCalendarViewProps> = ({
   };
 
   const handleDeleteMilestone = async (milestone: MilestoneReminder) => {
-    if (!confirm(`Delete "${milestone.title}"? This is recorded in the change history.`)) return;
+    const ok = await confirm({
+      title: `Delete "${milestone.title}"?`,
+      body: 'This is recorded in the change history.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
 
     await db.milestones.delete(milestone.id);
     await logAuditEvent({

@@ -14,6 +14,7 @@ import {
   Trash2,
   Filter,
 } from 'lucide-react';
+import { useFeedback } from '../shared/FeedbackProvider';
 
 interface TaskManagerViewProps {
   refreshKey?: number;
@@ -21,6 +22,7 @@ interface TaskManagerViewProps {
 }
 
 export const TaskManagerView: React.FC<TaskManagerViewProps> = ({ refreshKey = 0, onAdd }) => {
+  const { confirm } = useFeedback();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<SubjectId | 'ALL'>('ALL');
@@ -60,7 +62,13 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({ refreshKey = 0
   };
 
   const handleDeleteTask = async (task: Task) => {
-    if (!confirm(`Delete "${task.title}"? This is recorded in the change history.`)) return;
+    const ok = await confirm({
+      title: `Delete "${task.title}"?`,
+      body: 'This is recorded in the change history.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
 
     await db.tasks.delete(task.id);
     // Deletes were previously the one change that left no trace, while the

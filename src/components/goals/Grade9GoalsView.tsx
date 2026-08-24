@@ -3,16 +3,17 @@ import { db } from '../../db';
 import { SubjectConfig, Goal, UserRole } from '../../types';
 import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalculator';
 import { logAuditEvent } from '../../services/auditService';
-import { triggerCelebration } from '../../utils/confetti';
 import { SubjectDetailModal } from './SubjectDetailModal';
 import { GoalConsultationModal } from './GoalConsultationModal';
 import { Target, Plus, ShieldCheck, Lock, Unlock } from 'lucide-react';
+import { useFeedback } from '../shared/FeedbackProvider';
 
 interface Grade9GoalsViewProps {
   currentRole: UserRole;
 }
 
 export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole }) => {
+  const { toast, confirm } = useFeedback();
   const [subjects, setSubjects] = useState<SubjectConfig[]>([]);
   const [ragData, setRagData] = useState<Record<string, SubjectRAGResult>>({});
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -45,10 +46,12 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
     const lock = goal.status !== 'APPROVED_LOCKED';
 
     if (lock) {
-      const confirmed = confirm(
-        `Approve and lock "${goal.title}"?\n\n${goal.weeklyHoursRequired} hrs/week will start counting towards the weekly time capacity.`
-      );
-      if (!confirmed) return;
+      const ok = await confirm({
+        title: `Approve and lock "${goal.title}"?`,
+        body: `${goal.weeklyHoursRequired} hrs/week will start counting towards the weekly time capacity.`,
+        confirmLabel: 'Approve & lock',
+      });
+      if (!ok) return;
     }
 
     await db.goals.update(goal.id, {
@@ -68,7 +71,8 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
         : 'PENDING_DISCUSSION (hours no longer counted)',
     });
 
-    if (lock) triggerCelebration({ particleCount: 40 });
+    if (lock) toast.celebrate(`"${goal.title}" locked in`, `${goal.weeklyHoursRequired} hrs/week now counts towards the weekly capacity.`);
+    else toast.info('Goal unlocked', 'Its hours no longer count towards the weekly capacity.');
     loadData();
   };
 

@@ -15,6 +15,7 @@ import { logAuditEvent } from '../../services/auditService';
 import { todayISO, addDaysISO, formatFriendlyDate } from '../../utils/date';
 import { X, ListTodo, CalendarDays, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { newId } from '../../utils/id';
+import { useFeedback } from './FeedbackProvider';
 
 export type AddMode = 'TASK' | 'REMINDER' | 'LESSON';
 
@@ -63,6 +64,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   defaultWeek = 'ODD',
   defaultDay = 'MON',
 }) => {
+  const { toast } = useFeedback();
   const [mode, setMode] = useState<AddMode>(defaultMode);
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState(addDaysISO(1));
@@ -226,7 +228,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
       onClose();
     } catch (err) {
       console.error('Quick add failed:', err);
-      alert('Could not save that. Please try again.');
+      toast.error('Could not save that', 'Nothing was lost - try again.');
     } finally {
       setIsSaving(false);
     }

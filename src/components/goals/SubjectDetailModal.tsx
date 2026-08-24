@@ -22,6 +22,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { newId } from '../../utils/id';
+import { useFeedback } from '../shared/FeedbackProvider';
 
 interface SubjectDetailModalProps {
   subject: SubjectConfig | null;
@@ -36,6 +37,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
   onClose,
   onRefresh,
 }) => {
+  const { confirm } = useFeedback();
   const [topics, setTopics] = useState<SyllabusTopic[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [rag, setRag] = useState<SubjectRAGResult | null>(null);
@@ -139,9 +141,13 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
   };
 
   const handleDeleteTopic = async (topic: SyllabusTopic) => {
-    if (!confirm(`Delete "${topic.title}" from the syllabus checklist? This is recorded in the change history.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Delete "${topic.title}"?`,
+      body: 'It will be removed from the syllabus checklist. This is recorded in the change history.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
 
     await db.syllabusTopics.delete(topic.id);
     await logAuditEvent({
