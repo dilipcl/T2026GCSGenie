@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { db } from '../../db';
-import { sha256 } from '../../utils/hash';
-import { X, Lock, AlertCircle, ShieldAlert } from 'lucide-react';
+import {
+  getLockState,
+  unlock,
+  setPassphrase,
+  LockState,
+} from '../../services/parentLockService';
+import { MIN_PASSPHRASE_LENGTH } from '../../utils/credential';
+import { X, Lock, AlertCircle, ShieldAlert, KeyRound } from 'lucide-react';
 
 interface ParentPinModalProps {
   isOpen: boolean;
@@ -9,50 +14,97 @@ interface ParentPinModalProps {
   onSuccess: () => void;
 }
 
-/** SHA-256 of '1234' - the seeded default, kept only to warn that it is unchanged. */
-const DEFAULT_PIN_HASH =
-  '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4';
-
+/**
+ * The parent lock.
+ *
+ * Deliberately described as a lock on the interface, not as protection of the
+ * data. Anyone who can open devtools can still edit IndexedDB directly; what
+ * changed is that doing so now breaks the audit chain and is reported in the
+ * Parent Portal. Claiming otherwise here would repeat the overstatement the
+ * "immutable ledger" heading used to make.
+ */
 export const ParentPinModal: React.FC<ParentPinModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
 }) => {
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState(false);
-  const [isDefaultPin, setIsDefaultPin] = useState(false);
+  const [lockState, setLockState] = useState<LockState | null>(null);
+  const [passphrase, setPhrase] = useState('');
+  const [confirmPhrase, setConfirmPhrase] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
+  /** Set after a legacy PIN is accepted: a passphrase must be chosen now. */
+  const [upgrading, setUpgrading] = useState(false);
+
+  const refresh = () => getLockState().then(setLockState);
 
   useEffect(() => {
     if (!isOpen) return;
-    setPin('');
-    setError(false);
-
-    db.parentSettings.get('active_settings').then((settings) => {
-      setIsDefaultPin(!settings?.parentPinHash || settings.parentPinHash === DEFAULT_PIN_HASH);
-    });
+    setPhrase('');
+    setConfirmPhrase('');
+    setMessage(null);
+    setIsBusy(false);
+    setUpgrading(false);
+    refresh();
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !lockState) return null;
 
-  const handleVerifyPin = async (e: React.FormEvent) => {
+  const isClaiming = lockState.status === 'UNCLAIMED' || upgrading;
+  const isLockedOut = lockState.status === 'LOCKED_OUT';
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isBusy) return;
 
-    const settings = await db.parentSettings.get('active_settings');
-    // Fall back to the seeded default only if no PIN has ever been stored, so a
-    // parent who has set their own PIN is the sole holder of it.
-    const expectedHash = settings?.parentPinHash || DEFAULT_PIN_HASH;
-    const enteredHash = await sha256(pin);
+    setIsBusy(true);
+    setMessage(null);
 
-    if (enteredHash === expectedHash) {
-      setError(false);
-      setPin('');
+    try {
+      if (isClaiming) {
+        if (passphrase !== confirmPhrase) {
+          setMessage('The two entries do not match.');
+          return;
+        }
+        const result = await setPassphrase(passphrase);
+        if (!result.ok) {
+          setMessage(result.message || 'Could not set that passphrase.');
+          return;
+        }
+        onSuccess();
+        onClose();
+        return;
+      }
+
+      const result = await unlock(passphrase);
+      if (!result.ok) {
+        setMessage(result.message || 'Incorrect passphrase.');
+        setPhrase('');
+        await refresh();
+        return;
+      }
+
+      if (result.mustUpgrade) {
+        // The old PIN opens the door once; replacing it is not optional
+        setUpgrading(true);
+        setPhrase('');
+        setConfirmPhrase('');
+        setMessage('That PIN still works, but it is weak. Choose a passphrase to replace it.');
+        return;
+      }
+
       onSuccess();
       onClose();
-    } else {
-      setError(true);
-      setPin('');
+    } finally {
+      setIsBusy(false);
     }
   };
+
+  const canSubmit =
+    !isBusy &&
+    !isLockedOut &&
+    passphrase.length > 0 &&
+    (!isClaiming || (passphrase.length >= MIN_PASSPHRASE_LENGTH && confirmPhrase.length > 0));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -60,68 +112,92 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
         <button
           onClick={onClose}
           aria-label="Close"
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+          className="absolute top-3 right-3 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-3 border border-rose-500/30">
-          <Lock className="w-6 h-6" />
+        <div className="w-14 h-14 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center mx-auto mb-3">
+          {isClaiming ? <KeyRound className="w-7 h-7" /> : <Lock className="w-7 h-7" />}
         </div>
 
-        <h2 className="text-lg font-bold text-white mb-1">Parent Portal Access</h2>
-        <p className="text-xs text-slate-400 mb-4">
-          Enter your 4-digit Parent PIN to unlock audits, sanctions and settings.
+        <h2 className="text-lg font-bold text-white">
+          {isClaiming ? 'Set the parent passphrase' : 'Parent Portal'}
+        </h2>
+        <p className="text-xs text-slate-400 mt-1 mb-4">
+          {isClaiming
+            ? 'Choose this on a parent device, before Tejas starts using the app.'
+            : 'Unlocks audits, sanctions, approvals and settings.'}
         </p>
 
-        {isDefaultPin && (
-          <div className="mb-4 p-2.5 bg-amber-950/40 border border-amber-500/40 rounded-xl text-[11px] text-amber-200 flex items-start gap-2 text-left">
+        {lockState.status === 'UNCLAIMED' && !upgrading && (
+          <div className="mb-4 p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl text-[11px] text-amber-100 text-left flex items-start gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
             <span>
-              This PIN is still the factory default. Change it in the Parent Portal so it is
-              not guessable.
+              No passphrase has been set. Whoever sets it first controls the Parent Portal, so do
+              this before handing the app over.
             </span>
           </div>
         )}
 
-        <form onSubmit={handleVerifyPin} className="space-y-4">
-          <div>
-            <label htmlFor="parent-pin" className="sr-only">
-              Parent PIN
-            </label>
-            <input
-              id="parent-pin"
-              type="password"
-              inputMode="numeric"
-              autoComplete="off"
-              pattern="[0-9]*"
-              maxLength={4}
-              autoFocus
-              placeholder="••••"
-              value={pin}
-              onChange={(e) => {
-                setPin(e.target.value.replace(/\D/g, ''));
-                setError(false);
-              }}
-              className="w-32 mx-auto text-center tracking-[1em] text-xl font-bold bg-slate-800 border border-slate-700 rounded-xl py-2 text-white focus:outline-none focus:border-rose-500"
-            />
+        {isLockedOut && (
+          <div className="mb-4 p-3 bg-rose-950/40 border border-rose-500/50 rounded-xl text-[11px] text-rose-100 text-left flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+            <span>
+              Too many failed attempts. Try again in{' '}
+              {Math.max(1, Math.ceil((lockState.until - Date.now()) / 1000))} seconds.
+            </span>
           </div>
+        )}
 
-          {error && (
-            <div className="text-xs text-rose-400 flex items-center justify-center gap-1">
-              <AlertCircle className="w-3.5 h-3.5" />
-              <span>Incorrect PIN. Please try again.</span>
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <label htmlFor="parent-pass" className="sr-only">
+            Parent passphrase
+          </label>
+          <input
+            id="parent-pass"
+            type="password"
+            autoFocus
+            autoComplete={isClaiming ? 'new-password' : 'current-password'}
+            placeholder={isClaiming ? `At least ${MIN_PASSPHRASE_LENGTH} characters` : 'Passphrase'}
+            value={passphrase}
+            onChange={(e) => setPhrase(e.target.value)}
+            disabled={isLockedOut}
+            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white text-center focus:outline-none focus:border-rose-500 disabled:opacity-50"
+          />
+
+          {isClaiming && (
+            <input
+              type="password"
+              aria-label="Confirm passphrase"
+              autoComplete="new-password"
+              placeholder="Type it again"
+              value={confirmPhrase}
+              onChange={(e) => setConfirmPhrase(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white text-center focus:outline-none focus:border-rose-500"
+            />
+          )}
+
+          {message && (
+            <p className="text-[11px] font-semibold text-rose-300 text-left" role="alert">
+              {message}
+            </p>
           )}
 
           <button
             type="submit"
-            disabled={pin.length < 4}
-            className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-rose-950/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!canSubmit}
+            className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-rose-950/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Unlock Parent Portal
+            {isBusy ? 'Checking...' : isClaiming ? 'Set passphrase' : 'Unlock'}
           </button>
         </form>
+
+        <p className="mt-4 text-[10px] text-slate-500 leading-relaxed text-left">
+          This locks the interface, not the data. Anyone with browser devtools can still edit the
+          database directly - but doing so breaks the change history's hash chain, and the Parent
+          Portal reports it.
+        </p>
       </div>
     </div>
   );

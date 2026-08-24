@@ -2,6 +2,10 @@
 // GCSE GENIE: MASTER TYPE DEFINITIONS (v2.0 Enhanced)
 // ============================================================================
 
+import type { ParentCredential } from '../utils/credential';
+
+export type { ParentCredential };
+
 export type SubjectId =
   | 'maths'
   | 'english_lang'
@@ -296,6 +300,16 @@ export interface Sanction {
 
 export interface AuditLogEntry {
   id: string;
+  /**
+   * Which browser profile wrote this row. Chains are per device: with sync, two
+   * devices can both append while offline, and a single global chain would fork
+   * every time that happened and look like tampering.
+   */
+  deviceId: string;
+  /** Position within this device's chain, starting at 0. */
+  sequence: number;
+  /** `hash` of the preceding row on this device, or GENESIS_HASH for the first. */
+  prevHash: string;
   timestamp: number;
   user: UserRole;
   action: 'INSERT' | 'UPDATE' | 'DELETE' | 'AGENT_AUDIT' | 'SANCTION_FREEZE' | 'REWARD_REDEEM';
@@ -308,7 +322,20 @@ export interface AuditLogEntry {
 }
 
 export interface ParentSettings {
-  parentPinHash: string;
+  /** @deprecated Bare SHA-256 of a 4-digit PIN. Read for migration only. */
+  parentPinHash?: string;
+  /** PBKDF2 passphrase credential. See utils/credential.ts. */
+  parentCredential?: ParentCredential;
+  /** Consecutive failed unlock attempts, reset on success. */
+  failedUnlockAttempts?: number;
+  /** Epoch ms until which unlocking is refused. */
+  unlockLockedUntil?: number;
+  /**
+   * Highest audit sequence reached per device. Held outside auditLogs so that
+   * deleting the newest entries - which otherwise leaves a perfectly valid
+   * shorter chain - can still be spotted.
+   */
+  auditChainTips?: Record<string, number>;
   googleDriveBackupPath: string;
   googleDriveFolderUrl?: string; // Direct link to open Google Drive folder
   llmProvider: LLMProvider;

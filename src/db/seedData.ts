@@ -14,8 +14,12 @@ import {
 } from '../types';
 import { addDaysISO } from '../utils/date';
 
+/**
+ * No credential is seeded. A published default of '1234' meant every install
+ * shipped with a known parent passphrase, so the first unlock now sets one
+ * instead of checking one.
+ */
 export const INITIAL_PARENT_SETTINGS: ParentSettings = {
-  parentPinHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', // SHA-256 for '1234'
   googleDriveBackupPath: 'G:/My Drive/Documents/UK/Family/Tejas/GCSE-Genie/Backups',
   googleDriveFolderUrl: 'https://drive.google.com/drive/folders/',
   llmProvider: 'GEMINI',

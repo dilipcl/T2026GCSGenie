@@ -139,6 +139,14 @@ export class GCSEGenieDatabase extends Dexie {
      * idempotent. `seedMissingRows` only inserts rows whose primary key is
      * absent, so it can never overwrite an edit made on another device.
      */
+    /**
+     * v5 indexes the audit chain by [deviceId+sequence] so appending can find
+     * the tail of this device's chain in one lookup rather than scanning.
+     */
+    this.version(5).stores({
+      auditLogs: 'id, timestamp, user, action, entity, deviceId, [deviceId+sequence]',
+    });
+
     this.on('ready', async () => {
       await this.seedMissingRows();
     });
