@@ -71,14 +71,27 @@ Answers 2 and 3 can be turned into **real tasks due tomorrow** — pick a subjec
 tomorrow's list automatically, so the reflection leads somewhere instead of ending in the log.
 
 ### Fix My Mistakes (diagnostic quests)
-Real errors from Tejas's Year 9 scripts and GCS interim reports, converted into practice quests with worked mark schemes:
+Real errors from Tejas's Year 9 scripts and GCS interim reports, turned into targeted work:
 
 - **Maths** — Venn independence proofs, negative/fractional scale factors, double-bracket sign errors
 - **Science** — chromatography Rf (must be < 1.0), power-to-energy minute→second conversion
 - **History** — Treaty of Versailles reparations, 12-mark comparative essay structure
 - **Computer Science** — 14-day homework consistency challenge (IR3 flagged Home Learning under AMN)
 
-Each records a self-marked score, optional Google Notebook proof link, and working notes. A weak area can spawn a targeted follow-up sub-quest.
+Each quest gives the Grade 9 formula or rule, then says what to do — and the work happens where
+it actually happens: an exercise book, CorbettMaths, PMT, a past paper. Genie records the outcome,
+not the exercise.
+
+**Claiming the XP requires evidence.** A score, plus either a Google Notebook link or a photograph
+of the working. Previously the full reward paid out with every field blank, which made XP something
+a student could mint and every reward bought with it something a parent couldn't trust. A score of
+zero still claims — getting nothing right is still doing the work.
+
+A weak area can spawn a targeted follow-up sub-quest.
+
+> Quests used to embed one practice question with a model answer. Those were removed in August 2026:
+> a single question in a modal is neither real practice nor useful source material, and the app's job
+> is to record where the work lives, not to host a quiz.
 
 ### Proof Log — marked work with the evidence attached
 Every class test, mock, past paper or marked homework, recorded as evidence rather than a claim:

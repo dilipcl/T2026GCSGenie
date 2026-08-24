@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../../db';
 import { RemediationAction } from '../../types';
 import { logAuditEvent } from '../../services/auditService';
+import { ProofUploader } from '../shared/ProofUploader';
 import { triggerCelebration } from '../../utils/confetti';
 import {
   X,
   Wrench,
   Sparkles,
-  HelpCircle,
   Link,
   PlusCircle,
   GraduationCap,
@@ -32,8 +32,8 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
   const [marksScored, setMarksScored] = useState<number>(0);
   const [totalMarks, setTotalMarks] = useState<number>(20);
   const [studentNotes, setStudentNotes] = useState('');
-  const [showMarkScheme, setShowMarkScheme] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
 
   // Follow-up quest creation
   const [weakArea, setWeakArea] = useState('');
@@ -47,18 +47,11 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
   useEffect(() => {
     if (!quest) return;
 
-    // Default the total to the marks actually on offer in the question bank
-    const marksInBank = (quest.comprehensiveQuestions || []).reduce(
-      (sum, q) => sum + (q.marksAllocated || 0),
-      0
-    );
-
     setDriveUrl(quest.driveNotebookUrl || '');
     setMarksScored(quest.selfStudyScore?.scored ?? 0);
-    setTotalMarks(quest.selfStudyScore?.total ?? (marksInBank > 0 ? marksInBank : 20));
+    setTotalMarks(quest.selfStudyScore?.total ?? 20);
     setStudentNotes(quest.studentWorkingNotes || '');
     setWeakArea(quest.weakAreasIdentified || '');
-    setShowMarkScheme(false);
     setShowSubQuestForm(false);
     setIsSaving(false);
   }, [quest?.id]);
@@ -67,9 +60,28 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
 
   const percentage = totalMarks > 0 ? Math.round((marksScored / totalMarks) * 100) : 0;
 
+  /**
+   * What has to exist before XP is awarded.
+   *
+   * The claim button used to be gated on nothing but `isSaving`, so the full
+   * reward could be taken with the score, the notebook link and the working
+   * notes all blank. For an app whose whole premise is "do the work", that
+   * quietly turned XP into something you could mint, and every reward bought
+   * with it into something a parent could not trust.
+   */
+  const hasScore = totalMarks > 0 && marksScored >= 0 && marksScored <= totalMarks;
+  const hasProof = driveUrl.trim().length > 0 || attachmentIds.length > 0;
+  const canClaim = hasScore && hasProof;
+
+  const blockedReason = !hasScore
+    ? 'Enter the marks you scored out of the total to claim this.'
+    : !hasProof
+    ? 'Add a notebook link or a photo of your working to claim this.'
+    : null;
+
   const handleCompleteQuest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSaving) return;
+    if (isSaving || !canClaim) return;
 
     if (marksScored > totalMarks) {
       alert('Marks scored cannot be more than the total marks available.');
@@ -136,12 +148,6 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
       taskTitle: `${quest.taskTitle} (Targeted Sub-Quest)`,
       taskInstructions: `Focused remediation on identified weakness: "${weakArea.trim()}". Solve 3 targeted problems and verify proof in notebook.`,
       formulaOrHint: quest.formulaOrHint,
-      sampleQuestions: [
-        {
-          question: `Targeted practice for: ${weakArea.trim()}`,
-          expectedOutcome: '100% accuracy on sub-topic proof.',
-        },
-      ],
       xpReward: 150,
       isCompleted: false,
       parentQuestId: quest.id,
@@ -205,62 +211,19 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
           </div>
         )}
 
-        {/* Comprehensive Exam-Style Question Bank & Mark Scheme */}
-        <div className="mb-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              Comprehensive Practice Questions & Self-Study Bank
-            </h4>
-            <button
-              type="button"
-              onClick={() => setShowMarkScheme(!showMarkScheme)}
-              className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1"
-            >
-              <HelpCircle className="w-3.5 h-3.5" />
-              <span>{showMarkScheme ? 'Hide Mark Scheme' : 'Reveal Mark Scheme & Notes'}</span>
-            </button>
-          </div>
-
-          {quest.comprehensiveQuestions && quest.comprehensiveQuestions.length > 0 ? (
-            <div className="space-y-3">
-              {quest.comprehensiveQuestions.map((q) => (
-                <div
-                  key={q.id}
-                  className="p-3.5 bg-slate-900 rounded-xl border border-slate-800 space-y-2 text-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-xs">{q.questionNumber}</span>
-                    <span className="text-[10px] bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800 font-bold">
-                      [{q.marksAllocated} Marks]
-                    </span>
-                  </div>
-                  <p className="text-slate-200">{q.questionText}</p>
-
-                  {showMarkScheme && (
-                    <div className="p-2.5 bg-emerald-950/40 rounded-lg border border-emerald-900/60 text-emerald-200 space-y-1">
-                      <p>
-                        <strong className="text-emerald-300">Model Answer:</strong> {q.modelAnswer}
-                      </p>
-                      <p className="text-[11px] text-slate-300 font-mono">
-                        <strong>Mark Scheme:</strong> {q.markSchemeNotes}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {quest.sampleQuestions.map((q, idx) => (
-                <div key={idx} className="p-3 bg-slate-900 rounded-xl border border-slate-800 text-xs">
-                  <p className="font-semibold text-white mb-1.5">Q{idx + 1}: {q.question}</p>
-                  <p className="text-[11px] text-emerald-400 font-mono bg-emerald-950/30 p-2 rounded border border-emerald-900/50">
-                    <strong>Expected Working:</strong> {q.expectedOutcome}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* What to actually do. Previously this modal showed one practice
+            question and never rendered taskInstructions at all - the wrong way
+            round, given the real work happens in an exercise book. */}
+        <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700 mb-5">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2 flex items-center gap-1.5">
+            <GraduationCap className="w-4 h-4 text-indigo-400" />
+            <span>What to do</span>
+          </h4>
+          <p className="text-xs text-slate-200 leading-relaxed">{quest.taskInstructions}</p>
+          <p className="text-[11px] text-slate-400 mt-2.5">
+            Work through this in your exercise book, on CorbettMaths, PMT or a past paper - wherever
+            you normally work. Then record the score and the proof below.
+          </p>
         </div>
 
         <form onSubmit={handleCompleteQuest} className="space-y-4">
@@ -285,6 +248,14 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
               />
             </div>
+
+            <ProofUploader
+              ownerType="REMEDIATION"
+              ownerId={quest.id}
+              onChange={setAttachmentIds}
+              label="Photos of your working"
+              hint="Photograph the pages from your exercise book, or the marked practice."
+            />
 
             {/* Score Logger */}
             <div className="grid grid-cols-3 gap-3">
@@ -389,10 +360,16 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
             )}
           </div>
 
+          {blockedReason && (
+            <p className="text-[11px] text-amber-300 font-semibold text-center" role="status">
+              {blockedReason}
+            </p>
+          )}
+
           <button
             type="submit"
-            disabled={isSaving}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-950/50 flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+            disabled={isSaving || !canClaim}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-950/50 flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Sparkles className="w-4 h-4" />
             <span>

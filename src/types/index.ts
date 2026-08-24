@@ -144,15 +144,6 @@ export interface TimetableEntry {
   isHardLocked: boolean;
 }
 
-export interface ComprehensiveQuestion {
-  id: string;
-  questionNumber: string; // e.g. "Q1 (a)", "Q2"
-  questionText: string;
-  marksAllocated: number;
-  modelAnswer: string;
-  markSchemeNotes: string;
-}
-
 export interface RemediationAction {
   id: string;
   subjectId: SubjectId;
@@ -161,11 +152,13 @@ export interface RemediationAction {
   taskTitle: string;
   taskInstructions: string;
   formulaOrHint?: string;
-  sampleQuestions: {
-    question: string;
-    expectedOutcome: string;
-  }[];
-  comprehensiveQuestions?: ComprehensiveQuestion[];
+  /**
+   * Practice questions used to live here. They were removed in August 2026:
+   * a single question inside a modal is neither real practice nor useful source
+   * material, and Genie's job is to record where the real work lives, not to
+   * host a quiz. A quest is now instructions plus the proof that they were
+   * followed - see taskInstructions and the proof fields below.
+   */
   xpReward: number;
   isCompleted: boolean;
   completedAt?: number;

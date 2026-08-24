@@ -259,7 +259,21 @@ The timetable starts at **08:30** by default, with Guildford County School's bi-
 
 ### 4.4. Module 4: Real-World Assessment & Remediation Action Portal
 
-Directly digitizes Year 9 baseline exam diagnostic errors and turns them into high-XP active quests:
+Directly digitizes Year 9 baseline exam diagnostic errors and turns them into high-XP active quests.
+
+> **Amended August 2026.** Quests no longer embed practice questions. `sampleQuestions`,
+> `comprehensiveQuestions` and the `ComprehensiveQuestion` type are removed from the schema, the seed
+> data and the UI. A single question inside a modal is neither real practice — that happens in an
+> exercise book, on CorbettMaths or PMT — nor useful source material for the companion app that will
+> generate tests from real papers. What the modal shows instead is `taskInstructions`, which was
+> stored from the start and never rendered.
+>
+> **Claiming XP now requires proof.** The button was gated on nothing but `isSaving`, so the full
+> reward could be taken with the score, the notebook link and the working notes all blank. It now
+> requires a recorded score *and* either a notebook link or a photograph of the working, and states
+> which is missing. A score of zero is a legitimate claim if it is evidenced.
+
+The original diagnostic mapping, retained because it records where each quest came from:
 
 | Subject | Diagnostic Source | Specific Deficit Identified | High-Value Remediation Quest | Reward |
 | :--- | :--- | :--- | :--- | :--- |
@@ -742,7 +756,7 @@ not rediscovered as bugs. Last reviewed: **August 2026** (post multi-device / Pr
 | "What's next" dashboard card | ✅ Overdue → today → next 7 days, tick in place |
 | Quick Add | ✅ Homework / key date / **lesson**, chip pickers, multi-day lesson entry |
 | Frequency-tiered navigation | ✅ Daily vs weekly tiers, mobile "More" sheet |
-| Diagnostic quests + mark schemes | ✅ Score, proof URL, working notes, sub-quests |
+| Diagnostic quests | ✅ Instructions, formula, score, notebook link, photo proof, sub-quests. Claiming XP requires a score **and** proof — see 4.4 |
 | **Proof Log (assessments)** | ✅ Per-question marks, error cause, photo/PDF proof, parent verification, auto fix-up tasks |
 | Subject RAG matrix | ⚠️ Effort-weighted; marked-work average reported but not folded in — see 8.3 |
 | Weekly time-capacity gauge | ✅ Recalibrated, see 4.5 |

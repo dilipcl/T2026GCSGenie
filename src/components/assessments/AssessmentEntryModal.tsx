@@ -10,8 +10,9 @@ import {
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent } from '../../services/auditService';
 import { deleteAttachmentsFor } from '../../services/attachmentService';
+import { buildFixUpTasks, questionsWithDroppedMarks } from '../../services/assessmentService';
 import { triggerCelebration } from '../../utils/confetti';
-import { todayISO, addDaysISO } from '../../utils/date';
+import { todayISO, addDaysISO, formatFriendlyDate } from '../../utils/date';
 import { ProofUploader } from '../shared/ProofUploader';
 import { X, Plus, Trash2, Check, Calculator, ChevronDown, ChevronUp } from 'lucide-react';
 import { newId } from '../../utils/id';
@@ -48,7 +49,10 @@ function blankQuestion(index: number): AssessmentQuestion {
     questionNumber: `Q${index + 1}`,
     marksAvailable: 0,
     marksScored: 0,
-    errorType: 'NONE',
+    // No cause pre-selected. Defaulting to 'NONE' made every new row claim the
+    // student got it right, which is both untrue and what the fix-up bug hid
+    // behind - the task now depends on marks, but the chips should still start
+    // honest.
   };
 }
 
@@ -124,6 +128,12 @@ export const AssessmentEntryModal: React.FC<AssessmentEntryModalProps> = ({
     setSavedOnce(false);
   }, [isOpen, existing]);
 
+  /** Shown on the fix-up checkbox so the outcome is visible before saving. */
+  const droppedCount = useMemo(
+    () => questionsWithDroppedMarks(questions).length,
+    [questions]
+  );
+
   const questionTotals = useMemo(
     () => ({
       scored: questions.reduce((sum, q) => sum + (Number(q.marksScored) || 0), 0),
@@ -185,38 +195,10 @@ export const AssessmentEntryModal: React.FC<AssessmentEntryModalProps> = ({
         createdAt: existing?.createdAt ?? Date.now(),
       };
 
-      // Turn dropped marks into work that actually gets scheduled, rather than a
-      // record that is only ever read.
-      const dropped = cleanedQuestions.filter(
-        (q) => q.marksScored < q.marksAvailable && q.errorType !== 'NONE'
-      );
-
-      const followUpTasks: Task[] = [];
-      if (createFixUps && dropped.length > 0) {
-        const now = Date.now();
-        dropped.forEach((q) => {
-          followUpTasks.push({
-            id: newId('task'),
-            subjectId: subjectId as SubjectId,
-            title: `Fix up ${q.questionNumber}${q.topic ? ` - ${q.topic}` : ''} (${record.title})`,
-            description: [
-              `Lost ${q.marksAvailable - q.marksScored} of ${q.marksAvailable} marks.`,
-              q.errorType && q.errorType !== 'NONE' ? `Cause logged: ${q.errorType.replace('_', ' ').toLowerCase()}.` : '',
-              q.notes || '',
-            ]
-              .filter(Boolean)
-              .join(' '),
-            dueDate: addDaysISO(3),
-            priority: q.errorType === 'KNOWLEDGE_GAP' ? 'HIGH' : 'MEDIUM',
-            isHomework: false,
-            isRemediation: true,
-            remediationSourceDoc: record.title,
-            xpValue: 50,
-            completed: false,
-            createdAt: now,
-          });
-        });
-
+      // Derived by services/assessmentService so it can be tested without
+      // rendering this modal - burying it here is how it stayed broken.
+      const followUpTasks: Task[] = createFixUps ? buildFixUpTasks(record) : [];
+      if (followUpTasks.length) {
         record.followUpTaskIds = followUpTasks.map((t) => t.id);
       }
 
@@ -672,10 +654,18 @@ export const AssessmentEntryModal: React.FC<AssessmentEntryModalProps> = ({
               className="mt-0.5 w-4 h-4 accent-indigo-500"
             />
             <span>
-              <span className="block text-xs font-bold text-white">Create fix-up tasks</span>
+              <span className="block text-xs font-bold text-white">
+                Create fix-up tasks
+                {droppedCount > 0 && (
+                  <span className="ml-1.5 font-semibold text-indigo-300">
+                    &middot; {droppedCount} will be created
+                  </span>
+                )}
+              </span>
               <span className="block text-[11px] text-slate-400">
-                Every question with dropped marks becomes a task due in 3 days, so the mistake gets
-                worked through rather than filed away.
+                {droppedCount > 0
+                  ? `One task per question that lost marks, due ${formatFriendlyDate(addDaysISO(3))}, so the mistake gets worked through rather than filed away.`
+                  : 'Any question that loses marks becomes a task due in 3 days. Nothing to create yet - no question has dropped marks.'}
               </span>
             </span>
           </label>

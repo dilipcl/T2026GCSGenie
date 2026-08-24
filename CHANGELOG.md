@@ -1,5 +1,64 @@
 # Changelog
 
+## August 2026 — Two broken promises from the QA field test
+
+A hands-on field test worked through the app as a Year 10 student would and found
+three high-impact issues. Two are fixed here; the third (native browser dialogs) is
+separate work.
+
+### Logging a wrong answer now creates the fix-up task it promises
+
+The Proof Log's headline pitch — "any question you got wrong becomes a fix-up task
+automatically" — did nothing unless the student expanded the question row and picked a
+*reason* for the dropped marks. Creation required `errorType !== 'NONE'`, and a new row
+defaulted to exactly `'NONE'`.
+
+Worth recording why this reached production: the feature was tested by its author, who set
+the error causes while exercising the UI he had just designed. The field tester typed the
+marks and moved on, which is what a tired 14-year-old does. That is the difference between
+testing a feature and testing its use.
+
+Tasks now key off marks alone. The recorded cause remains useful metadata — it still drives
+HIGH priority for a knowledge gap — but it is not evidence that a mark was lost. New rows no
+longer pre-select "Got it" either, which was untrue as a default and helped the bug hide.
+
+The derivation moved into `services/assessmentService` as a pure function, because the bug
+survived by sitting inside a submit handler where no test could reach it. The new tests were
+run against the old predicate first and failed on exactly the reported case — and only that
+case, because `undefined !== 'NONE'` meant every other scenario passed while broken.
+
+The checkbox now states the outcome before saving — "3 will be created" — so a silent zero is
+visible immediately rather than found by a tester weeks later.
+
+### Quest XP now requires evidence
+
+"Mark Complete & Claim +300 XP" paid out with the score, the notebook link and the working
+notes all blank; the button was gated on nothing but `isSaving`. For an app whose premise is
+"do the work", that made XP something a student could mint and every reward bought with it
+something a parent could not trust.
+
+Claiming now requires a score **and** either a notebook link or a photograph of the working,
+with the button saying which is missing. A score of zero still claims — getting nothing right
+is still doing the work.
+
+### Practice questions removed
+
+Entirely: rendering, seed data, both schema fields and the `ComprehensiveQuestion` type — 88
+lines of seeded questions gone. Genie records where the real work lives; it does not host a
+quiz. What replaces them is `taskInstructions`, which had been stored since the beginning and
+never displayed — the modal showed a question bank but never told the student what to do.
+
+Photo upload was added alongside the notebook link, so proof can be a picture of an exercise
+book page.
+
+Two smaller things fell out: the "1 Practice Questions" pluralisation bug went with the field
+it counted, and sub-quests no longer generate a sample question.
+
+**124 assertions pass**, including the browser confirming the claim button disabled with a
+reason, enabled on adding a link, and blocked again when it is cleared.
+
+---
+
 ## August 2026 — Tamper-evident change history and a real parent passphrase
 
 A QA field test put it plainly: the Parent Portal "is a client-side gate, not a real lock." True,
