@@ -53,8 +53,11 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({ refreshKey = 0
       entity: 'Task',
       entityId: task.id,
       fieldChanged: 'completed',
-      oldValue: String(task.completed),
-      newValue: String(newStatus),
+      // "true" tells a parent auditing the log nothing. Say what happened.
+      oldValue: task.completed ? 'completed' : 'not completed',
+      newValue: newStatus
+        ? `Completed "${task.title}" (+${task.xpValue} XP)`
+        : `Reopened "${task.title}"`,
     });
 
     if (newStatus) triggerCelebration({ particleCount: 50 });

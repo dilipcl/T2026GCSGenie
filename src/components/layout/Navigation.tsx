@@ -135,7 +135,7 @@ export const Navigation: React.FC<NavigationProps> = ({
             onClick={() => setIsMoreOpen(false)}
           />
 
-          <div className="relative bg-slate-900 border-t border-slate-700 rounded-t-3xl p-4 pb-safe shadow-2xl">
+          <div className="relative bg-slate-900 border-t border-slate-700 rounded-t-3xl p-4 pb-safe shadow-2xl max-h-[70vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-sm font-bold text-white">Everything else</h3>

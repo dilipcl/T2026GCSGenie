@@ -610,6 +610,16 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
             </div>
           )}
 
+          {!canSubmit && !isSaving && (
+            <p className="text-[11px] text-slate-500 text-center" role="status">
+              {mode === 'TASK' && !subjectId && title.trim()
+                ? 'Pick a subject to add this.'
+                : mode === 'LESSON' && selectedDays.length === 0
+                ? 'Tick at least one day.'
+                : 'Give it a name first.'}
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={!canSubmit || isSaving}
