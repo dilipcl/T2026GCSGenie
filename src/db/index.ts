@@ -188,12 +188,18 @@ export class GCSEGenieDatabase extends Dexie {
        * syncing the moment a user authenticates.
        */
       requireAuth: false,
-      /**
-       * The parent's LLM API key must never leave the device. The PIN hash is
-       * deliberately still synced so the same PIN works everywhere.
-       */
       unsyncedProperties: {
-        parentSettings: ['llmApiKey'],
+        /**
+         * The API key must never leave the device.
+         *
+         * The lockout counters are device-local for a different reason: they
+         * are state about a keyboard, not about the family. Synced, three
+         * fumbled attempts on the phone lock the parent out of the laptop, and
+         * two devices counting into the same field through per-property merge
+         * produce a total neither of them saw. The credential itself is still
+         * synced, so the same passphrase works everywhere.
+         */
+        parentSettings: ['llmApiKey', 'failedUnlockAttempts', 'unlockLockedUntil'],
       },
       /**
        * The stock dexie-cloud dialog is a plain white box that reads as a
