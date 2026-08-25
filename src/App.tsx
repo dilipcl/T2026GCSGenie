@@ -9,6 +9,8 @@ import { ActiveQuestsCard } from './components/dashboard/ActiveQuestsCard';
 import { BurnoutAlertBanner } from './components/dashboard/BurnoutAlertBanner';
 import { DueSoonCard } from './components/dashboard/DueSoonCard';
 import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
+import { SessionTimerCard } from './components/dashboard/SessionTimerCard';
+import { PlanPulseBanner } from './components/dashboard/PlanPulseBanner';
 import { QuickAddSheet } from './components/shared/QuickAddSheet';
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
@@ -85,6 +87,11 @@ export const App: React.FC = () => {
         {/* Dynamic Content Views */}
         {activeTab === 'DASHBOARD' && (
           <div className="space-y-5">
+            {/* 0. Anything at risk, before the scroll starts. The field test
+                   found the burnout banner unread at the bottom of the page;
+                   a nudge nobody scrolls to is not a nudge. */}
+            <PlanPulseBanner onOpenCheckIn={() => setIsCheckInOpen(true)} />
+
             {/* 1. What needs doing - the question the app is opened to answer */}
             <DueSoonCard
               refreshKey={refreshKey}
@@ -126,7 +133,10 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            {/* 3. The chain - visible proof that the habit is holding */}
+            {/* 3. Do the work, with the break attached */}
+            <SessionTimerCard />
+
+            {/* 4. The chain - visible proof that the habit is holding */}
             <HabitStreakCard
               refreshKey={refreshKey}
               onOpenCheckIn={() => setIsCheckInOpen(true)}
