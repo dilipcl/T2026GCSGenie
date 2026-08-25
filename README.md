@@ -341,8 +341,9 @@ Documented honestly so they aren't rediscovered as bugs.
 4. **The audit chain is unsigned.** It now catches edits, mid-chain deletions and tail truncation,
    but the hashes are not signed — a determined person who recomputes the whole chain after editing
    it would pass the check. Tamper-evident against casual editing; not tamper-proof.
-5. **The timetable is mostly empty.** Only Monday of the Odd week is seeded. Tuesday–Friday and the
-   whole Even week still need entering — though Quick Add's multi-day Lesson mode makes that quick.
+5. **The seeded timetable is a placeholder.** Both weeks are populated so the app is usable and the
+   workload meter has something behind it, but the lesson pattern is invented, not Tejas's real
+   timetable. Replace it via Quick Add's multi-day Lesson mode.
 6. **Tasks, key dates and timetable blocks still can't be edited** after creation, only created and
    deleted. Assessments in the Proof Log *can* be edited; subjects can be edited in place.
 7. **Assessment results don't feed the RAG score.** The subject average over marked papers is
