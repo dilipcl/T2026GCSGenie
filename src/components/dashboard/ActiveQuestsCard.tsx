@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { RemediationAction } from '../../types';
 import { Wrench, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
@@ -8,17 +9,11 @@ interface ActiveQuestsCardProps {
 }
 
 export const ActiveQuestsCard: React.FC<ActiveQuestsCardProps> = ({ onSelectQuest }) => {
-  const [quests, setQuests] = useState<RemediationAction[]>([]);
-
-  useEffect(() => {
-    const loadQuests = async () => {
-      const all = await db.remediations.toArray();
-      const active = all.filter((q) => !q.isCompleted);
-      setQuests(active);
-    };
-
-    loadQuests();
-  }, []);
+  const quests =
+    useLiveQuery<RemediationAction[]>(
+      async () => (await db.remediations.toArray()).filter((q) => !q.isCompleted),
+      []
+    ) ?? [];
 
   return (
     <div className="glass-card p-5">

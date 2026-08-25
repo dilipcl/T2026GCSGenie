@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { TimetableEntry, WeekType, DayOfWeek } from '../../types';
 import { Clock, Calendar, MapPin, ChevronRight } from 'lucide-react';
@@ -12,29 +13,22 @@ export const TodayScheduleCard: React.FC<TodayScheduleCardProps> = ({
   activeWeek,
   onNavigateToTimetable,
 }) => {
-  const [todayEntries, setTodayEntries] = useState<TimetableEntry[]>([]);
-
   const days: DayOfWeek[] = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   const currentDayOfWeek = days[new Date().getDay()];
 
-  useEffect(() => {
-    const loadSchedule = async () => {
-      const entries = await db.timetableEntries
-        .where('dayOfWeek')
-        .equals(currentDayOfWeek)
-        .toArray();
-
-      const filtered = entries.filter(
-        (e) => e.weekType === 'BOTH' || e.weekType === activeWeek
-      );
-
-      // Sort by start time
-      filtered.sort((a, b) => a.startTime.localeCompare(b.startTime));
-      setTodayEntries(filtered);
-    };
-
-    loadSchedule();
-  }, [activeWeek, currentDayOfWeek]);
+  const todayEntries =
+    useLiveQuery<TimetableEntry[]>(
+      async () => {
+        const entries = await db.timetableEntries
+          .where('dayOfWeek')
+          .equals(currentDayOfWeek)
+          .toArray();
+        return entries
+          .filter((e) => e.weekType === 'BOTH' || e.weekType === activeWeek)
+          .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      },
+      [activeWeek, currentDayOfWeek]
+    ) ?? [];
 
   return (
     <div className="glass-card p-5">

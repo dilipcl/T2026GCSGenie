@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { UserRole, WeekType } from '../../types';
 import { calculateTotalXP } from '../../services/ragCalculator';
-import { calculateStreakStats, StreakStats } from '../../services/habitEngine';
+import { calculateStreakStats } from '../../services/habitEngine';
 import { Sparkles, Flame, Calendar, Lock, Unlock } from 'lucide-react';
 import { SyncStatus } from './SyncStatus';
 
@@ -22,21 +23,15 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCheckIn,
   onOpenRewards,
 }) => {
-  const [streak, setStreak] = useState<StreakStats | null>(null);
-  const [xp, setXp] = useState({ totalXP: 0, availableXP: 0, isShopFrozen: false });
-
-  const refreshMetrics = async () => {
-    const s = await calculateStreakStats();
-    const x = await calculateTotalXP();
-    setStreak(s);
-    setXp(x);
-  };
-
-  useEffect(() => {
-    refreshMetrics();
-    const interval = setInterval(refreshMetrics, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  /**
+   * Live queries replace the old 3-second polling interval. Dexie tracks the
+   * tables these calculations touch and re-runs them the moment anything
+   * changes, so ticking a task off updates the header immediately instead of
+   * up to three seconds later - and completely, instead of only when a
+   * refreshKey happened to be threaded through.
+   */
+  const streak = useLiveQuery(() => calculateStreakStats(), []);
+  const xp = useLiveQuery(() => calculateTotalXP(), []);
 
   const todayFormatted = new Intl.DateTimeFormat('en-GB', {
     weekday: 'short',
@@ -56,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center gap-2">
               <h1 className="font-bold text-lg text-white tracking-tight">GCSE Genie</h1>
               <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                Grade 9 Accelerator
+                Target: Grade 9
               </span>
             </div>
             <p className="text-xs text-slate-400">Tejas Dilip · Year 10 (GCS)</p>
@@ -96,8 +91,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Flame className="w-3.5 h-3.5 text-amber-400" />
             <span>
-              {streak?.current ?? 0} Day Streak
-              {streak?.atRisk && ' · at risk'}
+              {streak ? `${streak.current} Day Streak${streak.atRisk ? ' · at risk' : ''}` : '· · ·'}
             </span>
           </div>
 
@@ -109,8 +103,8 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-medium hover:bg-indigo-500/20 hover:border-indigo-400/50 transition-colors"
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>{xp.availableXP.toLocaleString()} XP</span>
-            {xp.isShopFrozen && (
+            <span>{xp ? `${xp.availableXP.toLocaleString()} XP` : '· · ·'}</span>
+            {xp?.isShopFrozen && (
               <span className="text-[10px] bg-rose-500/20 text-rose-300 px-1 rounded border border-rose-500/40">
                 Shop Locked
               </span>

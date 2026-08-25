@@ -1,17 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { calculateBurnoutCapacity, BurnoutCapacityResult } from '../../services/burnoutEngine';
+import React from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { calculateBurnoutCapacity } from '../../services/burnoutEngine';
 import { ShieldAlert, AlertTriangle, BatteryCharging, Info } from 'lucide-react';
 
 interface BurnoutAlertBannerProps {
   refreshKey?: number;
 }
 
-export const BurnoutAlertBanner: React.FC<BurnoutAlertBannerProps> = ({ refreshKey = 0 }) => {
-  const [burnout, setBurnout] = useState<BurnoutCapacityResult | null>(null);
-
-  useEffect(() => {
-    calculateBurnoutCapacity().then(setBurnout);
-  }, [refreshKey]);
+export const BurnoutAlertBanner: React.FC<BurnoutAlertBannerProps> = () => {
+  const burnout = useLiveQuery(() => calculateBurnoutCapacity(), []);
 
   if (!burnout) return null;
 
