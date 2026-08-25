@@ -1,5 +1,54 @@
 # Changelog
 
+## August 2026 - Rewards a family actually asked for, and the lock on a second device
+
+### The catalogue
+
+Dinner-time TV, thirty minutes, 50 XP - the second reward reachable inside a day
+rather than a fortnight. The top reward is now £30 into pocket money; the cadet
+and drone gear it replaces was a guess about what would motivate, and cash is
+not a guess.
+
+Seeding only ever inserts rows that are absent - deliberately, so a synced
+device cannot have a parent's edits overwritten by pristine seed copies. That
+also makes a *rename* invisible to it, so the swap needed a real migration.
+It rewrites the reward in place, keeping the id, so a request already standing
+against it still resolves. A reward whose title a parent has already changed is
+left alone: that is somebody's decision, not stale seed data.
+
+### The passphrase on a second device
+
+Three separate things could produce "the password does not work on my phone",
+and the screen said nothing that distinguished them.
+
+**The lockout was shared.** Failed attempts and the lockout window synced like
+any other field, so three fumbled attempts on the phone locked the parent out of
+the laptop, and two devices counting into the same field through per-property
+merge produced a total neither of them had seen. Both are now device-local. The
+credential itself still syncs, so one passphrase works everywhere.
+
+**Setting a passphrase could silently do nothing.** Every write used
+`Table.update`, which resolves to 0 when the row is missing rather than throwing.
+A device whose settings row was gone - which a backup restore can genuinely
+produce, since it replaces `parentSettings` wholesale - would accept a new
+passphrase, report success, and store nothing. The next unlock then rejected the
+passphrase the parent had just been told was set. Writes now create the row when
+it is absent, and setting a passphrase reads it back rather than trusting the
+write.
+
+**And the unclaimed screen was misleading.** A passphrase set on another device
+only exists here once sync has delivered it; until then the screen said "No
+passphrase has been set", which invites whoever is holding the phone to set one -
+creating a second credential that fights the real one the moment it connects. A
+device that is signed out, or still settling, now says so, and the modal names
+the account it is signed in as. Almost every report of this shape is one device
+sitting on a different account from the one that set the passphrase, and from
+inside the modal that was completely invisible.
+
+270 assertions pass.
+
+---
+
 ## August 2026 — Priority 2: planning, breaks and spreadsheets
 
 The second half of the 25 August field test. Five workstreams.
