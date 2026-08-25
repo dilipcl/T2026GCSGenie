@@ -1,16 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import {
   calculateStreakStats,
   calculateEffortStats,
   buildCheckInHeatmap,
-  StreakStats,
-  EffortStats,
   HeatmapDay,
 } from '../../services/habitEngine';
 import { Flame, AlertTriangle, Trophy, Clock, CheckCheck } from 'lucide-react';
 
 interface HabitStreakCardProps {
-  refreshKey: number;
+  refreshKey?: number;
   onOpenCheckIn: () => void;
 }
 
@@ -22,18 +21,11 @@ const LEVEL_STYLES: Record<HeatmapDay['level'], string> = {
 };
 
 export const HabitStreakCard: React.FC<HabitStreakCardProps> = ({
-  refreshKey,
   onOpenCheckIn,
 }) => {
-  const [streak, setStreak] = useState<StreakStats | null>(null);
-  const [effort, setEffort] = useState<EffortStats | null>(null);
-  const [heatmap, setHeatmap] = useState<HeatmapDay[]>([]);
-
-  useEffect(() => {
-    calculateStreakStats().then(setStreak);
-    calculateEffortStats().then(setEffort);
-    buildCheckInHeatmap(12).then(setHeatmap);
-  }, [refreshKey]);
+  const streak = useLiveQuery(() => calculateStreakStats(), []);
+  const effort = useLiveQuery(() => calculateEffortStats(), []);
+  const heatmap = useLiveQuery(() => buildCheckInHeatmap(12), []) ?? [];
 
   if (!streak || !effort) return null;
 

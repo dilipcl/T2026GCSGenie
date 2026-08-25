@@ -5,7 +5,7 @@ import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalcula
 import { logAuditEvent } from '../../services/auditService';
 import { SubjectDetailModal } from './SubjectDetailModal';
 import { GoalConsultationModal } from './GoalConsultationModal';
-import { Target, Plus, ShieldCheck, Lock, Unlock } from 'lucide-react';
+import { Target, Plus, ShieldCheck, Lock, Unlock, X } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
 
 interface Grade9GoalsViewProps {
@@ -73,6 +73,34 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
 
     if (lock) toast.celebrate(`"${goal.title}" locked in`, `${goal.weeklyHoursRequired} hrs/week now counts towards the weekly capacity.`);
     else toast.info('Goal unlocked', 'Its hours no longer count towards the weekly capacity.');
+    loadData();
+  };
+
+  /**
+   * A proposed goal previously had exactly one exit: Approve & Lock. A parent
+   * who disagreed - or a student who proposed something by mistake - had no
+   * way out, and the QA test left a "Stress Test Overload Goal" stranded in
+   * Pending for exactly that reason.
+   */
+  const handleDecline = async (goal: Goal) => {
+    const ok = await confirm({
+      title: `Decline "${goal.title}"?`,
+      body: 'The proposal is removed. It never counted towards the weekly capacity, and declining it is recorded in the change history.',
+      confirmLabel: 'Decline',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    await db.goals.delete(goal.id);
+    await logAuditEvent({
+      user: 'PARENT',
+      action: 'DELETE',
+      entity: 'Goal',
+      entityId: goal.id,
+      oldValue: `${goal.title} [${goal.category}, ${goal.weeklyHoursRequired} hrs/wk, was ${goal.status}]`,
+      newValue: 'Declined by parent',
+    });
+    toast.info(`Declined "${goal.title}"`);
     loadData();
   };
 
@@ -271,6 +299,15 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
                   </span>
                 )}
 
+                {currentRole === 'PARENT' && g.status !== 'APPROVED_LOCKED' && (
+                  <button
+                    onClick={() => handleDecline(g)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border bg-slate-800 border-slate-700 text-slate-400 hover:text-rose-300 hover:border-rose-500/40 transition-all"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Decline</span>
+                  </button>
+                )}
                 {currentRole === 'PARENT' && (
                   <button
                     onClick={() => handleToggleLock(g)}

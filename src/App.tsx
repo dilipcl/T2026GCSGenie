@@ -11,6 +11,7 @@ import { DueSoonCard } from './components/dashboard/DueSoonCard';
 import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
 import { QuickAddSheet } from './components/shared/QuickAddSheet';
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
+import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
 import { TaskManagerView } from './components/tasks/TaskManagerView';
 import { MilestoneCalendarView } from './components/calendar/MilestoneCalendarView';
 import { AssessmentLogView } from './components/assessments/AssessmentLogView';
@@ -211,6 +212,8 @@ export const App: React.FC = () => {
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
       />
+
+      <CloudLoginDialog />
 
       <ParentPinModal
         isOpen={isParentPinOpen}

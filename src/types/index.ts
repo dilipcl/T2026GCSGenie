@@ -274,7 +274,13 @@ export interface RewardRedemption {
   rewardTitle: string;
   costXP: number;
   requestedAt: number;
-  status: 'PENDING' | 'APPROVED' | 'DENIED';
+  /**
+   * WITHDRAWN is the student cancelling their own pending request. Kept as a
+   * status rather than deleting the row, so the history survives and the audit
+   * trail has something to point at. Only PENDING reserves XP and only
+   * APPROVED spends it, so a withdrawn request frees its hold by definition.
+   */
+  status: 'PENDING' | 'APPROVED' | 'DENIED' | 'WITHDRAWN';
   resolvedAt?: number;
   parentComments?: string;
 }

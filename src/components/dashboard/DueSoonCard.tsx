@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { Task, MilestoneReminder } from '../../types';
 import { logAuditEvent } from '../../services/auditService';
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 
 interface DueSoonCardProps {
-  refreshKey: number;
+  refreshKey?: number;
   onAdd: () => void;
   onSeeAllTasks: () => void;
   onSeeCalendar: () => void;
@@ -26,25 +27,23 @@ interface DueSoonCardProps {
  * first, then the next few days, then key dates coming up.
  */
 export const DueSoonCard: React.FC<DueSoonCardProps> = ({
-  refreshKey,
   onAdd,
   onSeeAllTasks,
   onSeeCalendar,
 }) => {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [milestones, setMilestones] = useState<MilestoneReminder[]>([]);
+  const tasks = useLiveQuery<Task[]>(
+    async () => (await db.tasks.orderBy('dueDate').toArray()).filter((t) => !t.completed),
+    []
+  );
+  const milestones = useLiveQuery<MilestoneReminder[]>(
+    async () => (await db.milestones.orderBy('date').toArray()).filter((m) => !m.isCompleted),
+    []
+  );
 
-  const loadData = async () => {
-    const allTasks = await db.tasks.orderBy('dueDate').toArray();
-    const allMilestones = await db.milestones.orderBy('date').toArray();
-
-    setTasks(allTasks.filter((t) => !t.completed));
-    setMilestones(allMilestones.filter((m) => !m.isCompleted));
-  };
-
-  useEffect(() => {
-    loadData();
-  }, [refreshKey]);
+  // Undefined means "still loading". Rendering the empty state instead would
+  // flash "Nothing due this week" over a list of six tasks - which is exactly
+  // the staleness bug this migration exists to kill.
+  if (!tasks || !milestones) return null;
 
   const today = todayISO();
   const overdue = tasks.filter((t) => t.dueDate < today);
@@ -73,7 +72,6 @@ export const DueSoonCard: React.FC<DueSoonCardProps> = ({
       newValue: 'true',
     });
     triggerCelebration({ particleCount: 50 });
-    loadData();
   };
 
   const renderTask = (task: Task, isOverdue: boolean) => (

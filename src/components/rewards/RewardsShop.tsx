@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { RewardItem, RewardRedemption, UserRole } from '../../types';
-import { calculateTotalXP, XPLedger } from '../../services/ragCalculator';
+import { calculateTotalXP } from '../../services/ragCalculator';
 import { logAuditEvent } from '../../services/auditService';
 import {
   Gift,
@@ -19,33 +20,25 @@ interface RewardsShopProps {
 }
 
 export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
-  const { toast } = useFeedback();
-  const [rewards, setRewards] = useState<RewardItem[]>([]);
-  const [redemptions, setRedemptions] = useState<RewardRedemption[]>([]);
-  const [xpData, setXpData] = useState<XPLedger>({
-    totalXP: 0,
-    availableXP: 0,
-    reservedXP: 0,
-    redeemedXP: 0,
-    penaltyXP: 0,
-    overdraftXP: 0,
-    isShopFrozen: false,
-  });
+  const { toast, confirm } = useFeedback();
+  /**
+   * Live queries, so the balance can never be stale: a request made two seconds
+   * ago is already reflected in the affordability check for the next one, and a
+   * parent approving on another screen updates this one without a reload.
+   */
+  const rewards = useLiveQuery(() => db.rewards.toArray(), []) ?? [];
+  const redemptions =
+    useLiveQuery(() => db.redemptions.orderBy('requestedAt').reverse().toArray(), []) ?? [];
+  const xpLedger = useLiveQuery(() => calculateTotalXP(), []);
 
-  const loadData = async () => {
-    const rList = await db.rewards.toArray();
-    const redList = await db.redemptions.orderBy('requestedAt').reverse().toArray();
-    const xp = await calculateTotalXP();
-    setRewards(rList);
-    setRedemptions(redList);
-    setXpData(xp);
-  };
+  /** Which reward has a request in flight - the double-tap guard. */
+  const [busyRewardId, setBusyRewardId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  if (!xpLedger) return null;
+  const xpData = xpLedger;
 
   const handleRequestRedemption = async (item: RewardItem) => {
+    if (busyRewardId) return;
     if (xpData.isShopFrozen) {
       toast.error(
         'Rewards are frozen',
@@ -65,6 +58,15 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
       return;
     }
 
+    const ok = await confirm({
+      title: `Request "${item.title}"?`,
+      body: `${item.costXP.toLocaleString()} XP is held from your balance until a parent approves or denies it. You can withdraw the request to get it back.`,
+      confirmLabel: 'Request it',
+    });
+    if (!ok) return;
+
+    setBusyRewardId(item.id);
+    try {
     const redemption: RewardRedemption = {
       id: newId('red'),
       rewardId: item.id,
@@ -87,7 +89,35 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
       `Requested "${item.title}"`,
       `${item.costXP.toLocaleString()} XP is held until a parent approves it.`
     );
-    loadData();
+    } finally {
+      setBusyRewardId(null);
+    }
+  };
+
+  /**
+   * The pressure-release valve for a mis-tap: a pending request can be taken
+   * back by the student, returning the held XP. Only PENDING requests reserve
+   * anything, so flipping the status is the entire refund.
+   */
+  const handleWithdraw = async (redemption: RewardRedemption) => {
+    const ok = await confirm({
+      title: `Withdraw "${redemption.rewardTitle}"?`,
+      body: `The ${redemption.costXP.toLocaleString()} XP being held goes straight back to your balance.`,
+      confirmLabel: 'Withdraw',
+    });
+    if (!ok) return;
+
+    await db.redemptions.update(redemption.id, { status: 'WITHDRAWN', resolvedAt: Date.now() });
+    await logAuditEvent({
+      user: 'STUDENT',
+      action: 'UPDATE',
+      entity: 'RewardRedemption',
+      entityId: redemption.id,
+      fieldChanged: 'status',
+      oldValue: 'PENDING',
+      newValue: `WITHDRAWN by student (${redemption.costXP} XP hold released)`,
+    });
+    toast.info(`Withdrew "${redemption.rewardTitle}"`, 'The held XP is back in your balance.');
   };
 
   const handleParentResolve = async (
@@ -129,7 +159,6 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
     } else {
       toast.info(`Denied "${redemption.rewardTitle}"`, 'The held XP has been returned.');
     }
-    loadData();
   };
 
   // Cheapest reward not yet affordable - the one worth aiming at right now
@@ -244,7 +273,7 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
 
                 <button
                   onClick={() => handleRequestRedemption(item)}
-                  disabled={!canAfford}
+                  disabled={!canAfford || busyRewardId !== null}
                   className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
                     canAfford
                       ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-950/50 active:scale-98'
@@ -288,6 +317,8 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                           : red.status === 'DENIED'
                           ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                          : red.status === 'WITHDRAWN'
+                          ? 'bg-slate-700/40 text-slate-400 border border-slate-600/50'
                           : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                       }`}
                     >
@@ -317,9 +348,17 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
                       <span>Deny</span>
                     </button>
                   </div>
+                ) : red.status === 'PENDING' ? (
+                  <button
+                    onClick={() => handleWithdraw(red)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1 transition-all"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>Withdraw</span>
+                  </button>
                 ) : (
                   <span className="text-xs font-mono text-slate-400 font-semibold">
-                    -{red.costXP} XP
+                    {red.status === 'WITHDRAWN' ? '0 XP' : `-${red.costXP} XP`}
                   </span>
                 )}
               </div>

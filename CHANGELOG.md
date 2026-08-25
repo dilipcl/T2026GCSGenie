@@ -1,5 +1,63 @@
 # Changelog
 
+## August 2026 — Handover Priority 1, from the 25 August field test
+
+A second QA pass, playing both the student and the parent, found five things
+blocking a confident handover. All five are fixed.
+
+### Dashboards were stale, and the balance lied
+
+"What's next" showed *Nothing due this week* while six tasks were due within three
+days; a reload fixed it. The header advertised 520 spendable XP while 100 was held
+against pending requests, and flashed 0 XP / 0 streak on first paint.
+
+Both are one root cause. Every dashboard surface loaded once and waited for a
+`refreshKey` prop that not all of them were given; the header polled every three
+seconds instead. All six now use `useLiveQuery`, so Dexie re-runs each calculation
+when the tables it reads change. Verified against the hardest case — a raw
+database write with no component event at all — the header went 0 → 50 XP and
+What's-next 4 → 3 tasks, unprompted.
+
+Loading is now distinguishable from empty. The old code initialised state to
+zeroes, so "not loaded yet" and "nothing due" rendered identically. That is the
+whole bug.
+
+### The rewards shop
+
+Reading the balance live closes the affordability hole structurally. On top:
+requests are confirmed before the hold is taken and debounced against double-taps,
+and a pending request can now be **withdrawn** — status `WITHDRAWN`, which reserves
+nothing and therefore refunds by definition, while keeping the row as history. A
+mis-tap previously needed a parent to undo.
+
+### The sign-in dialog
+
+The stock dexie-cloud login is a plain white box that reads as a browser security
+prompt. `customLoginGui` hands the interaction to the app, so it now renders in the
+app's own styling and explains what signing in does — including that a different
+email address gets a different, empty account.
+
+### The timetable
+
+Only Monday of the odd week existed, while the workload meter assumed 32.5h of
+school. Fifty lessons now cover both weeks. It is explicitly a **placeholder** and
+says so in the code — it is not Tejas's real timetable, which is in no document I
+have. Correcting it is a handover task, not a code change; every entry can be
+replaced through Quick Add's multi-day Lesson mode.
+
+### Also
+
+Parents can **Decline** a proposed goal — previously the only exit was Approve &
+Lock, which is why the test left a stress-test goal stranded. The More sheet
+scrolls on short viewports. A change-history row that read `true` now reads
+*Completed "Portfolio AO2 Media Experimentation Sheet" (+50 XP)*. A disabled Add
+button says which field is missing. The header badge reads **Target: Grade 9**
+rather than "Grade 9 Accelerator", which collided with "Year 10" a line below.
+
+166 assertions pass.
+
+---
+
 ## August 2026 — Material capture on syllabus topics
 
 The last of the P0s, and the smallest, because the pieces were already there: `ProofUploader`
