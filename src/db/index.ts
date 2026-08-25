@@ -35,6 +35,7 @@ import {
   INITIAL_PARENT_SETTINGS,
   MICRO_REWARDS,
   INITIAL_TASKS,
+  RETITLED_REWARDS,
 } from './seedData';
 
 /**
@@ -153,6 +154,26 @@ export class GCSEGenieDatabase extends Dexie {
      */
     this.version(6).stores({
       tasks: 'id, subjectId, dueDate, priority, isHomework, isRemediation, completed, bucket',
+    });
+
+    /**
+     * v7 rewrites a reward in place.
+     *
+     * `seedMissingRows` only ever inserts absent rows - deliberately, so a
+     * synced device cannot have its edits overwritten by pristine seed copies.
+     * That also means renaming an existing reward is invisible to it, so a
+     * catalogue change a parent has actually asked for needs an explicit
+     * upgrade. Only rewards still holding their seeded title are touched: one
+     * edited in the Parent Portal is somebody's decision, not stale seed data.
+     */
+    this.version(7).upgrade(async (tx) => {
+      const rewards = tx.table<RewardItem, string>('rewards');
+      for (const { id, wasTitled } of RETITLED_REWARDS) {
+        const existing = await rewards.get(id);
+        if (!existing || existing.title !== wasTitled) continue;
+        const replacement = INITIAL_REWARDS.find((r) => r.id === id);
+        if (replacement) await rewards.put(replacement);
+      }
     });
 
     this.on('ready', async () => {

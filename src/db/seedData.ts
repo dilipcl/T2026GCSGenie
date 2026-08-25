@@ -442,6 +442,7 @@ export const MICRO_REWARDS: RewardItem[] = [
   { id: 'rew-m2', title: 'Skip One Chore Today', description: 'Nominate a single job and it is off your list.', costXP: 75, icon: '🧹', category: 'PRIVILEGE' },
   { id: 'rew-m3', title: '15 Minutes Extra Screen Time', description: 'A short top-up on today\'s allowance.', costXP: 100, icon: '📱', category: 'SCREEN_TIME' },
   { id: 'rew-m4', title: 'Choose the Weekend Film', description: 'You pick what the family watches this weekend.', costXP: 150, icon: '🍿', category: 'ACTIVITY' },
+  { id: 'rew-m5', title: 'TV During Dinner (30 mins)', description: 'Something on the screen at the table tonight, for the length of the meal.', costXP: 50, icon: '📺', category: 'SCREEN_TIME' },
 ];
 
 export const INITIAL_REWARDS: RewardItem[] = [
@@ -450,7 +451,18 @@ export const INITIAL_REWARDS: RewardItem[] = [
   { id: 'rew-2', title: 'Choose Weekend Family Takeaway / Dinner', description: 'Pick the family dinner location or delivery menu.', costXP: 1500, icon: '🍕', category: 'ACTIVITY' },
   { id: 'rew-3', title: 'Tech / Gaming Accessory (£15 budget)', description: 'Parent-sponsored £15 reward voucher or accessory.', costXP: 3000, icon: '🎧', category: 'CUSTOM' },
   { id: 'rew-4', title: '1-Day Chores Pass', description: 'Exemption from household chores for one full weekend day.', costXP: 800, icon: '✨', category: 'PRIVILEGE' },
-  { id: 'rew-5', title: 'Air Cadets / Drone Gear Upgrade Support', description: 'Parent contribution towards advanced cadet / drone equipment.', costXP: 5000, icon: '✈️', category: 'ACTIVITY' },
+  { id: 'rew-5', title: '£30 Into Pocket Money', description: 'Thirty pounds added to your pocket money, to spend on whatever you like.', costXP: 5000, icon: '💷', category: 'CUSTOM' },
+];
+
+/**
+ * Rewards whose seeded wording has changed since first release.
+ *
+ * The old title is recorded, not just the id: it is the only way to tell a row
+ * still carrying stale seed text from one a parent has since rewritten. See the
+ * v7 upgrade in db/index.ts.
+ */
+export const RETITLED_REWARDS: { id: string; wasTitled: string }[] = [
+  { id: 'rew-5', wasTitled: 'Air Cadets / Drone Gear Upgrade Support' },
 ];
 
 export const INITIAL_CAREER_RESOURCES: CareerGuidanceResource[] = [
