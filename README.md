@@ -19,7 +19,7 @@ The interface is organised by **how often you actually use something**, not by h
 
 | Tier | Sections | Typical use |
 | :--- | :--- | :--- |
-| **Every day** | Home · My Work · Key Dates · Fix My Mistakes | Check what's due, log the day, tick things off |
+| **Every day** | Home · My Work · Plan · Fix My Mistakes | Check what's due, log the day, tick things off |
 | **Weekly** | Proof Log · Rewards · Timetable · Subjects & Goals · Careers & Help | Logging marked work, planning, review, spending XP |
 | **Parent only** | Parent Portal | Audits, sanctions, backups, PIN |
 
@@ -42,6 +42,19 @@ and notes stay folded behind *More options*.
 the preset chips (ordered by clock time, taken from the school day), tick Tue + Wed + Thu, and one
 tap creates all three. Filling in a rotation no longer means retyping the same period twenty times.
 Leaving the name blank takes it from the subject.
+
+### Plan — the week's promise
+Three buckets: **This week** (committed), **Next up** (roughly this month), **Later this term**.
+Only committed work counts towards the load meter and the nudges, so the backlog carries no guilt.
+Moving something out is one tap — that is the release valve that keeps a heavy week from becoming a
+quit. The load bar measures against the study time actually left after school and fixed commitments.
+
+Key dates live here too, and the **Weekly review** runs from here: four steps, fifteen minutes,
+ending in a sign-off that is recorded.
+
+### Focus blocks
+25 minutes with the break attached, logging its own study time. Two gentle nudges catch a plan
+slipping late in the week, or breaks displacing the study they were meant to punctuate.
 
 ### What's next
 The top card on Home. Overdue first, then due today, then the next seven days, with upcoming key dates counting down beneath. Tasks can be ticked off without leaving the page.
@@ -301,6 +314,15 @@ lives in Drive.
 
 > ⚠️ `dexie-cloud.key` in the project root authorises administration of the cloud database. It is
 > gitignored — **keep it that way**, and never paste it anywhere.
+
+## Spreadsheets
+
+**Parent Portal → Spreadsheets.** Export the whole app as one readable CSV — overview, subjects and
+health, tasks, key dates, goals, marked work, quests, rewards, check-ins.
+
+Import in bulk rather than typing a term of homework a row at a time: homework, timetable, key dates
+and syllabus topics, each with a downloadable template. Imports always preview first and tell you
+which rows were rejected and why.
 
 ## Backups
 

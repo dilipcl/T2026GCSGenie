@@ -1,5 +1,70 @@
 # Changelog
 
+## August 2026 — Priority 2: planning, breaks and spreadsheets
+
+The second half of the 25 August field test. Five workstreams.
+
+### A Plan tab, and a weekly review that ends in an agreement
+
+Work was one flat date-sorted list, so a task due in October sat beside tomorrow's
+homework and there was no moment where Tejas decided what the week actually holds.
+Three buckets make that explicit: **This week** is a promise; **Next up** and
+**Later this term** are a backlog that costs nothing.
+
+Moving something out is one tap and says *"deferring is planning, not failing"* —
+the release valve that turns a heavy week into a replanned one rather than a quit.
+Only committed work counts towards the load meter and the slipping nudge.
+
+The load bar measures against **study headroom** — the ceiling less school, cadets
+and everything fixed — rather than the whole 60 hours, so it answers the question
+actually being asked while planning.
+
+Key dates moved in rather than keeping their own tab: a deadline means something
+next to the work meant to meet it, and a sixth bottom-bar tab does not fit on a
+phone.
+
+The weekly review runs here — last week, next week, approvals, sign off. Everything
+it shows already existed; what did not was a moment putting it in one order and
+ending in an agreement. The sign-off writes to the change history, which is what
+turns an intention into a routine with a record.
+
+### Focus blocks, and the quiet failure modes
+
+A 25-minute block now runs in the app with the break built in rather than offered
+as a reward. Finishing one writes its own check-in, so the streak and weekly hours
+pick it up with nothing to remember. The timer anchors to wall-clock time, because
+browsers throttle intervals in a background tab — exactly where the tab goes when
+someone starts working.
+
+Two nudges catch the opposite of over-scheduling: a plan slipping late in the week,
+and breaks displacing the study they were meant to punctuate. Both stay silent
+unless they apply, and both offer one 25-minute block rather than a telling-off.
+Streak repair makes the existing never-miss-twice grace explicit on the day it
+matters.
+
+All of it sits at the *top* of the dashboard — the field test found the burnout
+banner unread at the bottom of a long scroll.
+
+### Spreadsheets, both directions
+
+Import for homework, timetable, key dates and topics, each with a template, always
+previewing before it writes. The parser handles quoted fields, and rejects a
+UK-format date rather than silently misreading it. Export is one readable sheet
+with nine sections.
+
+### Also
+
+A subject per follow-up item at check-in — a CS question was being filed under
+Maths, which skewed that subject's RAG score. Topic mastery taps land immediately
+instead of flicking back. 
+
+**B9 was not a defect.** No check-in is seeded at all; the +500 XP row the tester
+saw was my own test data from an earlier session.
+
+245 assertions pass.
+
+---
+
 ## August 2026 — Handover Priority 1, from the 25 August field test
 
 A second QA pass, playing both the student and the parent, found five things
