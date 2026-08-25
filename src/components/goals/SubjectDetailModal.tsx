@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { SubjectConfig, SyllabusTopic, Task, RAGStatus } from '../../types';
 import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalculator';
@@ -41,7 +42,17 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
   onRefresh,
 }) => {
   const { confirm } = useFeedback();
-  const [topics, setTopics] = useState<SyllabusTopic[]>([]);
+  /**
+   * Live, so a mastery tap lands immediately. Reloading the whole modal after
+   * each write meant the star briefly rendered its old value again before the
+   * new one arrived - the control looked like it was rejecting the tap when it
+   * had actually accepted it.
+   */
+  const topics =
+    useLiveQuery(
+      () => (subject ? db.syllabusTopics.where('subjectId').equals(subject.id).toArray() : []),
+      [subject?.id]
+    ) ?? [];
   const [tasks, setTasks] = useState<Task[]>([]);
   const [rag, setRag] = useState<SubjectRAGResult | null>(null);
 
@@ -85,7 +96,6 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     const taskList = await db.tasks.where('subjectId').equals(subject.id).toArray();
     const ragRes = await calculateSubjectRAG(subject.id);
 
-    setTopics(t);
     await loadMaterialCounts(t);
     setTasks(taskList);
     setRag(ragRes);
@@ -178,7 +188,6 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
       confidenceRating: newStatus ? 5 : 3,
     });
     if (newStatus) triggerCelebration({ particleCount: 30 });
-    loadSubjectData();
     onRefresh();
   };
 
@@ -187,7 +196,6 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
       confidenceRating: rating,
       isCompleted: rating >= 4,
     });
-    loadSubjectData();
     onRefresh();
   };
 

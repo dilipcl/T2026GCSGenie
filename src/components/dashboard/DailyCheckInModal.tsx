@@ -45,7 +45,14 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   // Turning the two forward-looking answers into real tasks, rather than letting
   // them die in a log nobody re-reads. This is an implementation intention:
   // a stated action attached to a specific day.
-  const [followUpSubject, setFollowUpSubject] = useState<SubjectId | ''>('');
+  /**
+   * One subject per item, not one for both. A question for the CS teacher and
+   * an action for Maths revision are routinely different subjects, and the
+   * shared field filed the CS question under Maths - which then skews that
+   * subject's homework rate and its RAG score.
+   */
+  const [actionSubject, setActionSubject] = useState<SubjectId | ''>('');
+  const [questionSubject, setQuestionSubject] = useState<SubjectId | ''>('');
   const [createActionTask, setCreateActionTask] = useState(true);
   const [createQuestionTask, setCreateQuestionTask] = useState(true);
 
@@ -75,7 +82,8 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       setKeyLearning('');
       setBlockersAndQuestions('');
       setActionForTomorrow('');
-      setFollowUpSubject('');
+      setActionSubject('');
+    setQuestionSubject('');
       setCreateActionTask(true);
       setCreateQuestionTask(true);
 
@@ -165,11 +173,11 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       const tomorrow = addDaysISO(1);
       const spawned: Task[] = [];
 
-      if (followUpSubject) {
-        if (createActionTask && actionForTomorrow.trim()) {
+      {
+        if (createActionTask && actionForTomorrow.trim() && actionSubject) {
           spawned.push({
             id: newId('task'),
-            subjectId: followUpSubject,
+            subjectId: actionSubject,
             title: actionForTomorrow.trim(),
             description: 'Added from your check-in as tomorrow\'s action.',
             dueDate: tomorrow,
@@ -182,11 +190,14 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
           });
         }
 
-        if (createQuestionTask && blockersAndQuestions.trim()) {
+        if (createQuestionTask && blockersAndQuestions.trim() && questionSubject) {
           spawned.push({
             id: newId('task'),
-            subjectId: followUpSubject,
-            title: `Ask: ${blockersAndQuestions.trim()}`,
+            subjectId: questionSubject,
+            // Don't stutter when the note already opens with "Ask"
+            title: /^ask\b/i.test(blockersAndQuestions.trim())
+              ? blockersAndQuestions.trim()
+              : `Ask: ${blockersAndQuestions.trim()}`,
             description: 'Question you noted at check-in. Ask in your next lesson.',
             dueDate: tomorrow,
             priority: 'MEDIUM',
@@ -479,55 +490,76 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
                   Put this on tomorrow's list
                 </p>
 
-                <select
-                  aria-label="Subject for tomorrow's items"
-                  value={followUpSubject}
-                  onChange={(e) => setFollowUpSubject(e.target.value as SubjectId | '')}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white"
-                >
-                  <option value="">Which subject? (needed to add)</option>
-                  {INITIAL_SUBJECTS.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.icon} {sub.name}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {actionForTomorrow.trim() && (
-                    <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={createActionTask}
-                        onChange={(e) => setCreateActionTask(e.target.checked)}
-                        className="accent-indigo-500 mt-0.5"
-                      />
-                      <span>
-                        Add <strong className="text-white">"{actionForTomorrow.trim()}"</strong> as
-                        homework due tomorrow
-                      </span>
-                    </label>
+                    <div className="p-2 bg-slate-900/70 rounded-lg border border-slate-700/70 space-y-1.5">
+                      <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={createActionTask}
+                          onChange={(e) => setCreateActionTask(e.target.checked)}
+                          className="accent-indigo-500 mt-0.5"
+                        />
+                        <span>
+                          Add <strong className="text-white">"{actionForTomorrow.trim()}"</strong> as
+                          homework due tomorrow
+                        </span>
+                      </label>
+                      {createActionTask && (
+                        <select
+                          aria-label="Subject for tomorrow's action"
+                          value={actionSubject}
+                          onChange={(e) => setActionSubject(e.target.value as SubjectId | '')}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white"
+                        >
+                          <option value="">Which subject?</option>
+                          {INITIAL_SUBJECTS.map((sub) => (
+                            <option key={sub.id} value={sub.id}>
+                              {sub.icon} {sub.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   )}
 
                   {blockersAndQuestions.trim() && (
-                    <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={createQuestionTask}
-                        onChange={(e) => setCreateQuestionTask(e.target.checked)}
-                        className="accent-indigo-500 mt-0.5"
-                      />
-                      <span>
-                        Remind me to ask{' '}
-                        <strong className="text-white">"{blockersAndQuestions.trim()}"</strong>
-                      </span>
-                    </label>
+                    <div className="p-2 bg-slate-900/70 rounded-lg border border-slate-700/70 space-y-1.5">
+                      <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={createQuestionTask}
+                          onChange={(e) => setCreateQuestionTask(e.target.checked)}
+                          className="accent-indigo-500 mt-0.5"
+                        />
+                        <span>
+                          Remind me to ask{' '}
+                          <strong className="text-white">"{blockersAndQuestions.trim()}"</strong>
+                        </span>
+                      </label>
+                      {createQuestionTask && (
+                        <select
+                          aria-label="Subject for the question to ask"
+                          value={questionSubject}
+                          onChange={(e) => setQuestionSubject(e.target.value as SubjectId | '')}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white"
+                        >
+                          <option value="">Which teacher's subject?</option>
+                          {INITIAL_SUBJECTS.map((sub) => (
+                            <option key={sub.id} value={sub.id}>
+                              {sub.icon} {sub.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   )}
                 </div>
 
-                {!followUpSubject && (
+                {((createActionTask && actionForTomorrow.trim() && !actionSubject) ||
+                  (createQuestionTask && blockersAndQuestions.trim() && !questionSubject)) && (
                   <p className="text-[10px] text-amber-300">
-                    Pick a subject above and these get added to tomorrow automatically.
+                    Pick a subject for each one and they get added to tomorrow automatically.
                   </p>
                 )}
               </div>
