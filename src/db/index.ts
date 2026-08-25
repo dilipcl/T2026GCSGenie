@@ -166,6 +166,12 @@ export class GCSEGenieDatabase extends Dexie {
       unsyncedProperties: {
         parentSettings: ['llmApiKey'],
       },
+      /**
+       * The stock dexie-cloud dialog is a plain white box that reads as a
+       * browser security prompt inside this app. CloudLoginDialog renders the
+       * same interaction, styled like everything else.
+       */
+      customLoginGui: true,
     });
   }
 
