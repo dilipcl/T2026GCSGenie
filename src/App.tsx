@@ -9,11 +9,15 @@ import { ActiveQuestsCard } from './components/dashboard/ActiveQuestsCard';
 import { BurnoutAlertBanner } from './components/dashboard/BurnoutAlertBanner';
 import { DueSoonCard } from './components/dashboard/DueSoonCard';
 import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
+import { SessionTimerCard } from './components/dashboard/SessionTimerCard';
+import { PlanPulseBanner } from './components/dashboard/PlanPulseBanner';
 import { QuickAddSheet } from './components/shared/QuickAddSheet';
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
 import { TaskManagerView } from './components/tasks/TaskManagerView';
 import { MilestoneCalendarView } from './components/calendar/MilestoneCalendarView';
+import { PlanView } from './components/plan/PlanView';
+import { WeeklyReviewModal } from './components/plan/WeeklyReviewModal';
 import { AssessmentLogView } from './components/assessments/AssessmentLogView';
 import { Grade9GoalsView } from './components/goals/Grade9GoalsView';
 import { TimetableManager } from './components/timetable/TimetableManager';
@@ -32,6 +36,7 @@ export const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isParentPinOpen, setIsParentPinOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [selectedQuestId, setSelectedQuestId] = useState<string | undefined>(undefined);
 
   // Bumped whenever data changes, so dashboard cards reload without a tab switch
@@ -82,6 +87,11 @@ export const App: React.FC = () => {
         {/* Dynamic Content Views */}
         {activeTab === 'DASHBOARD' && (
           <div className="space-y-5">
+            {/* 0. Anything at risk, before the scroll starts. The field test
+                   found the burnout banner unread at the bottom of the page;
+                   a nudge nobody scrolls to is not a nudge. */}
+            <PlanPulseBanner onOpenCheckIn={() => setIsCheckInOpen(true)} />
+
             {/* 1. What needs doing - the question the app is opened to answer */}
             <DueSoonCard
               refreshKey={refreshKey}
@@ -123,7 +133,10 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            {/* 3. The chain - visible proof that the habit is holding */}
+            {/* 3. Do the work, with the break attached */}
+            <SessionTimerCard />
+
+            {/* 4. The chain - visible proof that the habit is holding */}
             <HabitStreakCard
               refreshKey={refreshKey}
               onOpenCheckIn={() => setIsCheckInOpen(true)}
@@ -146,6 +159,14 @@ export const App: React.FC = () => {
 
         {activeTab === 'TASKS' && <TaskManagerView refreshKey={refreshKey} onAdd={() => setIsQuickAddOpen(true)} />}
 
+        {activeTab === 'PLAN' && (
+          <PlanView
+            onAdd={() => setIsQuickAddOpen(true)}
+            onOpenReview={() => setIsReviewOpen(true)}
+          />
+        )}
+
+        {/* Reachable from Plan; kept as its own view for the month grid */}
         {activeTab === 'CALENDAR' && (
           <MilestoneCalendarView refreshKey={refreshKey} onAdd={() => setIsQuickAddOpen(true)} />
         )}
@@ -211,6 +232,12 @@ export const App: React.FC = () => {
       <CheckInHistoryModal
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
+      />
+
+      <WeeklyReviewModal
+        isOpen={isReviewOpen}
+        onClose={() => setIsReviewOpen(false)}
+        onAddItem={() => setIsQuickAddOpen(true)}
       />
 
       <CloudLoginDialog />

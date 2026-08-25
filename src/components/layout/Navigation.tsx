@@ -19,6 +19,7 @@ export type NavTab =
   | 'DASHBOARD'
   | 'TASKS'
   | 'CALENDAR'
+  | 'PLAN'
   | 'PROOF'
   | 'GOALS'
   | 'TIMETABLE'
@@ -49,7 +50,9 @@ export const Navigation: React.FC<NavigationProps> = ({
   const navItems = [
     { id: 'DASHBOARD', label: 'Home', shortLabel: 'Home', icon: LayoutDashboard, tier: 'daily' },
     { id: 'TASKS', label: 'My Work', shortLabel: 'Work', icon: ListTodo, tier: 'daily' },
-    { id: 'CALENDAR', label: 'Key Dates', shortLabel: 'Dates', icon: CalendarDays, tier: 'daily' },
+    // Plan absorbs Key Dates: a deadline only means something next to the work
+    // meant to meet it, and a sixth bottom-bar tab would not fit on a phone.
+    { id: 'PLAN', label: 'Plan', shortLabel: 'Plan', icon: CalendarDays, tier: 'daily' },
     { id: 'REMEDIATIONS', label: 'Fix My Mistakes', shortLabel: 'Fix Ups', icon: Wrench, tier: 'daily' },
     // Logged when a marked paper comes back - a weekly rhythm, not a daily one
     { id: 'PROOF', label: 'Proof Log', shortLabel: 'Proof', icon: ClipboardCheck, tier: 'weekly' },

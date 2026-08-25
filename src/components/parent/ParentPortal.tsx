@@ -17,6 +17,7 @@ import {
 } from '../../services/backupService';
 import { totalAttachmentBytes, formatBytes } from '../../services/attachmentService';
 import { WORKING_FOLDER_URL, WORKING_FOLDER_PATH, BACKUPS_FOLDER_URL } from '../../db/driveFolders';
+import { DataExchangePanel } from './DataExchangePanel';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
 import { todayISO } from '../../utils/date';
@@ -781,6 +782,8 @@ export const ParentPortal: React.FC = () => {
           </div>
         )}
       </div>
+
+      <DataExchangePanel />
 
       {/* Backup & Google Drive Sync (Option A) */}
       <div className="glass-card p-6">
