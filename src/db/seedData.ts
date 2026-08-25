@@ -11,6 +11,8 @@ import {
   ParentSettings,
   MilestoneReminder,
   Task,
+  DayOfWeek,
+  SubjectId,
 } from '../types';
 import { addDaysISO } from '../utils/date';
 import {
@@ -350,6 +352,76 @@ export const INITIAL_TIMETABLE_ENTRIES: TimetableEntry[] = [
   { id: 'odd-mon-p3', weekType: 'ODD', dayOfWeek: 'MON', slotName: 'Period 3', startTime: '11:10', endTime: '12:10', subjectId: 'physics', activityName: 'Physics (Triple)', room: 'S1', isHardLocked: false },
   { id: 'odd-mon-p4', weekType: 'ODD', dayOfWeek: 'MON', slotName: 'Period 4', startTime: '12:10', endTime: '13:10', subjectId: 'history', activityName: 'History (Weimar)', room: 'H3', isHardLocked: false },
   { id: 'odd-mon-p5', weekType: 'ODD', dayOfWeek: 'MON', slotName: 'Period 5', startTime: '13:55', endTime: '14:55', subjectId: 'art', activityName: 'Art & Design Portfolio', room: 'A1', isHardLocked: false },
+
+
+  /**
+   * PLACEHOLDER rotation - Tuesday-Friday of the odd week and the whole even
+   * week, generated so the timetable is usable from day one instead of empty
+   * everywhere but Monday. The subject spread is a plausible GCSE fortnight
+   * (Maths x10, English x12, triple science x12, History x6, CS x5, Art x5),
+   * NOT Tejas's real timetable. Correct it in the app - every entry can be
+   * deleted and re-added via Quick Add's multi-day Lesson mode - or replace
+   * this block when the real timetable is to hand. The workload maths already
+   * assumes school is 32.5h/week either way.
+   */
+  ...(() => {
+    const P: [string, string, string][] = [
+      ['Period 1', '08:50', '09:50'],
+      ['Period 2', '09:50', '10:50'],
+      ['Period 3', '11:10', '12:10'],
+      ['Period 4', '12:10', '13:10'],
+      ['Period 5', '13:55', '14:55'],
+    ];
+    const S: Record<string, { name: string; room: string }> = {
+      maths: { name: 'Maths (Linear 9-1)', room: 'M2' },
+      english_lang: { name: 'English Language', room: 'E4' },
+      english_lit: { name: 'English Literature', room: 'E5' },
+      biology: { name: 'Biology (Triple)', room: 'S2' },
+      chemistry: { name: 'Chemistry (Triple)', room: 'S3' },
+      physics: { name: 'Physics (Triple)', room: 'S1' },
+      history: { name: 'History (Weimar)', room: 'H3' },
+      computer_science: { name: 'Computer Science (OCR)', room: 'IT1' },
+      art: { name: 'Art & Design Portfolio', room: 'A1' },
+    };
+    // Monday odd week is seeded literally above and is skipped here.
+    const rota: Record<'ODD' | 'EVEN', Partial<Record<DayOfWeek, string[]>>> = {
+      ODD: {
+        TUE: ['english_lit', 'maths', 'chemistry', 'computer_science', 'english_lang'],
+        WED: ['biology', 'history', 'maths', 'art', 'physics'],
+        THU: ['computer_science', 'english_lang', 'english_lit', 'maths', 'chemistry'],
+        FRI: ['history', 'biology', 'art', 'english_lit', 'maths'],
+      },
+      EVEN: {
+        MON: ['english_lang', 'maths', 'biology', 'computer_science', 'history'],
+        TUE: ['maths', 'chemistry', 'english_lit', 'art', 'english_lang'],
+        WED: ['physics', 'computer_science', 'history', 'maths', 'english_lit'],
+        THU: ['art', 'english_lang', 'chemistry', 'biology', 'maths'],
+        FRI: ['english_lit', 'physics', 'maths', 'history', 'computer_science'],
+      },
+    };
+
+    const entries: TimetableEntry[] = [];
+    for (const week of ['ODD', 'EVEN'] as const) {
+      for (const [day, subjects] of Object.entries(rota[week])) {
+        subjects.forEach((subjectId, i) => {
+          const [slotName, startTime, endTime] = P[i];
+          entries.push({
+            id: `${week.toLowerCase()}-${day.toLowerCase()}-p${i + 1}`,
+            weekType: week,
+            dayOfWeek: day as DayOfWeek,
+            slotName,
+            startTime,
+            endTime,
+            subjectId: subjectId as SubjectId,
+            activityName: S[subjectId].name,
+            room: S[subjectId].room,
+            isHardLocked: false,
+          });
+        });
+      }
+    }
+    return entries;
+  })(),
 
   // Extracurriculars
   { id: 'cadets-tue', weekType: 'BOTH', dayOfWeek: 'TUE', slotName: 'Evening / Cadets Block', startTime: '19:00', endTime: '22:00', activityName: 'Air Cadets Training', room: 'Cadet Sqn', isHardLocked: true },
