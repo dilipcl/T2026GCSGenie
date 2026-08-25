@@ -14,6 +14,8 @@ import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
 import { TaskManagerView } from './components/tasks/TaskManagerView';
 import { MilestoneCalendarView } from './components/calendar/MilestoneCalendarView';
+import { PlanView } from './components/plan/PlanView';
+import { WeeklyReviewModal } from './components/plan/WeeklyReviewModal';
 import { AssessmentLogView } from './components/assessments/AssessmentLogView';
 import { Grade9GoalsView } from './components/goals/Grade9GoalsView';
 import { TimetableManager } from './components/timetable/TimetableManager';
@@ -32,6 +34,7 @@ export const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isParentPinOpen, setIsParentPinOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [selectedQuestId, setSelectedQuestId] = useState<string | undefined>(undefined);
 
   // Bumped whenever data changes, so dashboard cards reload without a tab switch
@@ -146,6 +149,14 @@ export const App: React.FC = () => {
 
         {activeTab === 'TASKS' && <TaskManagerView refreshKey={refreshKey} onAdd={() => setIsQuickAddOpen(true)} />}
 
+        {activeTab === 'PLAN' && (
+          <PlanView
+            onAdd={() => setIsQuickAddOpen(true)}
+            onOpenReview={() => setIsReviewOpen(true)}
+          />
+        )}
+
+        {/* Reachable from Plan; kept as its own view for the month grid */}
         {activeTab === 'CALENDAR' && (
           <MilestoneCalendarView refreshKey={refreshKey} onAdd={() => setIsQuickAddOpen(true)} />
         )}
@@ -211,6 +222,12 @@ export const App: React.FC = () => {
       <CheckInHistoryModal
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
+      />
+
+      <WeeklyReviewModal
+        isOpen={isReviewOpen}
+        onClose={() => setIsReviewOpen(false)}
+        onAddItem={() => setIsQuickAddOpen(true)}
       />
 
       <CloudLoginDialog />

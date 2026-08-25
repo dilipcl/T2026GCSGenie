@@ -82,9 +82,25 @@ export interface DailyCheckIn {
   isDailyBaseXPAwarded: boolean; // True if this check-in awarded the +10 XP daily base reward
 }
 
+/**
+ * Which horizon a task sits in. The Work tab was one flat date-sorted list, so
+ * a task due in October sat beside tomorrow's homework and there was no moment
+ * where Tejas decided what he was actually taking on this week.
+ *
+ * THIS_WEEK is a promise; the other two are a backlog and carry no guilt. Only
+ * committed work counts towards the weekly load and the slipping nudge.
+ */
+export type PlanBucket = 'THIS_WEEK' | 'NEXT_UP' | 'LATER';
+
 export interface Task {
   id: string;
   subjectId: SubjectId;
+  /** Undefined on older rows; treated as LATER until it is planned. */
+  bucket?: PlanBucket;
+  /** When it was moved into THIS_WEEK, so a commitment can be dated. */
+  committedAt?: number;
+  /** Rough hours, used by the planner's live workload total. */
+  estimatedHours?: number;
   title: string;
   description?: string;
   dueDate: string;

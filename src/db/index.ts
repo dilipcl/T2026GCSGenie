@@ -147,6 +147,14 @@ export class GCSEGenieDatabase extends Dexie {
       auditLogs: 'id, timestamp, user, action, entity, deviceId, [deviceId+sequence]',
     });
 
+    /**
+     * v6 indexes the planning bucket so the Plan tab can query each column
+     * directly instead of loading every task and filtering in memory.
+     */
+    this.version(6).stores({
+      tasks: 'id, subjectId, dueDate, priority, isHomework, isRemediation, completed, bucket',
+    });
+
     this.on('ready', async () => {
       await this.seedMissingRows();
     });
