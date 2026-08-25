@@ -35,6 +35,7 @@ import {
   INITIAL_PARENT_SETTINGS,
   MICRO_REWARDS,
   INITIAL_TASKS,
+  RETITLED_REWARDS,
 } from './seedData';
 
 /**
@@ -155,6 +156,26 @@ export class GCSEGenieDatabase extends Dexie {
       tasks: 'id, subjectId, dueDate, priority, isHomework, isRemediation, completed, bucket',
     });
 
+    /**
+     * v7 rewrites a reward in place.
+     *
+     * `seedMissingRows` only ever inserts absent rows - deliberately, so a
+     * synced device cannot have its edits overwritten by pristine seed copies.
+     * That also means renaming an existing reward is invisible to it, so a
+     * catalogue change a parent has actually asked for needs an explicit
+     * upgrade. Only rewards still holding their seeded title are touched: one
+     * edited in the Parent Portal is somebody's decision, not stale seed data.
+     */
+    this.version(7).upgrade(async (tx) => {
+      const rewards = tx.table<RewardItem, string>('rewards');
+      for (const { id, wasTitled } of RETITLED_REWARDS) {
+        const existing = await rewards.get(id);
+        if (!existing || existing.title !== wasTitled) continue;
+        const replacement = INITIAL_REWARDS.find((r) => r.id === id);
+        if (replacement) await rewards.put(replacement);
+      }
+    });
+
     this.on('ready', async () => {
       await this.seedMissingRows();
     });
@@ -167,12 +188,18 @@ export class GCSEGenieDatabase extends Dexie {
        * syncing the moment a user authenticates.
        */
       requireAuth: false,
-      /**
-       * The parent's LLM API key must never leave the device. The PIN hash is
-       * deliberately still synced so the same PIN works everywhere.
-       */
       unsyncedProperties: {
-        parentSettings: ['llmApiKey'],
+        /**
+         * The API key must never leave the device.
+         *
+         * The lockout counters are device-local for a different reason: they
+         * are state about a keyboard, not about the family. Synced, three
+         * fumbled attempts on the phone lock the parent out of the laptop, and
+         * two devices counting into the same field through per-property merge
+         * produce a total neither of them saw. The credential itself is still
+         * synced, so the same passphrase works everywhere.
+         */
+        parentSettings: ['llmApiKey', 'failedUnlockAttempts', 'unlockLockedUntil'],
       },
       /**
        * The stock dexie-cloud dialog is a plain white box that reads as a

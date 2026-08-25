@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { useObservable } from 'dexie-react-hooks';
+import { db } from '../../db';
 import {
   getLockState,
   unlock,
@@ -6,7 +8,7 @@ import {
   LockState,
 } from '../../services/parentLockService';
 import { MIN_PASSPHRASE_LENGTH } from '../../utils/credential';
-import { X, Lock, AlertCircle, ShieldAlert, KeyRound } from 'lucide-react';
+import { X, Lock, AlertCircle, ShieldAlert, KeyRound, CloudOff, RefreshCw } from 'lucide-react';
 
 interface ParentPinModalProps {
   isOpen: boolean;
@@ -29,6 +31,8 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
   onSuccess,
 }) => {
   const [lockState, setLockState] = useState<LockState | null>(null);
+  const cloudUser = useObservable(db.cloud?.currentUser);
+  const syncState = useObservable(db.cloud?.syncState);
   const [passphrase, setPhrase] = useState('');
   const [confirmPhrase, setConfirmPhrase] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -52,6 +56,22 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
 
   const isClaiming = lockState.status === 'UNCLAIMED' || upgrading;
   const isLockedOut = lockState.status === 'LOCKED_OUT';
+
+  /**
+   * A passphrase set on another device only exists here once sync has delivered
+   * it. Until then this device genuinely has no credential - and the honest
+   * reading of that is "it has not arrived", not "nobody ever set one".
+   *
+   * Getting this wrong is worse than confusing. The unclaimed screen invites
+   * whoever is holding the phone to set a passphrase, and doing that on a
+   * device that is merely out of sync creates a second credential that will
+   * fight the real one the moment it connects.
+   */
+  const isSignedIn = !!cloudUser?.userId && cloudUser.userId !== 'unauthorized';
+  const phase = syncState?.phase;
+  const isSettling = isSignedIn && phase !== 'in-sync' && phase !== 'error';
+  const credentialMayBeElsewhere =
+    lockState.status === 'UNCLAIMED' && !upgrading && (!isSignedIn || isSettling);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,12 +145,38 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
           {isClaiming ? 'Set the parent passphrase' : 'Parent Portal'}
         </h2>
         <p className="text-xs text-slate-400 mt-1 mb-4">
-          {isClaiming
-            ? 'Choose this on a parent device, before Tejas starts using the app.'
-            : 'Unlocks audits, sanctions, approvals and settings.'}
+          {!isClaiming
+            ? 'Unlocks audits, sanctions, approvals and settings.'
+            : credentialMayBeElsewhere
+              ? 'This device has no passphrase yet - see below before setting one.'
+              : 'Choose this on a parent device, before Tejas starts using the app.'}
         </p>
 
-        {lockState.status === 'UNCLAIMED' && !upgrading && (
+        {credentialMayBeElsewhere && (
+          <div className="mb-4 p-3 bg-indigo-950/50 border border-indigo-500/40 rounded-xl text-[11px] text-indigo-100 text-left flex items-start gap-2">
+            {isSignedIn ? (
+              <RefreshCw className="w-4 h-4 text-indigo-300 flex-shrink-0 mt-0.5 animate-spin" />
+            ) : (
+              <CloudOff className="w-4 h-4 text-indigo-300 flex-shrink-0 mt-0.5" />
+            )}
+            <span>
+              {isSignedIn ? (
+                <>
+                  Still syncing. If a passphrase was set on another device it has not arrived here
+                  yet - give it a moment before setting a new one.
+                </>
+              ) : (
+                <>
+                  <strong className="font-bold">This device is not signed in to sync.</strong> A
+                  passphrase set on another device cannot reach it. Sign in from the header using
+                  the same account, rather than setting a second passphrase here.
+                </>
+              )}
+            </span>
+          </div>
+        )}
+
+        {lockState.status === 'UNCLAIMED' && !upgrading && !credentialMayBeElsewhere && (
           <div className="mb-4 p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl text-[11px] text-amber-100 text-left flex items-start gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
             <span>
@@ -193,7 +239,21 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
           </button>
         </form>
 
-        <p className="mt-4 text-[10px] text-slate-500 leading-relaxed text-left">
+        {/*
+          Which account this device is on, stated plainly.
+
+          Almost every "the passphrase does not work on my phone" report is one
+          device sitting on a different account from the one that set it, and
+          from inside the modal that is completely invisible. Naming the account
+          here turns a mystery into something readable off the screen.
+        */}
+        <p className="mt-4 text-[10px] text-slate-500 text-left">
+          {isSignedIn
+            ? `Signed in as ${cloudUser?.email || cloudUser?.name || cloudUser?.userId}`
+            : 'Not signed in - this device only'}
+        </p>
+
+        <p className="mt-2 text-[10px] text-slate-500 leading-relaxed text-left">
           This locks the interface, not the data. Anyone with browser devtools can still edit the
           database directly - but doing so breaks the change history's hash chain, and the Parent
           Portal reports it.

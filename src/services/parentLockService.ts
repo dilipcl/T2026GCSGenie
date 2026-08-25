@@ -1,4 +1,6 @@
 import { db } from '../db';
+import { ParentSettings } from '../types';
+import { INITIAL_PARENT_SETTINGS } from '../db/seedData';
 import {
   ParentCredential,
   createCredential,
@@ -21,8 +23,34 @@ export type LockState =
   | { status: 'READY' }
   | { status: 'LOCKED_OUT'; until: number; failures: number };
 
+const SETTINGS_ID = 'active_settings';
+
+/**
+ * Writes settings fields, creating the row if it is missing.
+ *
+ * `Table.update` resolves to 0 when the key does not exist - it does not throw.
+ * Every write in this file used it, so a device whose settings row was gone
+ * would accept a new passphrase, report success, and store nothing; the next
+ * unlock would then reject the passphrase the parent had just chosen and been
+ * told was set. The row can genuinely be absent: a backup restore replaces
+ * `parentSettings` wholesale, so restoring a bundle taken before the lock was
+ * claimed leaves no row behind.
+ */
+type SettingsRow = ParentSettings & { id: string };
+
+async function writeSettings(patch: Partial<SettingsRow>): Promise<void> {
+  const updated = await db.parentSettings.update(SETTINGS_ID, patch);
+  if (updated === 0) {
+    await db.parentSettings.put({
+      ...INITIAL_PARENT_SETTINGS,
+      ...patch,
+      id: SETTINGS_ID,
+    } as SettingsRow);
+  }
+}
+
 export async function getLockState(): Promise<LockState> {
-  const settings = await db.parentSettings.get('active_settings');
+  const settings = await db.parentSettings.get(SETTINGS_ID);
 
   const lockedUntil = settings?.unlockLockedUntil ?? 0;
   if (lockedUntil > Date.now()) {
@@ -48,15 +76,12 @@ export interface UnlockResult {
 }
 
 async function recordFailure(): Promise<UnlockResult> {
-  const settings = await db.parentSettings.get('active_settings');
+  const settings = await db.parentSettings.get(SETTINGS_ID);
   const failures = (settings?.failedUnlockAttempts ?? 0) + 1;
   const wait = lockoutMs(failures);
   const until = wait > 0 ? Date.now() + wait : 0;
 
-  await db.parentSettings.update('active_settings', {
-    failedUnlockAttempts: failures,
-    unlockLockedUntil: until,
-  });
+  await writeSettings({ failedUnlockAttempts: failures, unlockLockedUntil: until });
 
   return {
     ok: false,
@@ -69,10 +94,7 @@ async function recordFailure(): Promise<UnlockResult> {
 }
 
 async function clearFailures(): Promise<void> {
-  await db.parentSettings.update('active_settings', {
-    failedUnlockAttempts: 0,
-    unlockLockedUntil: 0,
-  });
+  await writeSettings({ failedUnlockAttempts: 0, unlockLockedUntil: 0 });
 }
 
 export async function unlock(passphrase: string): Promise<UnlockResult> {
@@ -85,7 +107,7 @@ export async function unlock(passphrase: string): Promise<UnlockResult> {
     return { ok: false, message: 'No passphrase has been set yet.' };
   }
 
-  const settings = await db.parentSettings.get('active_settings');
+  const settings = await db.parentSettings.get(SETTINGS_ID);
 
   if (state.status === 'LEGACY_PIN') {
     const entered = await sha256(passphrase);
@@ -144,13 +166,21 @@ export async function setPassphrase(
 
   const credential = await createCredential(newPassphrase);
 
-  await db.parentSettings.update('active_settings', {
+  await writeSettings({
     parentCredential: credential,
     // Retire any legacy PIN so it cannot be used as a second way in
     parentPinHash: undefined,
     failedUnlockAttempts: 0,
     unlockLockedUntil: 0,
   });
+
+  // Prove it landed rather than trusting the write. Telling a parent their
+  // passphrase is set when it is not is the one failure here with no recovery
+  // path that does not involve devtools.
+  const stored = await db.parentSettings.get(SETTINGS_ID);
+  if (!stored?.parentCredential) {
+    return { ok: false, message: 'Could not save the passphrase to this device. Nothing was changed.' };
+  }
 
   // Deliberately records only that it changed - never the passphrase or its hash.
   await logAuditEvent({
