@@ -13,7 +13,10 @@ import { SessionTimerCard } from './components/dashboard/SessionTimerCard';
 import { PlanPulseBanner } from './components/dashboard/PlanPulseBanner';
 import { QuickAddSheet, QuickAddEditing } from './components/shared/QuickAddSheet';
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
+import { ChangeGuardProvider } from './components/shared/ChangeGuardProvider';
+import { ChangeLogCard } from './components/shared/ChangeLogCard';
 import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
+import { DatabaseGate } from './components/layout/DatabaseGate';
 import { TaskManagerView } from './components/tasks/TaskManagerView';
 import { MilestoneCalendarView } from './components/calendar/MilestoneCalendarView';
 import { PlanView } from './components/plan/PlanView';
@@ -88,6 +91,9 @@ export const App: React.FC = () => {
 
   return (
     <FeedbackProvider>
+    {/* Inside FeedbackProvider: a confirmation that fails needs somewhere to
+        say so. */}
+    <ChangeGuardProvider>
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-24 md:pb-8">
       {/* Header Bar */}
       <Header
@@ -119,6 +125,10 @@ export const App: React.FC = () => {
               onOpenGoals={() => setActiveTab('GOALS')}
               onOpenPlan={() => setActiveTab('PLAN')}
             />
+
+            {/* 0b. What has been confirmed but not yet told to anyone. Renders
+                   nothing when there is nothing outstanding. */}
+            <ChangeLogCard />
 
             {/* 1. The whole week in one card: goal pacing, capacity, and the
                    three things due today.
@@ -317,6 +327,8 @@ export const App: React.FC = () => {
         }}
       />
 
+      <DatabaseGate />
+
       <CloudLoginDialog />
 
       <ParentPinModal
@@ -325,6 +337,7 @@ export const App: React.FC = () => {
         onSuccess={handleParentUnlockSuccess}
       />
     </div>
+    </ChangeGuardProvider>
     </FeedbackProvider>
   );
 };

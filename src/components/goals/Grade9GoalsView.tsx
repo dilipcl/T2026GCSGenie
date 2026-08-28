@@ -13,6 +13,7 @@ import { SubjectDetailModal } from './SubjectDetailModal';
 import { GoalConsultationModal } from './GoalConsultationModal';
 import { Target, Plus, ShieldCheck, Lock, Unlock, X, PencilLine, Send } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { InfoTip } from '../shared/InfoTip';
 
 interface Grade9GoalsViewProps {
@@ -21,6 +22,7 @@ interface Grade9GoalsViewProps {
 
 export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole }) => {
   const { toast, confirm } = useFeedback();
+  const { confirmChange } = useChangeGuard();
   const [subjects, setSubjects] = useState<SubjectConfig[]>([]);
   const [ragData, setRagData] = useState<Record<string, SubjectRAGResult>>({});
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -137,16 +139,28 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
    * a dead end that only seedData could produce.
    */
   const handleSubmitDraft = async (goal: Goal) => {
-    await db.goals.update(goal.id, { status: 'PENDING_DISCUSSION' });
-    await logAuditEvent({
-      user: 'STUDENT',
-      action: 'UPDATE',
-      entity: 'Goal',
-      entityId: goal.id,
-      fieldChanged: 'status',
-      oldValue: 'DRAFT',
-      newValue: 'PENDING_DISCUSSION (sent for parent approval)',
+    const confirmed = await confirmChange({
+      title: 'Send this goal for approval?',
+      subject: goal.title,
+      effect: `${goal.weeklyHoursRequired} hrs/week once a parent locks it`,
+      category: 'GOAL',
+      confirmLabel: 'Send it',
+      summary: `Sent goal "${goal.title}" for approval (${goal.weeklyHoursRequired} hrs/week)`,
+      run: async () => {
+        await db.goals.update(goal.id, { status: 'PENDING_DISCUSSION' });
+        await logAuditEvent({
+          user: 'STUDENT',
+          action: 'UPDATE',
+          entity: 'Goal',
+          entityId: goal.id,
+          fieldChanged: 'status',
+          oldValue: 'DRAFT',
+          newValue: 'PENDING_DISCUSSION (sent for parent approval)',
+        });
+      },
     });
+
+    if (!confirmed) return;
     toast.success(`"${goal.title}" sent for approval`, 'A parent reviews it and locks it in.');
     loadData();
   };

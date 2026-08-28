@@ -162,6 +162,49 @@ export function needSupportMessage(
   ]);
 }
 
+/**
+ * The log of what was confirmed, addressed to the family group.
+ *
+ * WhatsApp has no URL that targets a specific group with a prefilled message -
+ * `wa.me/?text=` opens the chat picker and the sender chooses where it goes.
+ * So this builds the text; `buildChatUrl` with no number opens the picker; and
+ * the group's invite link is what gets the group into that picker in the first
+ * place. The app cannot post here on its own, and does not claim to.
+ */
+export function changeLogMessage(
+  ctx: MessageContext,
+  input: {
+    dateLabel: string;
+    groups: { label: string; icon: string; lines: string[] }[];
+    comment?: string;
+    commentFrom?: string;
+  }
+): string {
+  const body: (string | undefined)[] = [
+    `🧞‍♂️ ${bold('GCSE Genie · Update log')}`,
+    RULE,
+    `👤 ${bold('Who:')} ${ctx.studentName}`,
+    `📅 ${bold('When:')} ${input.dateLabel}`,
+    '',
+  ];
+
+  for (const group of input.groups) {
+    body.push(`${group.icon} ${bold(group.label)}`);
+    for (const line of group.lines) body.push(`• ${line}`);
+    body.push('');
+  }
+
+  if (input.comment?.trim()) {
+    body.push(`💬 ${bold(input.commentFrom || 'Note')}: ${input.comment.trim()}`);
+    body.push('');
+  }
+
+  body.push(RULE);
+  body.push('_Logged automatically as each change was confirmed._');
+
+  return body.filter((line): line is string => line !== undefined).join('\n');
+}
+
 export interface DigestInput {
   weekLabel: string;
   targetGrade?: number;

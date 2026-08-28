@@ -13,8 +13,9 @@ import { calculateTotalXP } from './ragCalculator';
  *
  * The rule is one sentence: everything that records what happened is cleared;
  * everything that describes the set-up is kept. So the timetable, subjects,
- * syllabus, chores and the reward catalogue all survive, and the balance goes
- * to zero.
+ * syllabus, chores, fixed commitments, the reward catalogue and every parent
+ * setting - WhatsApp numbers and the family group included - all survive, and
+ * the balance goes to zero.
  *
  * Two things sit on the line between activity and set-up, and both are handled
  * explicitly: the starter goals go back to draft, because a locked goal records
@@ -22,7 +23,17 @@ import { calculateTotalXP } from './ragCalculator';
  * unless the reset is asked to clear it.
  */
 
-/** Emptied outright - these tables are nothing but a record of activity. */
+/**
+ * Emptied outright - these tables are nothing but a record of activity.
+ *
+ * `commitmentExceptions` belongs here and not with the set-up: a commitment is
+ * something a parent configured, but a logged absence from one is a thing that
+ * happened on a particular Tuesday. Leaving them behind would hand over a week
+ * that still had hours excused from it.
+ *
+ * `changeLog` likewise - it is the record of what the student changed, which is
+ * exactly what a handover is clearing.
+ */
 const CLEARED_TABLES = [
   'checkIns',
   'redemptions',
@@ -30,6 +41,8 @@ const CLEARED_TABLES = [
   'assessments',
   'attachments',
   'choreCompletions',
+  'commitmentExceptions',
+  'changeLog',
   'agentAuditReports',
   'auditLogs',
 ] as const;
@@ -65,6 +78,19 @@ export interface HandoverPreview {
   /** Whether a parent passphrase currently exists on this device. */
   hasPassphrase: boolean;
   totalToDelete: number;
+  /**
+   * The set-up a parent built, named so the reset can promise it in specifics
+   * rather than in the abstract. "Nothing you configured is touched" is only
+   * believable if the screen can list what that means.
+   */
+  preserved: {
+    whatsAppNumbers: number;
+    chores: number;
+    commitments: number;
+    rewards: number;
+    hasExamDate: boolean;
+    hasFamilyGroup: boolean;
+  };
 }
 
 /**
@@ -109,6 +135,14 @@ export async function previewHandoverReset(): Promise<HandoverPreview> {
     cleared,
     reset,
     kept,
+    preserved: {
+      whatsAppNumbers: settings?.parentWhatsAppNumbers?.length ?? 0,
+      chores: await db.chores.count(),
+      commitments: await db.commitments.count(),
+      rewards: await db.rewards.count(),
+      hasExamDate: !!settings?.examSeriesStartDate,
+      hasFamilyGroup: !!settings?.familyGroupInviteUrl,
+    },
     currentXP: xp.availableXP,
     extraGoals,
     goalsToUnlock,
@@ -162,8 +196,17 @@ export async function performHandoverReset(
     await table.clear();
   }
 
-  // Cleared with the log it belongs to, or the next verification reports the
-  // tail as truncated.
+  /**
+   * Only these three fields are touched on the settings row, and that is the
+   * whole point: everything else a parent configured - the WhatsApp numbers,
+   * the family group, the exam date, the student profile, the Drive links, the
+   * passphrase - is theirs and survives the reset untouched. A reset that wiped
+   * the settings row would make the parent set the app up again every time they
+   * cleared the student's activity, which is how a reset stops being used.
+   *
+   * The audit tips are cleared with the log they belong to, or the next
+   * verification reports the tail as truncated.
+   */
   await db.parentSettings.update('active_settings', {
     auditChainTips: {},
     failedUnlockAttempts: 0,
@@ -261,7 +304,8 @@ export async function performHandoverReset(
       `Reset for handover. ${deleted} rows of testing activity cleared, ${resetRows} rows reset, ` +
       `balance now ${xp.availableXP} XP, ${goalsUnlocked} starter goals back to draft` +
       `${passphraseCleared ? ', parent passphrase cleared' : ''}. ` +
-      `Set-up kept: timetable, subjects, syllabus, chores and rewards.`,
+      `Set-up kept: timetable, subjects, syllabus, chores, commitments, rewards, ` +
+      `WhatsApp numbers and every other parent setting.`,
   });
 
   return { deleted, resetRows, xpAfter: xp.availableXP, goalsUnlocked, passphraseCleared };

@@ -32,6 +32,7 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
   onSuccess,
 }) => {
   const [lockState, setLockState] = useState<LockState | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const cloudUser = useObservable(db.cloud?.currentUser);
   const syncState = useObservable(db.cloud?.syncState);
   const [passphrase, setPhrase] = useState('');
@@ -41,7 +42,28 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
   /** Set after a legacy PIN is accepted: a passphrase must be chosen now. */
   const [upgrading, setUpgrading] = useState(false);
 
-  const refresh = () => getLockState().then(setLockState);
+  /**
+   * Reads the lock state, and records a failure rather than staying silent.
+   *
+   * This used to be `getLockState().then(setLockState)` with no catch, above a
+   * `if (!isOpen || !lockState) return null`. So when the read could not
+   * complete - a database that failed to open, most often a schema upgrade
+   * blocked by a second tab - `lockState` stayed null and the modal rendered
+   * nothing at all. Tapping Parent Mode did visibly nothing, with no error
+   * anywhere to explain it.
+   */
+  const refresh = () =>
+    getLockState()
+      .then((state) => {
+        setLockState(state);
+        setLoadError(null);
+      })
+      .catch((err: unknown) => {
+        console.error('Could not read the parent lock state:', err);
+        setLoadError(
+          err instanceof Error ? err.message : 'The database did not respond.'
+        );
+      });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -50,6 +72,7 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
     setMessage(null);
     setIsBusy(false);
     setUpgrading(false);
+    setLoadError(null);
     refresh();
   }, [isOpen]);
 
@@ -57,7 +80,61 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
   // early return - a hook cannot be called conditionally.
   useEscapeToClose(isOpen, onClose);
 
-  if (!isOpen || !lockState) return null;
+  if (!isOpen) return null;
+
+  /**
+   * Something to look at while the lock state loads, and something to read if
+   * it never arrives. Rendering null in either case is what made this button
+   * look broken.
+   */
+  if (!lockState) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Parent access"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      >
+        <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative text-center">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-3 right-3 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {loadError ? (
+            <>
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center justify-center mx-auto mb-3">
+                <AlertCircle className="w-7 h-7" />
+              </div>
+              <h2 className="text-lg font-bold text-white">Could not check the lock</h2>
+              <p className="text-xs text-slate-400 mt-1.5">
+                Genie could not read its database, so it cannot tell whether a passphrase is set.
+                This is usually the app being open in another tab. Close it there and reload.
+              </p>
+              <p className="mt-2 text-[10px] text-slate-600 break-words">{loadError}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider"
+              >
+                Reload
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="w-14 h-14 rounded-2xl bg-slate-800 text-slate-400 border border-slate-700 flex items-center justify-center mx-auto mb-3">
+                <RefreshCw className="w-7 h-7 animate-spin" />
+              </div>
+              <h2 className="text-lg font-bold text-white">Checking...</h2>
+              <p className="text-xs text-slate-400 mt-1.5">Reading the parent lock from this device.</p>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const isClaiming = lockState.status === 'UNCLAIMED' || upgrading;
   const isLockedOut = lockState.status === 'LOCKED_OUT';

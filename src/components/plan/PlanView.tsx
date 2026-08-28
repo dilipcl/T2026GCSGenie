@@ -12,6 +12,7 @@ import {
 } from '../../services/planService';
 import { calculateBurnoutCapacity } from '../../services/burnoutEngine';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { recordChange } from '../../services/changeLogService';
 import { formatFriendlyDate, formatCountdown, daysUntil } from '../../utils/date';
 import {
   CalendarClock,
@@ -95,6 +96,11 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
     setDeferring(null);
 
     await moveTaskToBucket(task, bucket, reason || undefined);
+    await recordChange({
+      category: 'PLAN',
+      summary: `Moved "${task.title}" out of this week`,
+      detail: reason || undefined,
+    });
     toast.info(
       `Moved "${task.title}" out of this week`,
       reason

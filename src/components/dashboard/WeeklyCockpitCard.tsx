@@ -13,6 +13,7 @@ import { PaceBar, PACE_TEXT } from '../shared/PaceBar';
 import { Sparkline } from '../shared/Sparkline';
 import { InfoTip } from '../shared/InfoTip';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { CommitmentExceptionModal } from '../commitments/CommitmentExceptionModal';
 import {
   BatteryCharging,
@@ -60,6 +61,7 @@ export const WeeklyCockpitCard: React.FC<WeeklyCockpitCardProps> = ({
   onOpenTimetable,
 }) => {
   const { toast } = useFeedback();
+  const { confirmChange } = useChangeGuard();
   const [exceptionFor, setExceptionFor] = useState<CommitmentOccasion | null>(null);
 
   const settings = useLiveQuery(() => db.parentSettings.get('active_settings'), []);
@@ -105,33 +107,45 @@ export const WeeklyCockpitCard: React.FC<WeeklyCockpitCardProps> = ({
   const hasAnything = goals.length > 0 || capacity.commitmentBreakdown.length > 0 || hasTriad;
 
   const completeTask = async (task: Task) => {
-    try {
-      await db.tasks.update(task.id, { completed: true, completedAt: Date.now() });
-      await logAuditEvent({
-        user: 'STUDENT',
-        action: 'UPDATE',
-        entity: 'Task',
-        entityId: task.id,
-        fieldChanged: 'completed',
-        newValue: `Completed — "${task.title}"`,
-      });
-      toast.success(`+${task.xpValue} XP`, task.title);
-    } catch (err) {
-      console.error('Could not complete that task:', err);
-      toast.error('Could not save that', 'Nothing was changed.');
-    }
+    const done = await confirmChange({
+      title: 'Mark this as done?',
+      subject: task.title,
+      effect: `+${task.xpValue} XP`,
+      category: 'HOMEWORK',
+      confirmLabel: 'Yes, done',
+      summary: `Finished "${task.title}" (+${task.xpValue} XP)`,
+      run: async () => {
+        await db.tasks.update(task.id, { completed: true, completedAt: Date.now() });
+        await logAuditEvent({
+          user: 'STUDENT',
+          action: 'UPDATE',
+          entity: 'Task',
+          entityId: task.id,
+          fieldChanged: 'completed',
+          newValue: `Completed — "${task.title}"`,
+        });
+      },
+    });
+    if (done) toast.success(`+${task.xpValue} XP`, task.title);
   };
 
   const toggleChore = async (choreId: string) => {
     const item = chores.find((c) => c.chore.id === choreId);
     if (!item) return;
-    try {
-      await setChoreDone(item.chore, !item.done);
-      if (!item.done) toast.success(`+${item.chore.xpValue} XP`, item.chore.title);
-    } catch (err) {
-      console.error('Could not update chore:', err);
-      toast.error('Could not save that', 'Nothing was changed.');
-    }
+
+    const done = await confirmChange({
+      title: item.done ? 'Undo this chore?' : 'Mark this chore done?',
+      subject: item.chore.title,
+      effect: item.done ? `−${item.chore.xpValue} XP` : `+${item.chore.xpValue} XP`,
+      category: 'CHORE',
+      tone: item.done ? 'danger' : 'normal',
+      confirmLabel: item.done ? 'Undo it' : 'Yes, done',
+      summary: item.done
+        ? `Un-ticked chore "${item.chore.title}" (−${item.chore.xpValue} XP)`
+        : `Did chore "${item.chore.title}" (+${item.chore.xpValue} XP)`,
+      run: () => setChoreDone(item.chore, !item.done),
+    });
+    if (done && !item.done) toast.success(`+${item.chore.xpValue} XP`, item.chore.title);
   };
 
   const statusTone =

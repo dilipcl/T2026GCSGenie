@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
+import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { Task, MilestoneReminder } from '../../types';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
@@ -31,6 +32,7 @@ export const DueSoonCard: React.FC<DueSoonCardProps> = ({
   onSeeAllTasks,
   onSeeCalendar,
 }) => {
+  const { confirmChange } = useChangeGuard();
   const tasks = useLiveQuery<Task[]>(
     async () => (await db.tasks.orderBy('dueDate').toArray()).filter((t) => !t.completed),
     []
@@ -61,17 +63,27 @@ export const DueSoonCard: React.FC<DueSoonCardProps> = ({
     .slice(0, 3);
 
   const toggleComplete = async (task: Task) => {
-    await db.tasks.update(task.id, { completed: true, completedAt: Date.now() });
-    await logAuditEvent({
-      user: 'STUDENT',
-      action: 'UPDATE',
-      entity: 'Task',
-      entityId: task.id,
-      fieldChanged: 'completed',
-      oldValue: 'false',
-      newValue: 'true',
+    const confirmed = await confirmChange({
+      title: 'Mark this as done?',
+      subject: task.title,
+      effect: `+${task.xpValue} XP`,
+      category: 'HOMEWORK',
+      confirmLabel: 'Yes, done',
+      summary: `Finished "${task.title}" (+${task.xpValue} XP)`,
+      run: async () => {
+        await db.tasks.update(task.id, { completed: true, completedAt: Date.now() });
+        await logAuditEvent({
+          user: 'STUDENT',
+          action: 'UPDATE',
+          entity: 'Task',
+          entityId: task.id,
+          fieldChanged: 'completed',
+          oldValue: 'false',
+          newValue: 'true',
+        });
+      },
     });
-    triggerCelebration({ particleCount: 50 });
+    if (confirmed) triggerCelebration({ particleCount: 50 });
   };
 
   const renderTask = (task: Task, isOverdue: boolean) => (

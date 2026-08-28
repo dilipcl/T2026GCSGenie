@@ -24,6 +24,7 @@ import {
   ChoreCompletion,
   FixedCommitment,
   CommitmentException,
+  ChangeLogEntry,
 } from '../types';
 import {
   INITIAL_SUBJECTS,
@@ -42,6 +43,7 @@ import {
   RETITLED_REWARDS,
   INITIAL_COMMITMENTS,
 } from './seedData';
+import { setDatabaseStatus } from './databaseStatus';
 
 /**
  * The Dexie Cloud database backing sync. This is a public endpoint, not a
@@ -96,6 +98,7 @@ export class GCSEGenieDatabase extends Dexie {
   choreCompletions!: Table<ChoreCompletion, string>;
   commitments!: Table<FixedCommitment, string>;
   commitmentExceptions!: Table<CommitmentException, string>;
+  changeLog!: Table<ChangeLogEntry, string>;
 
   constructor() {
     super('GCSEGenieDB', IS_BROWSER ? { addons: [dexieCloud] } : {});
@@ -238,8 +241,48 @@ export class GCSEGenieDatabase extends Dexie {
       }
     });
 
+    /**
+     * v11 adds the confirmed-changes log.
+     *
+     * `reported` is a boolean and therefore never actually indexed - see the
+     * note at the top of this file - so unreported entries are filtered in
+     * memory rather than queried.
+     */
+    this.version(11).stores({
+      changeLog: 'id, timestamp, date, category, actor',
+    });
+
     this.on('ready', async () => {
       await this.seedMissingRows();
+    });
+
+    /**
+     * What happens when the database cannot open.
+     *
+     * Without this, a failure here is completely silent. Every screen reads
+     * IndexedDB, and a read against a database that never opened does not throw
+     * - it simply never settles. Each control that waits on one becomes a dead
+     * button: Parent Mode draws nothing, because the modal waits for the lock
+     * state before rendering; the sync badge appears inert, because the sync it
+     * starts goes nowhere. Two unresponsive buttons and no error anywhere.
+     *
+     * The trigger is ordinary: a schema upgrade meeting a second open tab.
+     * IndexedDB will not upgrade while an older connection still holds the
+     * database, so it fires `blocked` and waits - indefinitely, if the other tab
+     * is a backgrounded phone tab nobody thinks to close.
+     */
+    this.on('blocked', () => {
+      setDatabaseStatus({ state: 'BLOCKED' });
+    });
+
+    /**
+     * Another tab wants to upgrade. Closing this connection lets it, rather
+     * than leaving both tabs stuck waiting for each other.
+     */
+    this.on('versionchange', () => {
+      setDatabaseStatus({ state: 'SUPERSEDED' });
+      this.close();
+      return false;
     });
 
     this.cloud?.configure({
@@ -270,6 +313,22 @@ export class GCSEGenieDatabase extends Dexie {
        */
       customLoginGui: true,
     });
+
+    /**
+     * Opened explicitly, and after `cloud.configure`, so that a failure to open
+     * is observed rather than waited on forever. Dexie would open lazily on the
+     * first query anyway; the difference is that this call has somewhere to
+     * report the outcome.
+     */
+    if (IS_BROWSER) {
+      this.open()
+        .then(() => setDatabaseStatus({ state: 'OPEN' }))
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('Could not open the database:', error);
+          setDatabaseStatus({ state: 'FAILED', message });
+        });
+    }
   }
 
   /**
@@ -308,17 +367,47 @@ export class GCSEGenieDatabase extends Dexie {
     await addMissing(this.tasks, INITIAL_TASKS);
     await addMissing(this.commitments, INITIAL_COMMITMENTS);
 
+    await this.backfillSettingsDefaults();
+  }
+
+  /**
+   * Fills in settings fields added after this database was created.
+   *
+   * `seedMissingRows` only ever inserts rows whose primary key is absent, which
+   * makes a new *field* on the single `active_settings` row invisible to it -
+   * the row already exists, so it is skipped. Every new setting therefore
+   * arrives only on a brand new install, and does nothing on the devices people
+   * are actually using. That failure is completely silent: the exam countdown
+   * simply read "This week", and the family group link simply did not appear.
+   *
+   * Only ever fills a blank. A value somebody has actually set is their
+   * decision and is never overwritten.
+   */
+  private async backfillSettingsDefaults() {
     const settings = await this.parentSettings.get('active_settings');
+
     if (!settings) {
       await this.parentSettings.add({ ...INITIAL_PARENT_SETTINGS, id: 'active_settings' });
-    } else if (!settings.examSeriesStartDate) {
-      // The v10 upgrade covers the normal path. This catches a row that
-      // predates it on a database that never ran the version bump - a restored
-      // backup, most likely - because a missing countdown is silent, and a
-      // silent missing feature is the kind that ships.
-      await this.parentSettings.update('active_settings', {
-        examSeriesStartDate: INITIAL_PARENT_SETTINGS.examSeriesStartDate,
-      });
+      return;
+    }
+
+    /** Fields safe to default: absent means "never configured", not "cleared". */
+    const defaults: (keyof typeof INITIAL_PARENT_SETTINGS)[] = [
+      'examSeriesStartDate',
+      'familyGroupInviteUrl',
+    ];
+
+    const patch: Partial<ParentSettings> = {};
+    for (const key of defaults) {
+      if (settings[key] === undefined && INITIAL_PARENT_SETTINGS[key] !== undefined) {
+        // Both sides are keyed off ParentSettings, so this only widens the
+        // per-key relationship TypeScript cannot follow through a loop.
+        (patch as Record<string, unknown>)[key] = INITIAL_PARENT_SETTINGS[key];
+      }
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await this.parentSettings.update('active_settings', patch);
     }
   }
 

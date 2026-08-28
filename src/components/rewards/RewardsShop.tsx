@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { newId } from '../../utils/id';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { recordChange } from '../../services/changeLogService';
 import { WhatsAppShare } from '../shared/WhatsAppShare';
 import { messageContext, rewardApprovedMessage } from '../../services/whatsappService';
 
@@ -89,6 +90,13 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
       entity: 'RewardRedemption',
       entityId: redemption.id,
       newValue: `Requested: ${item.title} (-${item.costXP} XP, Status: PENDING)`,
+    });
+
+    // Already behind its own confirm dialog, so this only adds the log entry.
+    await recordChange({
+      category: 'REWARD',
+      summary: `Asked for "${item.title}" (${item.costXP} XP held)`,
+      detail: 'Waiting on a parent to approve or decline',
     });
 
     toast.celebrate(

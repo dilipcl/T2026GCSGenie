@@ -37,6 +37,9 @@ export const INITIAL_PARENT_SETTINGS: ParentSettings = {
   // the countdown is the point, and nobody configures a field to be told
   // something they already half know.
   examSeriesStartDate: '2027-05-10',
+  // The family log group. Changes the student confirms are reported here, so
+  // nobody has to ask what was done today.
+  familyGroupInviteUrl: 'https://chat.whatsapp.com/JAMiLpKQOt485Gj2G2MVKP',
   googleDriveBackupPath: `${WORKING_FOLDER_PATH}\\_Genie-Backups`,
   googleDriveFolderUrl: WORKING_FOLDER_URL,
   backupsFolderUrl: BACKUPS_FOLDER_URL,

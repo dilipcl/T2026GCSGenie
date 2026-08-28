@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useObservable } from 'dexie-react-hooks';
 import { db } from '../../db';
+import { useFeedback } from '../shared/FeedbackProvider';
 import { Cloud, CloudOff, RefreshCw, LogIn, AlertTriangle } from 'lucide-react';
 
 /**
@@ -13,21 +14,48 @@ import { Cloud, CloudOff, RefreshCw, LogIn, AlertTriangle } from 'lucide-react';
  * the failure this whole change exists to fix.
  */
 export const SyncStatus: React.FC = () => {
+  const { toast } = useFeedback();
+  const [isBusy, setIsBusy] = useState(false);
   const user = useObservable(db.cloud.currentUser);
   const syncState = useObservable(db.cloud.syncState);
 
   const isLoggedIn = !!user?.userId && user.userId !== 'unauthorized';
   const phase = syncState?.phase;
 
+  /**
+   * Every path here now says something.
+   *
+   * Tapping this while already synced called `db.cloud.sync()` and rendered
+   * nothing whatsoever - no spinner, no toast, no change of label. From the
+   * outside that is indistinguishable from a dead button, and it is the most
+   * likely reason to report the sign-in control as "doing nothing". A failure
+   * was worse: it went to `console.warn`, where nobody on a phone will ever
+   * see it.
+   */
   const handleClick = async () => {
+    if (isBusy) return;
+    setIsBusy(true);
     try {
       if (isLoggedIn) {
         await db.cloud.sync();
+        toast.success('Up to date', 'Everything on this device has been sent and received.');
       } else {
         await db.cloud.login();
       }
     } catch (err) {
-      console.warn('Dexie Cloud action failed:', err);
+      // Cancelling the sign-in dialog rejects too, and that is not an error
+      // worth shouting about.
+      const message = err instanceof Error ? err.message : String(err);
+      const cancelled = /cancel|abort/i.test(message);
+      if (!cancelled) {
+        console.warn('Dexie Cloud action failed:', err);
+        toast.error(
+          isLoggedIn ? 'Could not sync' : 'Could not sign in',
+          `${message.slice(0, 120)} — your data on this device is safe.`
+        );
+      }
+    } finally {
+      setIsBusy(false);
     }
   };
 
@@ -35,12 +63,13 @@ export const SyncStatus: React.FC = () => {
     return (
       <button
         onClick={handleClick}
+        disabled={isBusy}
         title="Sign in to sync this device with your other devices"
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-bold text-slate-300 transition-all"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-bold text-slate-300 transition-all disabled:opacity-60"
       >
-        <LogIn className="w-3.5 h-3.5 text-indigo-400" />
-        <span className="hidden sm:inline">This device only</span>
-        <span className="sm:hidden">Sign in</span>
+        <LogIn className={`w-3.5 h-3.5 text-indigo-400 ${isBusy ? 'animate-pulse' : ''}`} />
+        <span className="hidden sm:inline">{isBusy ? 'Signing in...' : 'This device only'}</span>
+        <span className="sm:hidden">{isBusy ? '...' : 'Sign in'}</span>
       </button>
     );
   }

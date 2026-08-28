@@ -21,6 +21,7 @@ import { newId } from '../../utils/id';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import { InfoTip } from '../shared/InfoTip';
 import { WhatsAppShare } from '../shared/WhatsAppShare';
+import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { messageContext, questionMessage } from '../../services/whatsappService';
 
 interface DailyCheckInModalProps {
@@ -84,6 +85,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
    * So the four things that must be logged every day are always visible, and
    * everything else is one tap away and completely unchanged.
    */
+  const { confirmChange } = useChangeGuard();
   const [showDetail, setShowDetail] = useState(false);
   const [settings, setSettings] = useState<ParentSettings | undefined>(undefined);
 
@@ -185,6 +187,34 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
+    const subjectName = studySubject
+      ? INITIAL_SUBJECTS.find((sub) => sub.id === studySubject)?.shortName
+      : undefined;
+
+    const parts = [
+      `energy ${energy}/5`,
+      revisionMinutes > 0
+        ? `${revisionMinutes} min${subjectName ? ` of ${subjectName}` : ''} studied`
+        : 'no study time',
+      completedTaskIds.length > 0
+        ? `${completedTaskIds.length} task${completedTaskIds.length === 1 ? '' : 's'} ticked off`
+        : undefined,
+    ].filter(Boolean);
+
+    await confirmChange({
+      title: 'Save this check-in?',
+      subject: parts.join(' · '),
+      effect: `+${xp.total} XP`,
+      category: 'CHECK_IN',
+      confirmLabel: 'Save it',
+      summary: `Checked in (${parts.join(', ')}) — +${xp.total} XP`,
+      run: () => applyCheckIn(),
+    });
+  };
+
+  const applyCheckIn = async () => {
     setIsSubmitting(true);
 
     try {
@@ -292,8 +322,6 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       triggerCelebration();
       onSuccess();
       onClose();
-    } catch (err) {
-      console.error('Failed to submit check-in:', err);
     } finally {
       setIsSubmitting(false);
     }

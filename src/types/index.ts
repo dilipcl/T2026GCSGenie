@@ -378,6 +378,45 @@ export interface CommitmentException {
   createdAt: number;
 }
 
+/**
+ * What kind of thing changed, so a digest can group a day's updates rather than
+ * listing fourteen unrelated lines.
+ */
+export type ChangeCategory =
+  | 'HOMEWORK'
+  | 'CHORE'
+  | 'CHECK_IN'
+  | 'ATTENDANCE'
+  | 'GOAL'
+  | 'REWARD'
+  | 'PLAN'
+  | 'PROOF';
+
+/**
+ * One confirmed change, written the moment it is made.
+ *
+ * Separate from the audit log on purpose. The audit log is a tamper-evident
+ * hash chain of every write, meant to be checked; this is a short, readable
+ * list of the things a person deliberately confirmed, meant to be sent to the
+ * family so nobody has to ask what happened today. One is evidence, the other
+ * is a message.
+ */
+export interface ChangeLogEntry {
+  id: string;
+  timestamp: number;
+  /** Local YYYY-MM-DD, so a day's changes group without re-deriving them. */
+  date: string;
+  actor: UserRole;
+  category: ChangeCategory;
+  /** One line, already written for a human: "Ticked off Maths past paper (+50 XP)". */
+  summary: string;
+  /** Optional extra context shown under the summary in the digest. */
+  detail?: string;
+  /** Whether this has been included in a message sent to the family. */
+  reported: boolean;
+  reportedAt?: number;
+}
+
 /** How often a chore comes round. */
 export type ChoreCadence = 'DAILY' | 'WEEKDAYS' | 'WEEKLY';
 
@@ -519,6 +558,15 @@ export interface ParentSettings {
    * Family phone numbers, so they never enter a CSV export.
    */
   parentWhatsAppNumbers?: { id: string; label: string; e164: string }[];
+  /**
+   * The family WhatsApp group that confirmed changes are logged to.
+   *
+   * Stored as the group's invite link. WhatsApp has no URL scheme that targets
+   * a specific group with a prefilled message - `wa.me/?text=` opens the chat
+   * picker and the sender chooses - so this link is what makes the group
+   * reachable in one tap, and the picker is what actually delivers the message.
+   */
+  familyGroupInviteUrl?: string;
   /** @deprecated Bare SHA-256 of a 4-digit PIN. Read for migration only. */
   parentPinHash?: string;
   /** PBKDF2 passphrase credential. See utils/credential.ts. */

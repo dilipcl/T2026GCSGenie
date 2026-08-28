@@ -18,6 +18,7 @@ import {
 import { exceptionMessage, messageContext } from '../../services/whatsappService';
 import { WhatsAppShare } from '../shared/WhatsAppShare';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import { formatFriendlyDate } from '../../utils/date';
 import { X, Undo2 } from 'lucide-react';
@@ -59,6 +60,7 @@ export const CommitmentExceptionModal: React.FC<CommitmentExceptionModalProps> =
   currentRole = 'STUDENT',
 }) => {
   const { toast } = useFeedback();
+  const { confirmChange } = useChangeGuard();
   const settings = useLiveQuery(() => db.parentSettings.get('active_settings'), []);
 
   /**
@@ -115,26 +117,41 @@ export const CommitmentExceptionModal: React.FC<CommitmentExceptionModalProps> =
     if (busy) return;
     setBusy(true);
     try {
-      await logException({
-        commitment: occasion.commitment,
-        date: occasion.date,
-        title: occasion.title,
-        scheduledHours: occasion.hours,
-        status,
-        reasonCategory: reason,
-        reasonNotes: notes,
-        loggedBy: currentRole === 'PARENT' ? 'PARENT' : 'STUDENT',
+      const confirmed = await confirmChange({
+        title: existing ? 'Update this record?' : 'Log this as not happening?',
+        subject: `${occasion.title} — ${formatFriendlyDate(occasion.date)}`,
+        effect: deducts
+          ? `${occasion.hours}h come off this week's load`
+          : 'No change to this week',
+        detail: `${STATUS_LABEL[status]} · ${REASON_LABEL[reason]}`,
+        category: 'ATTENDANCE',
+        confirmLabel: existing ? 'Update it' : 'Log it',
+        actor: currentRole === 'PARENT' ? 'PARENT' : 'STUDENT',
+        summary:
+          `${occasion.title} on ${occasion.date}: ${STATUS_LABEL[status]} — ${REASON_LABEL[reason]}` +
+          (deducts ? ` (−${occasion.hours}h this week)` : ''),
+        run: () =>
+          logException({
+            commitment: occasion.commitment,
+            date: occasion.date,
+            title: occasion.title,
+            scheduledHours: occasion.hours,
+            status,
+            reasonCategory: reason,
+            reasonNotes: notes,
+            loggedBy: currentRole === 'PARENT' ? 'PARENT' : 'STUDENT',
+          }).then(() => undefined),
       });
-      setSaved(true);
-      toast.success(
-        'Logged',
-        deducts
-          ? `${occasion.hours}h come off this week's load.`
-          : 'Recorded, with no change to the week.'
-      );
-    } catch (err) {
-      console.error('Could not log that exception:', err);
-      toast.error('Could not log that', 'Nothing was changed.');
+
+      if (confirmed) {
+        setSaved(true);
+        toast.success(
+          'Logged',
+          deducts
+            ? `${occasion.hours}h come off this week's load.`
+            : 'Recorded, with no change to the week.'
+        );
+      }
     } finally {
       setBusy(false);
     }

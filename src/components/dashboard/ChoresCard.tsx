@@ -2,6 +2,7 @@ import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { choresForDay, setChoreDone } from '../../services/choreService';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { Check, ListChecks } from 'lucide-react';
 
 /**
@@ -16,6 +17,7 @@ import { Check, ListChecks } from 'lucide-react';
  */
 export const ChoresCard: React.FC = () => {
   const { toast } = useFeedback();
+  const { confirmChange } = useChangeGuard();
   const today = useLiveQuery(() => choresForDay(), []);
 
   if (!today || today.length === 0) return null;
@@ -26,18 +28,26 @@ export const ChoresCard: React.FC = () => {
 
   const toggle = async (index: number) => {
     const item = today[index];
-    try {
-      await setChoreDone(item.chore, !item.done);
-      if (!item.done) {
-        const remaining = today.length - done - 1;
-        toast.success(
-          `+${item.chore.xpValue} XP`,
-          remaining === 0 ? 'That is every chore today.' : `${remaining} left today.`
-        );
-      }
-    } catch (err) {
-      console.error('Could not update chore:', err);
-      toast.error('Could not save that', 'Nothing was changed.');
+
+    const confirmed = await confirmChange({
+      title: item.done ? 'Undo this chore?' : 'Mark this chore done?',
+      subject: item.chore.title,
+      effect: item.done ? `−${item.chore.xpValue} XP` : `+${item.chore.xpValue} XP`,
+      category: 'CHORE',
+      tone: item.done ? 'danger' : 'normal',
+      confirmLabel: item.done ? 'Undo it' : 'Yes, done',
+      summary: item.done
+        ? `Un-ticked chore "${item.chore.title}" (−${item.chore.xpValue} XP)`
+        : `Did chore "${item.chore.title}" (+${item.chore.xpValue} XP)`,
+      run: () => setChoreDone(item.chore, !item.done),
+    });
+
+    if (confirmed && !item.done) {
+      const remaining = today.length - done - 1;
+      toast.success(
+        `+${item.chore.xpValue} XP`,
+        remaining === 0 ? 'That is every chore today.' : `${remaining} left today.`
+      );
     }
   };
 
