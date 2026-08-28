@@ -412,9 +412,43 @@ export interface ChangeLogEntry {
   summary: string;
   /** Optional extra context shown under the summary in the digest. */
   detail?: string;
+  /**
+   * When it was re-confirmed on the Updates tab.
+   *
+   * Two stages, deliberately. The sheet at the point of action stops an
+   * accidental tap from writing anything; this is the separate, unhurried pass
+   * where a person reads back what they actually did, adds context, and puts it
+   * on the record. The first is a reflex guard, the second is a signature - and
+   * collapsing them into one would lose whichever job the survivor did not do.
+   */
+  confirmedAt?: number;
+  /** A note added at re-confirmation, in the student's own words. */
+  confirmComment?: string;
+  /** When this was written to the Google Drive log, and to which file. */
+  driveLoggedAt?: number;
+  driveFileName?: string;
   /** Whether this has been included in a message sent to the family. */
   reported: boolean;
   reportedAt?: number;
+}
+
+/**
+ * Where a confirmed batch of updates gets forwarded, if anywhere.
+ *
+ * Off by default for everything. Forwarding a fourteen year old's day to three
+ * places automatically is a decision the family should make deliberately, not
+ * one the app should assume.
+ */
+export interface UpdateForwardingSettings {
+  /** Offer the family group as a destination. */
+  toGroup: boolean;
+  /** Which saved numbers to offer, by their id in parentWhatsAppNumbers. */
+  toNumberIds: string[];
+  /**
+   * Whether the forward step is presented immediately after confirming, rather
+   * than left as something to go and do.
+   */
+  promptAfterConfirm: boolean;
 }
 
 /** How often a chore comes round. */
@@ -567,6 +601,8 @@ export interface ParentSettings {
    * reachable in one tap, and the picker is what actually delivers the message.
    */
   familyGroupInviteUrl?: string;
+  /** Where confirmed updates may be forwarded. Nothing is ever sent on its own. */
+  updateForwarding?: UpdateForwardingSettings;
   /** @deprecated Bare SHA-256 of a 4-digit PIN. Read for migration only. */
   parentPinHash?: string;
   /** PBKDF2 passphrase credential. See utils/credential.ts. */

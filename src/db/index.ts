@@ -395,6 +395,7 @@ export class GCSEGenieDatabase extends Dexie {
     const defaults: (keyof typeof INITIAL_PARENT_SETTINGS)[] = [
       'examSeriesStartDate',
       'familyGroupInviteUrl',
+      'updateForwarding',
     ];
 
     const patch: Partial<ParentSettings> = {};

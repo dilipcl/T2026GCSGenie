@@ -31,8 +31,16 @@ import { Check, X } from 'lucide-react';
  *    otherwise powerless against.
  */
 
-/** How long the primary button ignores input after the sheet opens. */
-const ARM_DELAY_MS = 350;
+/**
+ * How long the primary button refuses input after the sheet opens.
+ *
+ * Short enough to be imperceptible to someone reading the sheet, long enough to
+ * swallow the second half of a double-tap. It must never be silent: a control
+ * that absorbs a tap and says nothing is indistinguishable from a broken one,
+ * which is the single most likely way this whole mechanism gets reported as
+ * "the confirmation isn't working".
+ */
+const ARM_DELAY_MS = 300;
 
 export interface ChangeRequest {
   /** The question, in the imperative: "Mark this done?" */
@@ -75,6 +83,8 @@ export const ChangeGuardProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [pending, setPending] = useState<PendingChange | null>(null);
   const [isArmed, setIsArmed] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  /** Set when someone tapped during the arming window, so it can be explained. */
+  const [tappedEarly, setTappedEarly] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   const confirmChange = useCallback(
@@ -91,6 +101,7 @@ export const ChangeGuardProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!pending) return;
     setIsArmed(false);
     setIsBusy(false);
+    setTappedEarly(false);
     const timer = setTimeout(() => {
       setIsArmed(true);
       confirmRef.current?.focus();
@@ -109,7 +120,14 @@ export const ChangeGuardProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEscapeToClose(!!pending, () => close(false));
 
   const handleConfirm = async () => {
-    if (!pending || !isArmed || isBusy) return;
+    if (!pending || isBusy) return;
+
+    // Tapped before the guard released. Say so rather than absorbing it.
+    if (!isArmed) {
+      setTappedEarly(true);
+      return;
+    }
+
     const { request } = pending;
 
     setIsBusy(true);
@@ -189,16 +207,28 @@ export const ChangeGuardProvider: React.FC<{ children: React.ReactNode }> = ({ c
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Deliberately not `disabled` while arming. A disabled control
+                  absorbs the tap and explains nothing; this one stays live,
+                  refuses the early tap, and says why. */}
               <button
                 ref={confirmRef}
                 onClick={handleConfirm}
-                disabled={!isArmed || isBusy}
-                className={`flex-1 py-3 rounded-xl font-bold text-xs text-white flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 ${
+                disabled={isBusy}
+                aria-disabled={!isArmed}
+                className={`relative flex-1 py-3 rounded-xl font-bold text-xs text-white flex items-center justify-center gap-1.5 overflow-hidden transition-all disabled:opacity-60 ${
                   isDanger
                     ? 'bg-rose-600 hover:bg-rose-500'
                     : 'bg-emerald-600 hover:bg-emerald-500'
-                }`}
+                } ${!isArmed ? 'opacity-70' : ''}`}
               >
+                {/* A sliver of motion so the pause reads as the app getting
+                    ready, not as the button being dead. */}
+                {!isArmed && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-x-0 bottom-0 h-0.5 bg-white/60 motion-safe:animate-pulse"
+                  />
+                )}
                 <Check className="w-4 h-4" />
                 <span>{isBusy ? 'Saving...' : request.confirmLabel || 'Confirm'}</span>
               </button>
@@ -211,8 +241,15 @@ export const ChangeGuardProvider: React.FC<{ children: React.ReactNode }> = ({ c
               </button>
             </div>
 
-            <p className="mt-2.5 text-[10px] text-slate-500 text-center">
-              Confirmed changes are logged and can be sent to the family group.
+            <p
+              className={`mt-2.5 text-[10px] text-center ${
+                tappedEarly ? 'text-amber-300' : 'text-slate-500'
+              }`}
+              role={tappedEarly ? 'alert' : undefined}
+            >
+              {tappedEarly
+                ? 'That was a fraction too quick — tap it again to confirm.'
+                : 'Confirmed changes are logged and can be sent to the family group.'}
             </p>
           </div>
         </div>

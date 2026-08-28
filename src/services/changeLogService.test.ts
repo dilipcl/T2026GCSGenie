@@ -5,8 +5,12 @@ import {
   CATEGORY_ICON,
   CATEGORY_LABEL,
   changesOn,
+  confirmChanges,
+  confirmedChanges,
   groupByCategory,
+  markDriveLogged,
   markReported,
+  pendingConfirmation,
   recordChange,
   unreportedChanges,
 } from './changeLogService';
@@ -61,39 +65,85 @@ describe('recordChange', () => {
   });
 });
 
-describe('unreportedChanges', () => {
-  it('is empty when nothing has been logged', async () => {
+describe('the two stages', () => {
+  it('starts every change waiting to be confirmed', async () => {
+    await recordChange({ category: 'HOMEWORK', summary: 'first' });
+    vi.setSystemTime(new Date(`${TODAY}T12:00:05`));
+    await recordChange({ category: 'CHORE', summary: 'second' });
+
+    expect((await pendingConfirmation()).map((e) => e.summary)).toEqual(['first', 'second']);
+    expect(await confirmedChanges()).toEqual([]);
+  });
+
+  /**
+   * Nothing reaches the family until it has been signed off. Forwarding an
+   * unconfirmed change would send them a draft of somebody's day.
+   */
+  it('offers nothing to forward until it is re-confirmed', async () => {
+    await recordChange({ category: 'HOMEWORK', summary: 'first' });
     expect(await unreportedChanges()).toEqual([]);
+
+    await confirmChanges(await pendingConfirmation());
+    expect((await unreportedChanges()).map((e) => e.summary)).toEqual(['first']);
   });
 
-  it('returns entries oldest first', async () => {
+  it('moves a batch from waiting to confirmed', async () => {
     await recordChange({ category: 'HOMEWORK', summary: 'first' });
     vi.setSystemTime(new Date(`${TODAY}T12:00:05`));
     await recordChange({ category: 'CHORE', summary: 'second' });
 
-    expect((await unreportedChanges()).map((e) => e.summary)).toEqual(['first', 'second']);
+    const waiting = await pendingConfirmation();
+    await confirmChanges([waiting[0]], 'Ran out of time on the other one');
+
+    expect((await pendingConfirmation()).map((e) => e.summary)).toEqual(['second']);
+    expect((await confirmedChanges()).map((e) => e.summary)).toEqual(['first']);
   });
 
-  it('drops entries once they are reported', async () => {
+  it('keeps the comment against every entry in the batch', async () => {
+    await recordChange({ category: 'HOMEWORK', summary: 'a' });
+    await recordChange({ category: 'CHORE', summary: 'b' });
+
+    const confirmedRows = await confirmChanges(await pendingConfirmation(), '  Busy evening  ');
+    expect(confirmedRows.every((e) => e.confirmComment === 'Busy evening')).toBe(true);
+    expect(confirmedRows.every((e) => typeof e.confirmedAt === 'number')).toBe(true);
+  });
+
+  it('leaves the comment off when none was written', async () => {
+    await recordChange({ category: 'HOMEWORK', summary: 'a' });
+    const [row] = await confirmChanges(await pendingConfirmation(), '   ');
+    expect(row.confirmComment).toBeUndefined();
+  });
+
+  it('records which Drive file a batch was written into', async () => {
+    await recordChange({ category: 'HOMEWORK', summary: 'a' });
+    const confirmedRows = await confirmChanges(await pendingConfirmation());
+    await markDriveLogged(confirmedRows, 'Genie-Updates-2026-09-02-1830.md');
+
+    const stored = await db.changeLog.get(confirmedRows[0].id);
+    expect(stored!.driveFileName).toBe('Genie-Updates-2026-09-02-1830.md');
+    expect(stored!.driveLoggedAt).toBeGreaterThan(0);
+  });
+
+  it('drops entries from the forward queue once they are reported', async () => {
     await recordChange({ category: 'HOMEWORK', summary: 'first' });
     vi.setSystemTime(new Date(`${TODAY}T12:00:05`));
     await recordChange({ category: 'CHORE', summary: 'second' });
 
-    const pending = await unreportedChanges();
-    await markReported([pending[0]]);
+    const confirmedRows = await confirmChanges(await pendingConfirmation());
+    await markReported([confirmedRows[0]]);
 
-    const left = await unreportedChanges();
-    expect(left.map((e) => e.summary)).toEqual(['second']);
-    // The reported one still exists - it is a log, not a queue.
+    expect((await unreportedChanges()).map((e) => e.summary)).toEqual(['second']);
+    // Both still exist - it is a log, not a queue.
     expect(await db.changeLog.count()).toBe(2);
+    expect((await confirmedChanges()).length).toBe(2);
   });
 
   it('stamps when it was reported', async () => {
     await recordChange({ category: 'HOMEWORK', summary: 'first' });
-    const pending = await unreportedChanges();
-    await markReported(pending);
+    const confirmedRows = await confirmChanges(await pendingConfirmation());
+    await markReported(confirmedRows);
 
-    const stored = await db.changeLog.get(pending[0].id);
+    const stored = await db.changeLog.get(confirmedRows[0].id);
     expect(stored!.reported).toBe(true);
     expect(stored!.reportedAt).toBeGreaterThan(0);
   });
@@ -123,14 +173,14 @@ describe('groupByCategory', () => {
       await recordChange({ category, summary });
     }
 
-    const grouped = groupByCategory(await unreportedChanges());
+    const grouped = groupByCategory(await pendingConfirmation());
     expect(grouped.map((g) => g.category)).toEqual(['HOMEWORK', 'CHORE', 'REWARD']);
     expect(grouped[0].entries.map((e) => e.summary)).toEqual(['h1', 'h2']);
   });
 
   it('omits categories with nothing in them', async () => {
     await recordChange({ category: 'GOAL', summary: 'g1' });
-    expect(groupByCategory(await unreportedChanges()).map((g) => g.category)).toEqual(['GOAL']);
+    expect(groupByCategory(await pendingConfirmation()).map((g) => g.category)).toEqual(['GOAL']);
   });
 
   it('has a label and an icon for every category it can group', async () => {
@@ -150,7 +200,7 @@ describe('the message sent to the family group', () => {
       detail: 'Dad’s birthday dinner',
     });
 
-    const grouped = groupByCategory(await unreportedChanges());
+    const grouped = groupByCategory(await pendingConfirmation());
     const text = changeLogMessage(
       { studentName: 'Tejas Dilip' },
       {
@@ -318,11 +368,13 @@ describe('settings backfill on an existing install', () => {
     await db.parentSettings.update('active_settings', {
       examSeriesStartDate: undefined,
       familyGroupInviteUrl: undefined,
+      updateForwarding: undefined,
     });
 
     const bare = await db.parentSettings.get('active_settings');
     expect(bare!.examSeriesStartDate).toBeUndefined();
     expect(bare!.familyGroupInviteUrl).toBeUndefined();
+    expect(bare!.updateForwarding).toBeUndefined();
 
     // `ready` is the public route to the seeding and backfill.
     await (db as unknown as { backfillSettingsDefaults(): Promise<void> }).backfillSettingsDefaults();
@@ -330,6 +382,8 @@ describe('settings backfill on an existing install', () => {
     const filled = await db.parentSettings.get('active_settings');
     expect(filled!.examSeriesStartDate).toBe('2027-05-10');
     expect(filled!.familyGroupInviteUrl).toContain('chat.whatsapp.com');
+    // Without this, the forward options silently never appear.
+    expect(filled!.updateForwarding?.toGroup).toBe(true);
   });
 
   it('never overwrites a value somebody set', async () => {

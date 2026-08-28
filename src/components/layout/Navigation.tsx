@@ -12,6 +12,7 @@ import {
   ListTodo,
   CalendarDays,
   ClipboardCheck,
+  FileCheck,
   MoreHorizontal,
   X,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ export type NavTab =
   | 'TASKS'
   | 'CALENDAR'
   | 'PLAN'
+  | 'UPDATES'
   | 'PROOF'
   | 'GOALS'
   | 'TIMETABLE'
@@ -55,8 +57,11 @@ export const Navigation: React.FC<NavigationProps> = ({
     // meant to meet it, and a sixth bottom-bar tab would not fit on a phone.
     { id: 'PLAN', label: 'Plan', shortLabel: 'Plan', icon: CalendarDays, tier: 'daily' },
     { id: 'REMEDIATIONS', label: 'Fix My Mistakes', shortLabel: 'Fix Ups', icon: Wrench, tier: 'daily' },
+    // Where changes get signed off. Daily, because an update that waits a week
+    // to be confirmed is a week the family spent asking.
+    { id: 'UPDATES', label: 'Updates', shortLabel: 'Updates', icon: ClipboardCheck, tier: 'daily' },
     // Logged when a marked paper comes back - a weekly rhythm, not a daily one
-    { id: 'PROOF', label: 'Proof Log', shortLabel: 'Proof', icon: ClipboardCheck, tier: 'weekly' },
+    { id: 'PROOF', label: 'Proof Log', shortLabel: 'Proof', icon: FileCheck, tier: 'weekly' },
     { id: 'REWARDS', label: 'Rewards', shortLabel: 'Rewards', icon: Gift, tier: 'weekly' },
     { id: 'TIMETABLE', label: 'Timetable', shortLabel: 'Timetable', icon: Calendar, tier: 'weekly' },
     { id: 'GOALS', label: 'Subjects & Goals', shortLabel: 'Subjects', icon: Target, tier: 'weekly' },

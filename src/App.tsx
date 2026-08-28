@@ -15,6 +15,7 @@ import { QuickAddSheet, QuickAddEditing } from './components/shared/QuickAddShee
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { ChangeGuardProvider } from './components/shared/ChangeGuardProvider';
 import { ChangeLogCard } from './components/shared/ChangeLogCard';
+import { UpdatesView } from './components/updates/UpdatesView';
 import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
 import { DatabaseGate } from './components/layout/DatabaseGate';
 import { TaskManagerView } from './components/tasks/TaskManagerView';
@@ -128,7 +129,7 @@ export const App: React.FC = () => {
 
             {/* 0b. What has been confirmed but not yet told to anyone. Renders
                    nothing when there is nothing outstanding. */}
-            <ChangeLogCard />
+            <ChangeLogCard onReview={() => setActiveTab('UPDATES')} />
 
             {/* 1. The whole week in one card: goal pacing, capacity, and the
                    three things due today.
@@ -247,6 +248,8 @@ export const App: React.FC = () => {
             }
           />
         )}
+
+        {activeTab === 'UPDATES' && <UpdatesView />}
 
         {activeTab === 'PROOF' && (
           <AssessmentLogView

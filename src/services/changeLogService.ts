@@ -65,14 +65,71 @@ export async function recordChange(input: RecordChangeInput): Promise<ChangeLogE
 }
 
 /**
+ * Everything logged, newest first.
+ *
+ * Booleans and optional timestamps are never indexed - see the note at the top
+ * of db/index.ts - so the lifecycle filters below all work in memory.
+ */
+export async function allChanges(): Promise<ChangeLogEntry[]> {
+  return (await db.changeLog.orderBy('timestamp').toArray()).reverse();
+}
+
+/** Confirmed at the point of action, but not yet re-confirmed. Oldest first. */
+export async function pendingConfirmation(): Promise<ChangeLogEntry[]> {
+  const rows = await db.changeLog.orderBy('timestamp').toArray();
+  return rows.filter((r) => !r.confirmedAt);
+}
+
+/** Re-confirmed and on the record. Newest first. */
+export async function confirmedChanges(): Promise<ChangeLogEntry[]> {
+  const rows = await db.changeLog.orderBy('timestamp').toArray();
+  return rows.filter((r) => !!r.confirmedAt).reverse();
+}
+
+/**
  * Changes not yet sent to the family, oldest first.
  *
- * `reported` is a boolean and so never indexed - see the note at the top of
- * db/index.ts - which is why this filters in memory.
+ * Only re-confirmed entries are eligible: forwarding something that has not
+ * been signed off would send the family a draft.
  */
 export async function unreportedChanges(): Promise<ChangeLogEntry[]> {
   const rows = await db.changeLog.orderBy('timestamp').toArray();
-  return rows.filter((r) => !r.reported);
+  return rows.filter((r) => !!r.confirmedAt && !r.reported);
+}
+
+/**
+ * Puts a batch on the record.
+ *
+ * The comment is stored against every entry in the batch rather than as a
+ * separate note, so an entry read on its own months later still carries the
+ * context it was confirmed with.
+ */
+export async function confirmChanges(
+  entries: ChangeLogEntry[],
+  comment?: string
+): Promise<ChangeLogEntry[]> {
+  const now = Date.now();
+  const trimmed = comment?.trim() || undefined;
+
+  const updated = entries.map((entry) => ({
+    ...entry,
+    confirmedAt: now,
+    confirmComment: trimmed ?? entry.confirmComment,
+  }));
+
+  await db.changeLog.bulkPut(updated);
+  return updated;
+}
+
+/** Records that a batch was written to a Drive log file. */
+export async function markDriveLogged(
+  entries: ChangeLogEntry[],
+  driveFileName: string
+): Promise<void> {
+  const now = Date.now();
+  await db.changeLog.bulkPut(
+    entries.map((e) => ({ ...e, driveLoggedAt: now, driveFileName }))
+  );
 }
 
 /** Everything logged on one day, oldest first. */

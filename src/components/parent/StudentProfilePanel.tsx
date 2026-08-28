@@ -3,7 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { logFieldChanges } from '../../services/auditService';
 import { useFeedback } from '../shared/FeedbackProvider';
-import { UserCog, Save, MessageCircle, Plus, Trash2 } from 'lucide-react';
+import { UserCog, Save, MessageCircle, Plus, Trash2, Share2 } from 'lucide-react';
+import { UpdateForwardingSettings } from '../../types';
 import { formatE164, isValidE164, normaliseE164 } from '../../services/whatsappService';
 import { newId } from '../../utils/id';
 
@@ -25,6 +26,12 @@ export const StudentProfilePanel: React.FC = () => {
   const [targetGrade, setTargetGrade] = useState(9);
   const [examDate, setExamDate] = useState('');
   const [numbers, setNumbers] = useState<{ id: string; label: string; e164: string }[]>([]);
+  const [groupUrl, setGroupUrl] = useState('');
+  const [forwarding, setForwarding] = useState<UpdateForwardingSettings>({
+    toGroup: true,
+    toNumberIds: [],
+    promptAfterConfirm: true,
+  });
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -38,6 +45,10 @@ export const StudentProfilePanel: React.FC = () => {
     setTargetGrade(settings.studentTargetGrade ?? 9);
     setExamDate(settings.examSeriesStartDate || '2027-05-10');
     setNumbers(settings.parentWhatsAppNumbers?.length ? settings.parentWhatsAppNumbers : []);
+    setGroupUrl(settings.familyGroupInviteUrl || '');
+    setForwarding(
+      settings.updateForwarding ?? { toGroup: true, toNumberIds: [], promptAfterConfirm: true }
+    );
     setLoaded(true);
   }, [settings, loaded]);
 
@@ -57,6 +68,13 @@ export const StudentProfilePanel: React.FC = () => {
         parentWhatsAppNumbers: numbers
           .map((n) => ({ ...n, label: n.label.trim(), e164: normaliseE164(n.e164) }))
           .filter((n) => n.e164),
+        familyGroupInviteUrl: groupUrl.trim() || undefined,
+        // Only forward to numbers that still exist - deleting a number should
+        // not leave a destination pointing at nothing.
+        updateForwarding: {
+          ...forwarding,
+          toNumberIds: forwarding.toNumberIds.filter((id) => numbers.some((n) => n.id === id)),
+        },
       };
 
       await db.parentSettings.update('active_settings', fields);
@@ -72,6 +90,8 @@ export const StudentProfilePanel: React.FC = () => {
           studentSchool: 'school',
           studentTargetGrade: 'target grade',
           examSeriesStartDate: 'exam start date',
+          familyGroupInviteUrl: 'family group link',
+          updateForwarding: 'where updates are forwarded',
           // The numbers themselves are never written to the log - a change
           // history a second person reads should not carry phone numbers.
           parentWhatsAppNumbers: 'family WhatsApp numbers',
@@ -273,6 +293,91 @@ export const StudentProfilePanel: React.FC = () => {
               );
             })}
           </div>
+        )}
+      </div>
+
+      {/* Where a confirmed batch of updates may be sent. Off is a valid answer
+          for all of it: forwarding a teenager's day to three places is a family
+          decision, not a default. */}
+      <div className="mt-5 pt-4 border-t border-slate-800">
+        <div className="flex items-center gap-2 mb-2">
+          <Share2 className="w-4 h-4 text-indigo-400" />
+          <div>
+            <h4 className="text-xs font-bold text-white">Forwarding confirmed updates</h4>
+            <p className="text-[10px] text-slate-400">
+              Offered after Tejas confirms a batch. Nothing is ever sent automatically.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label
+            htmlFor="profile-group-url"
+            className="block text-[11px] font-semibold text-slate-300 mb-1"
+          >
+            Family group link
+          </label>
+          <input
+            id="profile-group-url"
+            type="url"
+            placeholder="https://chat.whatsapp.com/..."
+            value={groupUrl}
+            onChange={(e) => setGroupUrl(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white placeholder-slate-600"
+          />
+        </div>
+
+        <div className="mt-3 space-y-2">
+          <label className="flex items-center gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={forwarding.toGroup}
+              onChange={(e) => setForwarding((p) => ({ ...p, toGroup: e.target.checked }))}
+              className="w-4 h-4 accent-emerald-500"
+            />
+            <span className="text-[11px] text-slate-200">Offer the family group</span>
+          </label>
+
+          {numbers.map((n) => (
+            <label key={n.id} className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={forwarding.toNumberIds.includes(n.id)}
+                onChange={(e) =>
+                  setForwarding((p) => ({
+                    ...p,
+                    toNumberIds: e.target.checked
+                      ? [...p.toNumberIds, n.id]
+                      : p.toNumberIds.filter((id) => id !== n.id),
+                  }))
+                }
+                className="w-4 h-4 accent-emerald-500"
+              />
+              <span className="text-[11px] text-slate-200">
+                Offer {n.label.trim() || 'this number'} directly
+              </span>
+            </label>
+          ))}
+
+          <label className="flex items-center gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={forwarding.promptAfterConfirm}
+              onChange={(e) =>
+                setForwarding((p) => ({ ...p, promptAfterConfirm: e.target.checked }))
+              }
+              className="w-4 h-4 accent-emerald-500"
+            />
+            <span className="text-[11px] text-slate-200">
+              Show the send options straight after confirming
+            </span>
+          </label>
+        </div>
+
+        {numbers.length === 0 && (
+          <p className="mt-2 text-[10px] text-slate-500">
+            Save a number above to offer Mum or Dad directly as well as the group.
+          </p>
         )}
       </div>
 

@@ -40,6 +40,9 @@ export const INITIAL_PARENT_SETTINGS: ParentSettings = {
   // The family log group. Changes the student confirms are reported here, so
   // nobody has to ask what was done today.
   familyGroupInviteUrl: 'https://chat.whatsapp.com/JAMiLpKQOt485Gj2G2MVKP',
+  // The group is offered by default because it is the log everyone reads;
+  // individual numbers are opt-in, and nothing is ever sent without a tap.
+  updateForwarding: { toGroup: true, toNumberIds: [], promptAfterConfirm: true },
   googleDriveBackupPath: `${WORKING_FOLDER_PATH}\\_Genie-Backups`,
   googleDriveFolderUrl: WORKING_FOLDER_URL,
   backupsFolderUrl: BACKUPS_FOLDER_URL,
