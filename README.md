@@ -223,13 +223,21 @@ source.
 **Prepare for launch** clears a fortnight of QA out before the app is handed over. The rule is one
 sentence: everything that records *what happened* is cleared, everything that describes *the set-up*
 is kept — so check-ins, reward requests, sanctions, marked work, photos, chore ticks, AI reports and
-the change history go, while the timetable, subjects, syllabus, chores, reward catalogue and the
-parent passphrase stay, with the done-flags on homework, key dates, quests and topics reset. A
-topic's confidence rating survives: that is a judgement someone made, not testing residue.
+the change history go, while the timetable, subjects, syllabus, chores and the reward catalogue
+stay, with the done-flags on homework, key dates, quests and topics reset. A topic's confidence
+rating survives: that is a judgement someone made, not testing residue.
 
 There is no XP counter to zero. XP and the streak are *derived* — XP from check-ins and completions
 less sanctions and redemptions, the streak from check-in dates — so clearing the activity is what
 resets them.
+
+Two things sit on the line between activity and set-up. **The starter goals go back to draft** —
+their wording is kept, only the lock is lifted — because a locked goal records a consultation that
+has not happened yet, and its hours would start measuring the student against a budget he never
+agreed. **The parent passphrase is kept unless the reset is asked to clear it**: a tick-box, off by
+default, for the case where whoever holds it from launch day is not the person who set it during
+testing. Ticking it returns the portal to unclaimed, and the next person to open it sets the
+passphrase.
 
 Three gates: a preview naming every row that will go, a rescue export downloaded before anything is
 touched, and the word `RESET` typed out. Any goal that is not part of the seeded starting set is

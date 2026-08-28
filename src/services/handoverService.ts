@@ -13,8 +13,13 @@ import { calculateTotalXP } from './ragCalculator';
  *
  * The rule is one sentence: everything that records what happened is cleared;
  * everything that describes the set-up is kept. So the timetable, subjects,
- * syllabus, chores, reward catalogue and the parent passphrase all survive, and
- * the balance goes to zero.
+ * syllabus, chores and the reward catalogue all survive, and the balance goes
+ * to zero.
+ *
+ * Two things sit on the line between activity and set-up, and both are handled
+ * explicitly: the starter goals go back to draft, because a locked goal records
+ * a conversation that has not happened yet; and the parent passphrase is kept
+ * unless the reset is asked to clear it.
  */
 
 /** Emptied outright - these tables are nothing but a record of activity. */
@@ -49,6 +54,16 @@ export interface HandoverPreview {
   currentXP: number;
   /** Goals that are not part of the starting set, named so they can be checked. */
   extraGoals: { id: string; title: string }[];
+  /**
+   * Starter goals still sitting locked, which the reset will return to draft.
+   *
+   * The seed ships them as drafts to be argued with. A device that was set up
+   * before that change - or one where a goal was locked while testing the flow -
+   * would otherwise hand Tejas three settled targets he never agreed to.
+   */
+  goalsToUnlock: { id: string; title: string }[];
+  /** Whether a parent passphrase currently exists on this device. */
+  hasPassphrase: boolean;
   totalToDelete: number;
 }
 
@@ -83,20 +98,45 @@ export async function previewHandoverReset(): Promise<HandoverPreview> {
     .filter((g) => !seededGoalIds.has(g.id))
     .map((g) => ({ id: g.id, title: g.title }));
 
+  const seededGoals = new Map(INITIAL_GOALS.map((g) => [g.id, g]));
+  const goalsToUnlock = (await db.goals.toArray())
+    .filter((g) => seededGoals.has(g.id) && g.status !== seededGoals.get(g.id)!.status)
+    .map((g) => ({ id: g.id, title: g.title }));
+
+  const settings = await db.parentSettings.get('active_settings');
+
   return {
     cleared,
     reset,
     kept,
     currentXP: xp.availableXP,
     extraGoals,
+    goalsToUnlock,
+    hasPassphrase: !!(settings?.parentCredential || settings?.parentPinHash),
     totalToDelete: Object.values(cleared).reduce((a, b) => a + b, 0),
   };
+}
+
+export interface HandoverOptions {
+  /**
+   * Also clear the parent passphrase, returning the lock to unclaimed.
+   *
+   * Off by default, and deliberately so: the reset is run from inside the parent
+   * portal, which is already behind the lock, and a parent clearing it by
+   * accident hands the portal to the next person who opens the app. It is on
+   * the checklist for one case - the person who will actually hold the
+   * passphrase from launch day is not the person who set it during testing.
+   */
+  clearPassphrase?: boolean;
 }
 
 export interface HandoverResult {
   deleted: number;
   resetRows: number;
   xpAfter: number;
+  /** Starter goals returned to draft. */
+  goalsUnlocked: number;
+  passphraseCleared: boolean;
 }
 
 /**
@@ -109,7 +149,9 @@ export interface HandoverResult {
  * first entry written afterwards is the reset itself - so the new chain opens by
  * saying what happened to the old one.
  */
-export async function performHandoverReset(): Promise<HandoverResult> {
+export async function performHandoverReset(
+  options: HandoverOptions = {}
+): Promise<HandoverResult> {
   let deleted = 0;
   let resetRows = 0;
 
@@ -174,6 +216,38 @@ export async function performHandoverReset(): Promise<HandoverResult> {
     resetRows++;
   }
 
+  /**
+   * Starter goals go back to draft.
+   *
+   * Only the status and the lock timestamp are touched. Wording a parent
+   * improved while testing is real work and stays; the lock is the part that
+   * would have pre-decided a conversation nobody has had yet.
+   */
+  const seededGoals = new Map(INITIAL_GOALS.map((g) => [g.id, g]));
+  let goalsUnlocked = 0;
+  for (const goal of await db.goals.toArray()) {
+    const seeded = seededGoals.get(goal.id);
+    if (!seeded || goal.status === seeded.status) continue;
+    await db.goals.update(goal.id, { status: seeded.status, lockedAt: undefined });
+    goalsUnlocked++;
+  }
+
+  /**
+   * The passphrase, if asked for.
+   *
+   * Both credentials are cleared - the PBKDF2 one and any legacy PIN hash -
+   * because getLockState only reports UNCLAIMED when neither is present, and a
+   * leftover PIN would leave the app asking for a number nobody remembers.
+   */
+  let passphraseCleared = false;
+  if (options.clearPassphrase) {
+    await db.parentSettings.update('active_settings', {
+      parentCredential: undefined,
+      parentPinHash: undefined,
+    });
+    passphraseCleared = true;
+  }
+
   const xp = await calculateTotalXP();
 
   await logAuditEvent({
@@ -185,8 +259,10 @@ export async function performHandoverReset(): Promise<HandoverResult> {
     oldValue: `${deleted} activity rows`,
     newValue:
       `Reset for handover. ${deleted} rows of testing activity cleared, ${resetRows} rows reset, ` +
-      `balance now ${xp.availableXP} XP. Set-up kept: timetable, subjects, syllabus, chores, rewards and the parent passphrase.`,
+      `balance now ${xp.availableXP} XP, ${goalsUnlocked} starter goals back to draft` +
+      `${passphraseCleared ? ', parent passphrase cleared' : ''}. ` +
+      `Set-up kept: timetable, subjects, syllabus, chores and rewards.`,
   });
 
-  return { deleted, resetRows, xpAfter: xp.availableXP };
+  return { deleted, resetRows, xpAfter: xp.availableXP, goalsUnlocked, passphraseCleared };
 }

@@ -6,7 +6,7 @@ import {
 } from '../../services/handoverService';
 import { exportDatabaseToJSON } from '../../services/backupService';
 import { useFeedback } from '../shared/FeedbackProvider';
-import { RotateCcw, AlertTriangle, Download, ArrowRight } from 'lucide-react';
+import { RotateCcw, AlertTriangle, Download, ArrowRight, KeyRound, Target } from 'lucide-react';
 
 const TABLE_LABELS: Record<string, string> = {
   checkIns: 'Check-ins',
@@ -38,6 +38,7 @@ export const HandoverResetPanel: React.FC = () => {
   const { toast } = useFeedback();
   const [preview, setPreview] = useState<HandoverPreview | null>(null);
   const [typed, setTyped] = useState('');
+  const [clearPassphrase, setClearPassphrase] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const handlePreview = async () => {
@@ -45,6 +46,7 @@ export const HandoverResetPanel: React.FC = () => {
     try {
       setPreview(await previewHandoverReset());
       setTyped('');
+      setClearPassphrase(false);
     } catch (err) {
       console.error('Could not read the database:', err);
       toast.error('Could not read the database', 'Nothing was changed.');
@@ -69,13 +71,16 @@ export const HandoverResetPanel: React.FC = () => {
       a.click();
       URL.revokeObjectURL(url);
 
-      const result = await performHandoverReset();
+      const result = await performHandoverReset({ clearPassphrase });
       toast.success(
         `Reset — balance is ${result.xpAfter} XP`,
-        `${result.deleted} rows of testing cleared, ${result.resetRows} reset. A rescue copy downloaded first.`
+        `${result.deleted} rows of testing cleared, ${result.resetRows} reset` +
+          `${result.goalsUnlocked > 0 ? `, ${result.goalsUnlocked} goals back to draft` : ''}` +
+          `${result.passphraseCleared ? ', passphrase cleared' : ''}. A rescue copy downloaded first.`
       );
       setPreview(null);
       setTyped('');
+      setClearPassphrase(false);
     } catch (err) {
       console.error('Handover reset failed:', err);
       toast.error('Reset failed', 'The database was not fully changed — check the counts and try again.');
@@ -102,7 +107,8 @@ export const HandoverResetPanel: React.FC = () => {
       </p>
       <p className="text-[11px] text-slate-400 mb-4">
         <strong className="text-slate-200">Kept:</strong> timetable, subjects, syllabus, goals,
-        chores, reward catalogue, Drive links and the parent passphrase.
+        chores, reward catalogue and Drive links. Starter goals go back to draft so the first
+        goals conversation is still had rather than assumed.
       </p>
 
       {!preview ? (
@@ -155,6 +161,41 @@ export const HandoverResetPanel: React.FC = () => {
               </>
             )}
           </div>
+
+          {preview.goalsToUnlock.length > 0 && (
+            <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl">
+              <p className="text-[11px] text-slate-300 flex items-start gap-2">
+                <Target className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+                <span>
+                  <strong className="font-bold text-white">Back to draft:</strong>{' '}
+                  {preview.goalsToUnlock.map((g) => g.title).join(', ')}. The wording stays; only
+                  the lock is lifted, so each one gets agreed properly before it counts.
+                </span>
+              </p>
+            </div>
+          )}
+
+          {preview.hasPassphrase && (
+            <label className="flex items-start gap-2.5 p-3 bg-slate-900/80 border border-slate-800 rounded-xl cursor-pointer">
+              <input
+                type="checkbox"
+                checked={clearPassphrase}
+                onChange={(e) => setClearPassphrase(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-rose-500"
+              />
+              <span className="text-[11px] text-slate-300">
+                <strong className="font-bold text-white flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                  Also clear the parent passphrase
+                </strong>
+                <span className="block mt-0.5">
+                  The portal returns to unclaimed, and the next person to open it sets the
+                  passphrase. Leave this off unless whoever holds it from launch day is not the
+                  person who set it during testing.
+                </span>
+              </span>
+            </label>
+          )}
 
           {preview.extraGoals.length > 0 && (
             <div className="p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl">

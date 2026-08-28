@@ -522,6 +522,23 @@ export const INITIAL_FREE_REVISION_LINKS: FreeRevisionLink[] = [
   { id: 'rev-7', title: 'Mr Bruff English Language & Literature', subjectId: 'english_lang', description: 'Mastery guides on essay structures, Shakespeare analysis, and language techniques.', url: 'https://mrbruff.com', type: 'VIDEO_TUTORIALS' },
 ];
 
+/**
+ * The starter goals, as drafts rather than settled targets.
+ *
+ * These ship DRAFT deliberately. A goal arriving pre-locked is a target somebody
+ * else decided, and the whole point of the consultation flow is that Tejas
+ * writes the SMART wording, proposes the hours, and a parent locks it only once
+ * they have both agreed. Handing him three locked goals on first open skips the
+ * one conversation the app exists to hold - and the hours meter would start
+ * measuring him against a budget he never set.
+ *
+ * So they are a first draft to argue with: real titles, real dates, hours worth
+ * challenging. Edit them, send them for discussion, and lock what survives.
+ *
+ * Until a goal is locked, its hours count towards nothing - not the weekly time
+ * capacity, not the burnout gauge, not the goal-hours meter. That is correct:
+ * an unagreed goal is not yet a commitment.
+ */
 export const INITIAL_GOALS: Goal[] = [
   {
     id: 'g-academic-maths',
@@ -535,11 +552,10 @@ export const INITIAL_GOALS: Goal[] = [
     smartAchievable: 'Weekly practice questions + completing Year 9 remediation actions.',
     smartRealistic: 'Building on strong 60/75 Year 9 foundation.',
     smartTimeBound: 'Maintain across Year 10 and mock exams in Year 11.',
-    status: 'APPROVED_LOCKED',
+    status: 'DRAFT',
     ragStatus: 'GREEN',
     weeklyHoursRequired: 4.0,
-    parentNotes: 'Target locked. Focus on sign consistency in algebra.',
-    lockedAt: Date.now(),
+    parentNotes: 'Starting point for the first goals conversation. Focus on sign consistency in algebra.',
     createdAt: Date.now(),
   },
   {
@@ -554,11 +570,10 @@ export const INITIAL_GOALS: Goal[] = [
     smartAchievable: 'Log homework immediately on day set using Genie dashboard.',
     smartRealistic: 'Eliminates IR3 home learning deficit.',
     smartTimeBound: 'End of Term 1 Year 10.',
-    status: 'APPROVED_LOCKED',
+    status: 'DRAFT',
     ragStatus: 'AMBER',
     weeklyHoursRequired: 3.5,
-    parentNotes: 'Monitored via weekly Agentic Audit.',
-    lockedAt: Date.now(),
+    parentNotes: 'Starting point for the first goals conversation. Would be monitored via the weekly audit.',
     createdAt: Date.now(),
   },
   {
@@ -572,11 +587,10 @@ export const INITIAL_GOALS: Goal[] = [
     smartAchievable: 'Blocked out securely in weekly schedule.',
     smartRealistic: '6.0 hours/week built into base capacity.',
     smartTimeBound: 'By end of Year 10.',
-    status: 'APPROVED_LOCKED',
+    status: 'DRAFT',
     ragStatus: 'GREEN',
     weeklyHoursRequired: 6.0,
-    parentNotes: 'Key extracurricular commitment.',
-    lockedAt: Date.now(),
+    parentNotes: 'Starting point for the first goals conversation. Key extracurricular commitment.',
     createdAt: Date.now(),
   },
 ];

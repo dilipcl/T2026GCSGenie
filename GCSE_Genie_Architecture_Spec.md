@@ -525,7 +525,9 @@ reset works by clearing the activity that produces them.
 | :--- | :--- |
 | **Cleared** | `checkIns`, `redemptions`, `sanctions`, `assessments`, `attachments`, `choreCompletions`, `agentAuditReports`, `auditLogs` |
 | **Progress reset, rows kept** | `tasks`, `milestones`, `remediations`, `syllabusTopics` |
-| **Untouched** | Everything else — timetable, subjects, chores, rewards, goals, links, parent credential |
+| **Status reset, wording kept** | `goals` — seeded goals return to their seeded status (`DRAFT`), `lockedAt` removed |
+| **Cleared on request** | `parentCredential` and `parentPinHash`, only when `clearPassphrase` is passed |
+| **Untouched** | Everything else — timetable, subjects, chores, rewards, links |
 
 Everything recording *what happened* is cleared; everything describing *the set-up* is kept. A
 topic's `confidenceRating` survives the reset: that is a judgement someone actually made about a
@@ -541,8 +543,23 @@ what happened to the old one. The lockout counters are zeroed at the same time.
 Three gates, in this order: a **preview** naming every row that will go, a **rescue export** taken
 before anything is touched, and a **typed confirmation word**. This is the one destructive action a
 parent will reach for deliberately, and muscle memory is precisely what stops a confirmation dialog
-from being read. Goals are configuration and are kept, but any goal outside the seeded starting set
-is named in the preview — a stress-test goal left behind would distort the workload cap from day one.
+from being read. Goals are configuration and their wording is kept, but any goal outside the seeded
+starting set is named in the preview — a stress-test goal left behind would distort the workload cap
+from day one.
+
+**Seeded goals return to `DRAFT`.** The seed ships them as drafts (5.3), so a device carrying them
+as `APPROVED_LOCKED` either predates that change or locked one while the flow was being tested.
+Either way it hands the student three settled targets he never agreed to, and locked hours count
+towards the weekly capacity. Only `status` and `lockedAt` are touched — SMART wording a parent
+improved during testing is real work and survives.
+
+**The parent passphrase is kept by default.** `performHandoverReset({ clearPassphrase: true })`
+clears both `parentCredential` and the legacy `parentPinHash`, returning `getLockState()` to
+`UNCLAIMED`; clearing only one would leave the app asking for a credential nobody holds. It is
+off by default because the reset runs from inside the portal, which is already behind the lock — a
+parent clearing it by accident hands the portal to whoever opens the app next. The tick-box exists
+for one case: the person who will hold the passphrase from launch day is not the person who set it
+while testing.
 
 ---
 
@@ -858,6 +875,20 @@ Seeding runs from `on('ready')`, **not** `on('populate')`, per Dexie Cloud's gui
 fires on a brand-new local database, which is also the state a second device is in moments before
 its first sync arrives. Seeding there would give every new device its own copy of the starter
 content. The seeder only inserts rows whose primary key is absent, and deduplicates its input by id.
+
+### 5.3. Seeded goals ship as drafts
+
+`INITIAL_GOALS` carries `status: 'DRAFT'` and no `lockedAt`. Shipping them locked would hand the
+student three targets somebody else decided, and skip the one conversation the consultation flow
+exists to hold — he writes the SMART wording, proposes the hours, and a parent locks what survives.
+
+Until a goal is locked its hours count towards nothing: not the weekly time capacity (4.4), not the
+burnout gauge, not the goal-hours meter (4.11), all of which filter on `APPROVED_LOCKED`. That is
+the correct reading — an unagreed goal is not a commitment.
+
+Because the seeder only inserts absent rows, changing the seed has no effect on a device where the
+goals already exist. The handover reset (4.13) is what returns an existing install to the drafted
+state.
 
 ---
 

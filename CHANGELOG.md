@@ -1,5 +1,47 @@
 # Changelog
 
+## August 2026 - Goals arrive as drafts, and the reset can hand over the keys
+
+Three seeded goals used to arrive `APPROVED_LOCKED`: Grade 9 Maths, Grade 9
+Computer Science, and the Air Cadets milestone, each with its hours already
+counted. That is a settled target somebody else decided, delivered on first
+open, and it skips the entire reason the consultation flow exists - Tejas
+writes the SMART wording, argues the hours, and a parent locks what survives.
+
+They now ship as `DRAFT`. The wording is unchanged and the dates are real, so
+there is something to push back against rather than a blank form. Until a goal
+is locked its hours count towards nothing - not the weekly capacity, not the
+burnout gauge, not the goal-hours meter, all of which filter on
+`APPROVED_LOCKED`. An unagreed goal is not a commitment, and now the numbers
+say so.
+
+The seeder only ever inserts rows that are missing, deliberately, so a synced
+device cannot have its edits overwritten by pristine seed copies. That also
+means changing the seed does nothing on a device where those three goals already
+exist. **The handover reset does it instead**: seeded goals go back to their
+seeded status and lose `lockedAt`, and only those two fields are touched -
+wording a parent improved while testing is real work and stays.
+
+### The reset can also clear the passphrase
+
+The reset kept the parent passphrase, on the reasoning that it is set-up rather
+than activity. That is right in general and wrong for the one case that matters
+at launch: the person who set the passphrase while testing is often not the
+person who will hold it afterwards.
+
+There is now a tick-box, off by default and only shown when a passphrase exists.
+Ticking it clears both the PBKDF2 credential and any legacy PIN hash - clearing
+one and not the other leaves the app asking for a credential nobody holds - and
+the lock returns to unclaimed, so the next person to open the portal sets it.
+
+It stays off by default because the reset runs from *inside* the portal, which
+is already behind the lock. A parent who ticks it by accident hands the portal
+to whoever opens the app next.
+
+The preview names both changes before anything happens, the rescue export still
+downloads first, and the audit entry that opens the new chain now says how many
+goals were unlocked and whether the passphrase went with them.
+
 ## August 2026 - The pre-launch QA pass: editing, and knowing where the hours went
 
 The launch-readiness walkthrough found one blocking layout bug, three smaller
