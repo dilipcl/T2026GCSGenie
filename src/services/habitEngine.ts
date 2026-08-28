@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { todayISO, addDaysISO, daysBetween, toLocalISODate, parseISODate } from '../utils/date';
+import { currentWeek, rolling7Days } from './weekWindow';
 
 export interface StreakStats {
   /** Days checked in during the current unbroken run. */
@@ -34,8 +35,20 @@ export interface EffortStats {
   checkInDays: number;
   /** Total study time ever logged, in hours to 1dp. */
   hoursLogged: number;
-  /** Study time logged in the last 7 days, in hours to 1dp. */
+  /**
+   * Study time inside the current Monday-to-Sunday week, in hours to 1dp.
+   *
+   * Deliberately the same window the capacity gauge and the goal budgets use.
+   * It used to be a rolling seven days, which meant the weekly review's "8.5h
+   * studied" and the cockpit's "8.5h logged" could differ by a Sunday.
+   */
   hoursThisWeek: number;
+  /**
+   * Study time in the trailing seven days. A different question - "how hard
+   * have you been working lately" rather than "how is this week going" - and
+   * named apart so the two are never swapped at a call site.
+   */
+  hoursLast7Days: number;
 }
 
 export interface HeatmapDay {
@@ -136,9 +149,14 @@ export async function calculateEffortStats(): Promise<EffortStats> {
 
   const totalMinutes = checkIns.reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0);
 
-  const weekAgo = addDaysISO(-7);
+  const week = currentWeek();
   const weekMinutes = checkIns
-    .filter((c) => c.date >= weekAgo)
+    .filter((c) => c.date >= week.start && c.date <= week.end)
+    .reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0);
+
+  const trailing = rolling7Days();
+  const trailingMinutes = checkIns
+    .filter((c) => c.date >= trailing.start && c.date <= trailing.end)
     .reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0);
 
   return {
@@ -148,6 +166,7 @@ export async function calculateEffortStats(): Promise<EffortStats> {
     checkInDays,
     hoursLogged: Math.round((totalMinutes / 60) * 10) / 10,
     hoursThisWeek: Math.round((weekMinutes / 60) * 10) / 10,
+    hoursLast7Days: Math.round((trailingMinutes / 60) * 10) / 10,
   };
 }
 

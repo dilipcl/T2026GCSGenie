@@ -287,6 +287,97 @@ export interface ProofAttachment {
   createdAt: number;
 }
 
+/**
+ * A recurring real-world commitment that occupies time whether or not anyone
+ * plans for it: school, cadets, drums, DofE.
+ *
+ * These used to be a hardcoded `const` inside burnoutEngine, which had two
+ * consequences. Quitting drums - or simply having a second child - needed a
+ * source change; and an absence cannot be logged against a `const`, so a missed
+ * parade night still counted its three hours and the burnout gauge told the
+ * family the week was fuller than it was.
+ *
+ * `timetableEntryIds` is what makes an absence concrete. The same commitments
+ * already existed as hard-locked timetable rows, unlinked, and one of them had
+ * silently drifted out of agreement; joining them means "log absence" on
+ * Tuesday knows which occasion it is cancelling and for how many hours.
+ */
+export interface FixedCommitment {
+  id: string;
+  label: string;
+  weeklyHours: number;
+  /**
+   * Archived rather than deleted, following the chore precedent: seeding
+   * re-inserts any absent row it knows about, so a deleted commitment would
+   * come back on the next open, and past exceptions would point at nothing.
+   */
+  isActive: boolean;
+  /** Hard-locked timetable rows this commitment is actually made of. */
+  timetableEntryIds: string[];
+  /**
+   * What one missed occasion costs, when the timetable cannot say.
+   *
+   * A cadets absence is three hours, not the full six. Where a linked timetable
+   * row covers the date its real duration wins; this is the fallback, and the
+   * only answer available for school, whose periods are generated rather than
+   * enumerated.
+   */
+  hoursPerOccasion: number;
+  /**
+   * An approved goal representing the same real hours. Those hours must not be
+   * counted twice - once here and once as the goal's weekly budget.
+   */
+  coveredByGoalId?: string;
+  /** Shown on the capacity breakdown; falls back to a neutral slate. */
+  accentColor?: string;
+  createdAt: number;
+  createdBy: UserRole;
+}
+
+export type CommitmentExceptionStatus =
+  | 'EXCUSED_ABSENT'
+  | 'POSTPONED'
+  | 'CANCELLED_BY_ORGANISER'
+  | 'ATTENDED';
+
+export type ExceptionReasonCategory =
+  | 'FAMILY'
+  | 'ILLNESS'
+  | 'MOCK_PREP'
+  | 'SCHOOL_TRIP'
+  | 'STAND_DOWN'
+  | 'OTHER';
+
+/**
+ * One occasion of a fixed commitment that did not happen as scheduled.
+ *
+ * `scheduledHours` is a snapshot taken when the exception is logged, not a live
+ * lookup. Editing a commitment from 3h to 2h next term must not silently
+ * rewrite what last October's absence deducted.
+ */
+export interface CommitmentException {
+  /**
+   * `${commitmentId}__${date}` by construction, never a random id - the same
+   * reasoning as ChoreCompletion. Two devices logging the same absence offline
+   * then syncing produce one row and one deduction; a generated id would have
+   * deducted the hours twice and read as a sync fault rather than a modelling
+   * one.
+   */
+  id: string;
+  commitmentId: string;
+  /** Local ISO date of the occasion being excused. */
+  date: string;
+  title: string;
+  scheduledHours: number;
+  status: CommitmentExceptionStatus;
+  reasonCategory: ExceptionReasonCategory;
+  reasonNotes?: string;
+  /** ATTENDED rows exist for the record and never move the capacity total. */
+  deductsFromCapacity: boolean;
+  loggedBy: UserRole;
+  createdAt: number;
+}
+
 /** How often a chore comes round. */
 export type ChoreCadence = 'DAILY' | 'WEEKDAYS' | 'WEEKLY';
 
@@ -412,6 +503,22 @@ export interface ParentSettings {
   studentYearGroup?: string;
   studentSchool?: string;
   studentTargetGrade?: number;
+  /**
+   * The first morning of the GCSE exam series, as a local YYYY-MM-DD.
+   *
+   * The launch film opens on "Summer 2027" and the app never said it once. A
+   * countdown is the cheapest way to make twenty-one months feel finite, and it
+   * has to be a setting rather than a constant because the date moves and
+   * because the app should still work for whoever uses it next.
+   */
+  examSeriesStartDate?: string;
+  /**
+   * Where a shared update goes. E.164 including the country code, because
+   * that is what wa.me requires - "07..." silently fails to resolve.
+   *
+   * Family phone numbers, so they never enter a CSV export.
+   */
+  parentWhatsAppNumbers?: { id: string; label: string; e164: string }[];
   /** @deprecated Bare SHA-256 of a 4-digit PIN. Read for migration only. */
   parentPinHash?: string;
   /** PBKDF2 passphrase credential. See utils/credential.ts. */

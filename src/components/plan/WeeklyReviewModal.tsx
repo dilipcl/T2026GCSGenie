@@ -7,6 +7,13 @@ import { calculateStreakStats, calculateEffortStats } from '../../services/habit
 import { calculateTotalXP } from '../../services/ragCalculator';
 import { choreWeekSummary, saveChore, CADENCE_LABEL } from '../../services/choreService';
 import { lockedGoalProgress } from '../../services/goalProgress';
+import { goalTrend, type Trend } from '../../services/goalTrend';
+import { calculateBurnoutCapacity } from '../../services/burnoutEngine';
+import { weekExceptions, REASON_LABEL, STATUS_LABEL } from '../../services/commitmentService';
+import { messageContext, weeklyDigestMessage } from '../../services/whatsappService';
+import { WhatsAppShare } from '../shared/WhatsAppShare';
+import { Sparkline } from '../shared/Sparkline';
+import { PACE_TEXT } from '../shared/PaceBar';
 import { ChoreCadence } from '../../types';
 import { logAuditEvent } from '../../services/auditService';
 import { useFeedback } from '../shared/FeedbackProvider';
@@ -61,6 +68,23 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
   const xp = useLiveQuery(() => (isOpen ? calculateTotalXP() : undefined), [isOpen]);
   const chores = useLiveQuery(() => (isOpen ? choreWeekSummary() : undefined), [isOpen]);
   const goalHours = useLiveQuery(() => (isOpen ? lockedGoalProgress() : []), [isOpen], []);
+  const capacity = useLiveQuery(() => (isOpen ? calculateBurnoutCapacity() : undefined), [isOpen]);
+  const exceptions = useLiveQuery(() => (isOpen ? weekExceptions() : []), [isOpen], []);
+  const settings = useLiveQuery(
+    () => (isOpen ? db.parentSettings.get('active_settings') : undefined),
+    [isOpen]
+  );
+  const goalTrends = useLiveQuery<Record<string, Trend>, Record<string, Trend>>(
+    async () => {
+      if (!isOpen) return {};
+      const entries = await Promise.all(
+        (await lockedGoalProgress()).map(async (p) => [p.goal.id, await goalTrend(p.goal)] as const)
+      );
+      return Object.fromEntries(entries);
+    },
+    [isOpen],
+    {}
+  );
 
   // Adding a chore inline rather than sending the parent to the Parent Portal.
   // This is a fifteen-minute ritual with both people sitting down; navigating
@@ -100,6 +124,46 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
   if (!commitment || !streak || !effort || !xp) return null;
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
+
+  const examDays = settings?.examSeriesStartDate
+    ? daysUntil(settings.examSeriesStartDate)
+    : undefined;
+
+  const digestText = weeklyDigestMessage(messageContext(settings), {
+    weekLabel: `Week of ${formatFriendlyDate(capacity?.week.start ?? addDaysISO(0))}`,
+    targetGrade: settings?.studentTargetGrade,
+    daysToExams: examDays !== undefined && examDays >= 0 ? examDays : undefined,
+    goals: goalHours.map((p) => ({
+      title: p.goal.title,
+      actualHours: p.actualHours,
+      targetHours: p.targetHours,
+      onTrack: !p.needsAction,
+    })),
+    commitments:
+      capacity?.commitmentBreakdown.map((c) => ({
+        label: c.label,
+        netHours: c.netHours,
+        excusedHours: c.excusedHours,
+      })) ?? [],
+    exceptions: exceptions.map((e) => ({
+      title: e.title,
+      date: e.date,
+      reasonLabel: REASON_LABEL[e.reasonCategory],
+    })),
+    streakCurrent: streak.current,
+    streakBest: streak.best,
+    choresDone: chores?.done ?? 0,
+    choresDue: chores?.due ?? 0,
+    xpEarnedThisWeek: chores?.xp ?? 0,
+    xpBalance: xp.availableXP,
+    studyHours: effort.hoursThisWeek,
+    committedDone: commitment.committedDone,
+    committedCount: commitment.committedCount,
+    // The three things carried into next week: whatever is still committed.
+    focusNextWeek: commitment.columns.THIS_WEEK.filter((t) => !t.completed)
+      .slice(0, 3)
+      .map((t) => t.title),
+  });
   const approvalCount =
     (pendingRewards?.length ?? 0) + (pendingGoals?.length ?? 0) + (unverifiedPapers?.length ?? 0);
 
@@ -239,16 +303,55 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
                 {p.isUnattributable ? (
                   <span className="text-[11px] text-slate-500 whitespace-nowrap">no subject set</span>
                 ) : (
-                  <span
-                    className={`text-[11px] font-bold whitespace-nowrap ${
-                      p.needsAction ? 'text-amber-300' : 'text-emerald-300'
-                    }`}
-                  >
-                    {p.actualHours} / {p.targetHours}h
-                  </span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className={`text-[11px] font-bold whitespace-nowrap ${PACE_TEXT[p.pace]}`}>
+                      {p.actualHours} / {p.targetHours}h
+                    </span>
+                    {/* The month behind the week. A goal can hit its hours this
+                        week and still be on a four-week slide. */}
+                    {goalTrends[p.goal.id] && (
+                      <Sparkline
+                        trend={goalTrends[p.goal.id]}
+                        targetHours={p.targetHours}
+                        width={60}
+                        height={18}
+                      />
+                    )}
+                  </div>
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* EXC-4. Excused hours changed the week's arithmetic, so the review
+            has to say which evenings were missed and why - otherwise the
+            capacity gauge simply went down and nobody knows what for. */}
+        {step === 'LAST_WEEK' && exceptions.length > 0 && (
+          <div className="mt-3 p-3 bg-slate-900/70 border border-slate-800 rounded-xl">
+            <p className="text-xs font-bold text-white mb-1.5">
+              Missed or moved
+              {(capacity?.excusedHours ?? 0) > 0 && (
+                <span className="font-normal text-amber-300">
+                  {' '}
+                  · {capacity!.excusedHours}h came off the week
+                </span>
+              )}
+            </p>
+            <ul className="space-y-1">
+              {exceptions.map((e) => (
+                <li key={e.id} className="text-[11px] text-slate-300">
+                  <span className="text-slate-200 font-medium">{e.title}</span>{' '}
+                  <span className="text-slate-500">
+                    {formatFriendlyDate(e.date)} · {STATUS_LABEL[e.status]} ·{' '}
+                    {REASON_LABEL[e.reasonCategory]}
+                  </span>
+                  {e.reasonNotes && (
+                    <span className="block text-[10px] text-slate-500 italic">{e.reasonNotes}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -419,6 +522,18 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
                 Signing off records this in the change history so next week starts from something
                 real rather than memory.
               </p>
+            </div>
+
+            {/* WA-4. The one output in the app addressed to more than one
+                person - the film's last scene. Built from the numbers this
+                modal is already showing, so it can never report a different
+                week from the one on screen. */}
+            <div className="p-4 bg-slate-900/70 border border-slate-800 rounded-2xl">
+              <h3 className="text-sm font-bold text-white mb-0.5">Send the week to the family</h3>
+              <p className="text-[11px] text-slate-400 mb-2.5">
+                Everything above in one message. Nothing is sent until you tap.
+              </p>
+              <WhatsAppShare text={digestText} previewLabel="Read it first" />
             </div>
 
             <button

@@ -6,12 +6,11 @@ import { DailyCheckInModal } from './components/dashboard/DailyCheckInModal';
 import { CheckInHistoryModal } from './components/dashboard/CheckInHistoryModal';
 import { TodayScheduleCard } from './components/dashboard/TodayScheduleCard';
 import { ActiveQuestsCard } from './components/dashboard/ActiveQuestsCard';
-import { BurnoutAlertBanner } from './components/dashboard/BurnoutAlertBanner';
+import { WeeklyCockpitCard } from './components/dashboard/WeeklyCockpitCard';
 import { DueSoonCard } from './components/dashboard/DueSoonCard';
 import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
 import { SessionTimerCard } from './components/dashboard/SessionTimerCard';
 import { PlanPulseBanner } from './components/dashboard/PlanPulseBanner';
-import { ChoresCard } from './components/dashboard/ChoresCard';
 import { QuickAddSheet, QuickAddEditing } from './components/shared/QuickAddSheet';
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
@@ -118,9 +117,36 @@ export const App: React.FC = () => {
             <PlanPulseBanner
               onOpenCheckIn={() => setIsCheckInOpen(true)}
               onOpenGoals={() => setActiveTab('GOALS')}
+              onOpenPlan={() => setActiveTab('PLAN')}
             />
 
-            {/* 1. What needs doing - the question the app is opened to answer */}
+            {/* 1. The whole week in one card: goal pacing, capacity, and the
+                   three things due today.
+
+                   This absorbs three cards that used to be stacked down the
+                   page - today's chores, the schedule, and the workload gauge
+                   that sat at the very bottom where the field test found it
+                   unread. Each was defensible on its own; together they
+                   answered "how is the week going" only for someone prepared
+                   to scroll and add up, which is the opposite of what the app
+                   promises. */}
+            <WeeklyCockpitCard
+              activeWeek={activeWeek}
+              currentRole={currentRole}
+              onOpenGoals={() => setActiveTab('GOALS')}
+              onOpenTasks={() => setActiveTab('TASKS')}
+              onOpenTimetable={() => setActiveTab('TIMETABLE')}
+            />
+
+            {/* 2. What is actually due.
+
+                   The cockpit's Today strip names the single most pressing
+                   item, which is the right answer to "what now" and the wrong
+                   answer to "what is coming". Overdue work, the rest of the
+                   week, and the key dates inside three weeks all need to be
+                   visible without opening another tab - a student who has to
+                   navigate to find out what is due has already been given a
+                   reason to close the app. */}
             <DueSoonCard
               refreshKey={refreshKey}
               onAdd={() => setIsQuickAddOpen(true)}
@@ -128,7 +154,7 @@ export const App: React.FC = () => {
               onSeeCalendar={() => setActiveTab('CALENDAR')}
             />
 
-            {/* 2. Log the day - the other daily action */}
+            {/* 3. Log the day - the other daily action */}
             <div className="glass-card p-5 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-indigo-950/40 border-emerald-500/30 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl border border-emerald-500/30 shadow-lg shadow-emerald-950/40">
@@ -161,31 +187,28 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            {/* 3. Do the work, with the break attached */}
-            <SessionTimerCard />
-
             {/* 4. The chain - visible proof that the habit is holding */}
             <HabitStreakCard
               refreshKey={refreshKey}
               onOpenCheckIn={() => setIsCheckInOpen(true)}
             />
 
-            {/* 5. The small reliable jobs. Renders nothing when none fall due
-                   today, so a household that keeps no chore list never sees it. */}
-            <ChoresCard />
+            {/* 5. Do the work, with the break attached */}
+            <SessionTimerCard />
 
-            {/* 6. Today's context */}
+            {/* 6. Today's context. The schedule keeps its own card because a
+                   full day of periods does not belong in a three-line triad;
+                   the cockpit shows the next fixed thing, this shows all of
+                   them. */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <TodayScheduleCard
                 activeWeek={activeWeek}
+                currentRole={currentRole}
                 onNavigateToTimetable={() => setActiveTab('TIMETABLE')}
               />
 
               <ActiveQuestsCard onSelectQuest={handleSelectQuestFromDashboard} />
             </div>
-
-            {/* 7. Weekly status readout, not a daily action */}
-            <BurnoutAlertBanner refreshKey={refreshKey} />
           </div>
         )}
 

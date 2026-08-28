@@ -318,7 +318,7 @@ ${ragResults
 - **Safe Limit:** ${burnout.safeWeeklyHoursLimit} Hours/Week (total, including school hours)
 - **Scheduled Commitments:** ${burnout.totalScheduledHours} Hours/Week
 - **Stress Index:** ${burnout.stressIndex}% (${burnout.stressStatus})
-- **Base Breakdown:** School (${burnout.schoolHours}h) + Cadets (${burnout.cadetsHours}h) + Art (${burnout.artSupportHours}h) + Drums (${burnout.drumsHours}h) + DofE (${burnout.dofeHours}h)
+- **Base Breakdown:** ${burnout.commitmentBreakdown.map((c) => `${c.label} (${c.netHours}h${c.excusedHours > 0 ? `, ${c.excusedHours}h excused` : ''})`).join(' + ')}
 
 ---
 

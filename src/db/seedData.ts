@@ -13,6 +13,7 @@ import {
   Task,
   DayOfWeek,
   SubjectId,
+  FixedCommitment,
 } from '../types';
 import { addDaysISO } from '../utils/date';
 import {
@@ -32,6 +33,10 @@ export const INITIAL_PARENT_SETTINGS: ParentSettings = {
   studentYearGroup: 'Year 10',
   studentSchool: 'GCS',
   studentTargetGrade: 9,
+  // First morning of the Summer 2027 series. A default rather than a blank:
+  // the countdown is the point, and nobody configures a field to be told
+  // something they already half know.
+  examSeriesStartDate: '2027-05-10',
   googleDriveBackupPath: `${WORKING_FOLDER_PATH}\\_Genie-Backups`,
   googleDriveFolderUrl: WORKING_FOLDER_URL,
   backupsFolderUrl: BACKUPS_FOLDER_URL,
@@ -431,8 +436,93 @@ export const INITIAL_TIMETABLE_ENTRIES: TimetableEntry[] = [
   { id: 'cadets-tue', weekType: 'BOTH', dayOfWeek: 'TUE', slotName: 'Evening / Cadets Block', startTime: '19:00', endTime: '22:00', activityName: 'Air Cadets Training', room: 'Cadet Sqn', isHardLocked: true },
   { id: 'cadets-fri', weekType: 'BOTH', dayOfWeek: 'FRI', slotName: 'Evening / Cadets Block', startTime: '19:00', endTime: '22:00', activityName: 'Air Cadets Parade & Skills', room: 'Cadet Sqn', isHardLocked: true },
   { id: 'art-support-wed', weekType: 'BOTH', dayOfWeek: 'WED', slotName: 'After School / Study', startTime: '15:15', endTime: '16:45', subjectId: 'art', activityName: 'GCSE Support Art Class', room: 'A1', isHardLocked: true },
-  { id: 'drums-thu', weekType: 'BOTH', dayOfWeek: 'THU', slotName: 'After School / Study', startTime: '16:00', endTime: '17:00', activityName: 'Drum Lessons & Practice', room: 'Music Room', isHardLocked: true },
+  { id: 'drums-thu', weekType: 'BOTH', dayOfWeek: 'THU', slotName: 'After School / Study', startTime: '16:00', endTime: '17:00', activityName: 'Drum Lesson', room: 'Music Room', isHardLocked: true },
+  // The capacity model has always counted 2.0h for drums against a single 1.0h
+  // lesson in the timetable - the missing hour being home practice, which was
+  // real, costed, and written down nowhere. Now that the two sources are
+  // joined they have to agree, and deleting the hour would have understated a
+  // week that genuinely contains it. Not hard-locked: unlike a lesson, the
+  // practice slot is the family's to move.
+  { id: 'drums-practice-sun', weekType: 'BOTH', dayOfWeek: 'SUN', slotName: 'After School / Study', startTime: '17:00', endTime: '18:00', activityName: 'Drum Practice (home)', isHardLocked: false },
   { id: 'dofe-sat', weekType: 'BOTH', dayOfWeek: 'SAT', slotName: 'Period 1', startTime: '10:00', endTime: '12:00', activityName: 'Bronze DofE Volunteering & Skills', room: 'Community', isHardLocked: true },
+];
+
+/**
+ * The fixed weekly commitments, moved out of `burnoutEngine` where they were a
+ * hardcoded `const`.
+ *
+ * The hours are carried over exactly as they were, Drums 2.0h included, so
+ * nobody's capacity total moves on the day this migration runs. What changes is
+ * that they are now rows: editable by a parent, joinable to the timetable, and
+ * - the point of the whole exercise - something an absence can be logged
+ * against.
+ *
+ * Unlike chores, these ARE seeded. A chore list has to be genuinely the
+ * family's or it is noise; the baseline commitments are the load-bearing
+ * assumption the burnout gauge has always made, and an empty capacity model on
+ * first open would read as the app being broken.
+ */
+export const INITIAL_COMMITMENTS: FixedCommitment[] = [
+  {
+    id: 'school',
+    label: 'School',
+    weeklyHours: 32.5,
+    // Periods are generated per week type rather than enumerated, so there is
+    // no stable set of ids to point at. A day off school is the fallback.
+    timetableEntryIds: [],
+    hoursPerOccasion: 6.5,
+    isActive: true,
+    accentColor: 'slate',
+    createdAt: 0,
+    createdBy: 'SYSTEM_AGENT',
+  },
+  {
+    id: 'cadets',
+    label: 'Air Cadets',
+    weeklyHours: 6.0,
+    timetableEntryIds: ['cadets-tue', 'cadets-fri'],
+    hoursPerOccasion: 3.0,
+    // The Air Cadets goal reserves the same real hours. Counting both would
+    // charge the week twice for one Tuesday evening.
+    coveredByGoalId: 'g-cadets',
+    isActive: true,
+    accentColor: 'purple',
+    createdAt: 0,
+    createdBy: 'SYSTEM_AGENT',
+  },
+  {
+    id: 'artSupport',
+    label: 'Art Support',
+    weeklyHours: 1.5,
+    timetableEntryIds: ['art-support-wed'],
+    hoursPerOccasion: 1.5,
+    isActive: true,
+    accentColor: 'slate',
+    createdAt: 0,
+    createdBy: 'SYSTEM_AGENT',
+  },
+  {
+    id: 'drums',
+    label: 'Drums',
+    weeklyHours: 2.0,
+    timetableEntryIds: ['drums-thu', 'drums-practice-sun'],
+    hoursPerOccasion: 1.0,
+    isActive: true,
+    accentColor: 'slate',
+    createdAt: 0,
+    createdBy: 'SYSTEM_AGENT',
+  },
+  {
+    id: 'dofe',
+    label: 'Bronze DofE',
+    weeklyHours: 2.0,
+    timetableEntryIds: ['dofe-sat'],
+    hoursPerOccasion: 2.0,
+    isActive: true,
+    accentColor: 'slate',
+    createdAt: 0,
+    createdBy: 'SYSTEM_AGENT',
+  },
 ];
 
 /**

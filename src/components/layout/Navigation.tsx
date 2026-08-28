@@ -78,6 +78,19 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   const dailyItems = navItems.filter((item) => item.tier === 'daily');
   const weeklyItems = navItems.filter((item) => item.tier === 'weekly');
+
+  /**
+   * What the More sheet leads with.
+   *
+   * The sheet is opened for one of two reasons far more often than the rest:
+   * spending XP, and a parent getting into the portal. Both used to sit on the
+   * second row, below the fold on a phone. Desktop keeps its own order, which
+   * is grouped by rhythm rather than by frequency.
+   */
+  const overflowPriority = ['REWARDS', 'PARENT', 'PROOF', 'TIMETABLE', 'GOALS', 'GUIDANCE'];
+  const sheetItems = [...weeklyItems].sort(
+    (a, b) => overflowPriority.indexOf(a.id) - overflowPriority.indexOf(b.id)
+  );
   const isOverflowActive = weeklyItems.some((item) => item.id === activeTab);
 
   useEscapeToClose(isMoreOpen, () => setIsMoreOpen(false));
@@ -140,7 +153,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Everything else"
+          aria-label="Rewards, subjects and settings"
           className="md:hidden fixed inset-0 z-40 flex flex-col justify-end"
         >
           <div
@@ -155,9 +168,9 @@ export const Navigation: React.FC<NavigationProps> = ({
           <div className="relative bg-slate-900 border-t border-slate-700 rounded-t-3xl p-4 pb-nav-safe shadow-2xl max-h-[70vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-sm font-bold text-white">Everything else</h3>
+                <h3 className="text-sm font-bold text-white">Rewards, subjects &amp; settings</h3>
                 <p className="text-[11px] text-slate-400">
-                  Rewards, goals and timetable - usually once a week
+                  The screens you open about once a week
                 </p>
               </div>
               <button
@@ -170,7 +183,7 @@ export const Navigation: React.FC<NavigationProps> = ({
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-              {weeklyItems.map((item) => {
+              {sheetItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
                 return (

@@ -19,10 +19,13 @@ import { totalAttachmentBytes, formatBytes } from '../../services/attachmentServ
 import { WORKING_FOLDER_URL, WORKING_FOLDER_PATH, BACKUPS_FOLDER_URL } from '../../db/driveFolders';
 import { DataExchangePanel } from './DataExchangePanel';
 import { ChoreManagerPanel } from './ChoreManagerPanel';
+import { CommitmentManagerPanel } from './CommitmentManagerPanel';
 import { RewardManagerPanel } from './RewardManagerPanel';
 import { StudentProfilePanel } from './StudentProfilePanel';
 import { GuidanceLinksPanel } from './GuidanceLinksPanel';
 import { HandoverResetPanel } from './HandoverResetPanel';
+import { PortalSection } from './PortalSection';
+import { UserCog, ListChecks, Link as LinkIcon } from 'lucide-react';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
 import { todayISO, formatLogTimestamp } from '../../utils/date';
@@ -788,17 +791,44 @@ export const ParentPortal: React.FC = () => {
         )}
       </div>
 
-      <StudentProfilePanel />
+      {/* UX-5. The portal is opened to do one thing, and used to make you
+          scroll past eight others to reach it. Grouped, and collapsed by
+          default so the shape of what is in here stays readable. */}
+      <PortalSection
+        title="Family"
+        blurb="Who the app is for, the exam countdown, WhatsApp numbers, and what the week already contains"
+        icon={<UserCog className="w-5 h-5 text-indigo-400" />}
+        defaultOpen
+      >
+        <StudentProfilePanel />
+        <CommitmentManagerPanel />
+      </PortalSection>
 
-      <ChoreManagerPanel />
+      <PortalSection
+        title="Household"
+        blurb="Chores and the reward catalogue"
+        icon={<ListChecks className="w-5 h-5 text-amber-400" />}
+      >
+        <ChoreManagerPanel />
+        <RewardManagerPanel />
+      </PortalSection>
 
-      <RewardManagerPanel />
+      <PortalSection
+        title="Links & data"
+        blurb="Guidance links, spreadsheet import and export"
+        icon={<LinkIcon className="w-5 h-5 text-teal-400" />}
+      >
+        <GuidanceLinksPanel />
+        <DataExchangePanel />
+      </PortalSection>
 
-      <GuidanceLinksPanel />
-
-      <DataExchangePanel />
-
-      <HandoverResetPanel />
+      <PortalSection
+        title="Handover"
+        blurb="Moving the app to another device, and starting again"
+        icon={<ShieldCheck className="w-5 h-5 text-rose-400" />}
+      >
+        <HandoverResetPanel />
+      </PortalSection>
 
       {/* Backup & Google Drive Sync (Option A) */}
       <div className="glass-card p-6">

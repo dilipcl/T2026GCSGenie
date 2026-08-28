@@ -70,21 +70,32 @@ export const BurnoutAlertBanner: React.FC<BurnoutAlertBannerProps> = () => {
 
       {/* Commitments Pill Breakdown */}
       <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
-        <span className="px-2 py-0.5 rounded bg-slate-900/80 border border-slate-800">
-          School: {burnout.schoolHours}h
-        </span>
-        <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-800 text-purple-300">
-          Air Cadets: {burnout.cadetsHours}h (Tue/Fri)
-        </span>
-        <span className="px-2 py-0.5 rounded bg-slate-900/80 border border-slate-800">
-          Art Support: {burnout.artSupportHours}h
-        </span>
-        <span className="px-2 py-0.5 rounded bg-slate-900/80 border border-slate-800">
-          Drums: {burnout.drumsHours}h
-        </span>
-        <span className="px-2 py-0.5 rounded bg-slate-900/80 border border-slate-800">
-          Bronze DofE: {burnout.dofeHours}h
-        </span>
+        {/* Driven by the commitments table rather than five hardcoded fields,
+            so a commitment a parent adds or archives shows up here without a
+            code change - and an excused occasion visibly reduces its pill
+            instead of silently shrinking the total. */}
+        {burnout.commitmentBreakdown.map((c) => (
+          <span
+            key={c.id}
+            title={
+              c.excusedHours > 0
+                ? `${c.scheduledHours}h scheduled, ${c.excusedHours}h excused this week`
+                : undefined
+            }
+            className={`px-2 py-0.5 rounded border ${
+              c.excusedHours > 0
+                ? 'bg-amber-950/50 border-amber-800 text-amber-300'
+                : c.accentColor === 'purple'
+                ? 'bg-purple-950/60 border-purple-800 text-purple-300'
+                : 'bg-slate-900/80 border-slate-800'
+            }`}
+          >
+            {c.label}: {c.netHours}h
+            {c.excusedHours > 0 && (
+              <span className="ml-1 opacity-80">(−{c.excusedHours}h excused)</span>
+            )}
+          </span>
+        ))}
         {burnout.customGoalsHours > 0 && (
           <span className="px-2 py-0.5 rounded bg-slate-900/80 border border-slate-800">
             Other Goals: {burnout.customGoalsHours}h

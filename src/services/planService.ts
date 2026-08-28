@@ -2,6 +2,7 @@ import { db } from '../db';
 import { PlanBucket, Task } from '../types';
 import { addDaysISO, daysUntil, todayISO } from '../utils/date';
 import { logAuditEvent } from './auditService';
+import { currentWeek } from './weekWindow';
 
 /**
  * Planning: what has been promised for this week, versus what is merely known
@@ -89,7 +90,18 @@ export async function loadWeekCommitment(): Promise<WeekCommitment> {
  * promising to do something this week while it still says "due in October" is
  * the kind of contradiction that makes the whole list untrustworthy.
  */
-export async function moveTaskToBucket(task: Task, bucket: PlanBucket): Promise<void> {
+export async function moveTaskToBucket(
+  task: Task,
+  bucket: PlanBucket,
+  /**
+   * EXC-5. Why it is moving, when moving it out of the week.
+   *
+   * Deliberately no new entity and no new field: the move already writes an
+   * audit row, so the reason rides along on it. A separate deferral record
+   * would be a second history of the same event, and the two would drift.
+   */
+  reason?: string
+): Promise<void> {
   if (inferBucket(task) === bucket && task.bucket === bucket) return;
 
   const patch: Partial<Task> = { bucket };
@@ -115,7 +127,8 @@ export async function moveTaskToBucket(task: Task, bucket: PlanBucket): Promise<
     entityId: task.id,
     fieldChanged: 'bucket',
     oldValue: label[inferBucket(task)],
-    newValue: `${label[bucket]} — "${task.title}"`,
+    newValue:
+      `${label[bucket]} — "${task.title}"` + (reason?.trim() ? ` (${reason.trim()})` : ''),
   });
 }
 
@@ -142,12 +155,14 @@ export interface PlanHealth {
  * rather than the whole 60 hours.
  */
 export function assessPlan(commitment: WeekCommitment, safeStudyHours: number): PlanHealth {
-  const dayOfWeek = new Date().getDay(); // 0 Sun .. 6 Sat
+  // Mon = 1 .. Sun = 7, the same reckoning the goal pacing and the capacity
+  // gauge use. This was `new Date().getDay()` with its own Sunday special case.
+  const weekday = currentWeek().weekday;
   const doneRatio =
     commitment.committedCount === 0 ? 1 : commitment.committedDone / commitment.committedCount;
 
   // Thursday onwards, with less than half the promise kept
-  const lateInWeek = dayOfWeek >= 4 || dayOfWeek === 0;
+  const lateInWeek = weekday >= 4;
   const slipping = lateInWeek && commitment.committedCount >= 3 && doneRatio < 0.5;
 
   return {

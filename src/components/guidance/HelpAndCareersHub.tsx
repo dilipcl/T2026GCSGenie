@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
+import { readDoors, type Door, type DoorsSummary } from '../../services/doorsOpen';
 import { SubjectConfig, CareerGuidanceResource, FreeRevisionLink } from '../../types';
 import { HowItWorksPanel } from './HowItWorksPanel';
 import {
@@ -14,6 +15,7 @@ export const HelpAndCareersHub: React.FC = () => {
   const [subjects, setSubjects] = useState<SubjectConfig[]>([]);
   const [careers, setCareers] = useState<CareerGuidanceResource[]>([]);
   const [revisionLinks, setRevisionLinks] = useState<FreeRevisionLink[]>([]);
+  const [doors, setDoors] = useState<DoorsSummary | undefined>(undefined);
   /**
    * "How it works" leads, and is the default. The section was named for careers
    * and opened on them, which put the only page explaining the app three tabs
@@ -26,8 +28,13 @@ export const HelpAndCareersHub: React.FC = () => {
   useEffect(() => {
     db.subjects.toArray().then(setSubjects);
     db.careerResources.toArray().then(setCareers);
+    readDoors().then(setDoors);
     db.revisionLinks.toArray().then(setRevisionLinks);
   }, []);
+
+  const doorById: Record<string, Door> = Object.fromEntries(
+    (doors?.doors ?? []).map((d) => [d.resource.id, d])
+  );
 
   return (
     <div className="space-y-6">
@@ -76,6 +83,35 @@ export const HelpAndCareersHub: React.FC = () => {
       {/* 1. Career Pathways Tab */}
       {activeTab === 'CAREERS' && (
         <div className="space-y-4">
+          {/* ENG-2. Both halves of this were already in the database and had
+              simply never been joined: what each route needs, and where each
+              subject currently stands. Doors open, never doors lost - the same
+              arithmetic phrased as a count of failures is a different product. */}
+          {doors && doors.total > 0 && (
+            <div className="p-4 rounded-2xl border border-emerald-500/40 bg-emerald-950/20">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-2xl font-bold text-emerald-300 tabular-nums">
+                  {doors.open}
+                </span>
+                <span className="text-sm font-bold text-white">
+                  of {doors.total} routes are open at today's grades
+                </span>
+                {doors.withinReach > 0 && (
+                  <span className="text-[11px] text-amber-300">
+                    {doors.withinReach} more within one grade
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-300 mt-1.5 max-w-2xl">
+                {doors.bestNextStep
+                  ? `One grade in ${doors.bestNextStep.subject.shortName} would open ${
+                      doors.bestNextStep.unlocks
+                    } more.`
+                  : 'Nothing here is decided yet — this moves every time a grade estimate does.'}
+              </p>
+            </div>
+          )}
+
           <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 text-xs text-slate-300">
             <strong className="text-teal-400 font-semibold">Why Grade 9s Matter Post-GCSE: </strong>
             Achieving Grade 8/9 in Edexcel Maths, AQA Sciences, and OCR Computer Science secures
@@ -99,7 +135,26 @@ export const HelpAndCareersHub: React.FC = () => {
                     </span>
                   </div>
 
-                  <h3 className="font-bold text-sm text-white mb-1.5">{c.title}</h3>
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <h3 className="font-bold text-sm text-white">{c.title}</h3>
+                    {doorById[c.id] && (
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
+                          doorById[c.id].status === 'OPEN'
+                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                            : doorById[c.id].status === 'CLOSE'
+                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                        }`}
+                      >
+                        {doorById[c.id].status === 'OPEN'
+                          ? 'Open'
+                          : doorById[c.id].status === 'CLOSE'
+                          ? 'One grade away'
+                          : 'Further off'}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-300 mb-3">{c.description}</p>
                 </div>
 

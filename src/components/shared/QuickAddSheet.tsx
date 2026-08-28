@@ -14,6 +14,7 @@ import {
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent, logFieldChanges } from '../../services/auditService';
 import { todayISO, addDaysISO, formatFriendlyDate } from '../../utils/date';
+import { currentSubjectId } from '../../services/timetableContext';
 import { X, ListTodo, CalendarDays, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { newId } from '../../utils/id';
 import { useFeedback } from './FeedbackProvider';
@@ -147,6 +148,19 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
       setTitle('');
       setDueDate(addDaysISO(1));
       setSubjectId('');
+
+      /**
+       * UX-2. Homework gets written down in the two minutes after the lesson
+       * that set it, and the app already knows which lesson that was. A blank
+       * picker is a picker that stays blank, and an unattributed task counts
+       * towards no subject's health and no goal's weekly hours.
+       *
+       * Only ever a default: it fills the field and is one tap to change, and
+       * it deliberately does nothing outside school hours rather than guessing.
+       */
+      currentSubjectId(defaultWeek).then((subject) => {
+        if (subject) setSubjectId(subject);
+      });
       setPriority('MEDIUM');
       setCategory('EXAM_MOCK');
       setNotes('');

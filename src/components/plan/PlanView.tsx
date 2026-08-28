@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { Task, PlanBucket, MilestoneReminder } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import {
   loadWeekCommitment,
+  inferBucket,
   moveTaskToBucket,
   assessPlan,
   taskHours,
@@ -23,6 +24,7 @@ import {
   Circle,
 } from 'lucide-react';
 import { InfoTip } from '../shared/InfoTip';
+import { DeferReasonModal } from './DeferReasonModal';
 
 interface PlanViewProps {
   onAdd: () => void;
@@ -48,6 +50,7 @@ const BUCKETS: { id: PlanBucket; label: string; blurb: string }[] = [
  */
 export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
   const { toast } = useFeedback();
+  const [deferring, setDeferring] = useState<{ task: Task; bucket: PlanBucket } | null>(null);
 
   const commitment = useLiveQuery(() => loadWeekCommitment(), []);
   const burnout = useLiveQuery(() => calculateBurnoutCapacity(), []);
@@ -64,15 +67,40 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
   const health = assessPlan(commitment, Math.max(0, safeStudyHours));
 
   const move = async (task: Task, bucket: PlanBucket) => {
-    await moveTaskToBucket(task, bucket);
     if (bucket === 'THIS_WEEK') {
+      await moveTaskToBucket(task, bucket);
       toast.success(`Committed "${task.title}"`, 'It counts towards this week now.');
-    } else {
-      toast.info(
-        `Moved "${task.title}" out of this week`,
-        'Deferring is planning, not failing - it stops counting against you.'
-      );
+      return;
     }
+
+    /**
+     * EXC-5. Breaking a promise made for this week is the moment worth a
+     * sentence; shuffling the backlog around is not. So the reason is asked for
+     * only on the way out of THIS_WEEK, and is optional even then - the
+     * planner's whole stance is that deferring is planning, not failing, and a
+     * required justification would turn it back into a confession.
+     */
+    if (inferBucket(task) === 'THIS_WEEK') {
+      setDeferring({ task, bucket });
+      return;
+    }
+
+    await moveTaskToBucket(task, bucket);
+    toast.info(`Moved "${task.title}"`, 'It is off the list for this week.');
+  };
+
+  const confirmDefer = async (reason: string) => {
+    if (!deferring) return;
+    const { task, bucket } = deferring;
+    setDeferring(null);
+
+    await moveTaskToBucket(task, bucket, reason || undefined);
+    toast.info(
+      `Moved "${task.title}" out of this week`,
+      reason
+        ? `Logged: ${reason}. Deferring is planning, not failing.`
+        : 'Deferring is planning, not failing - it stops counting against you.'
+    );
   };
 
   const soonMilestones = milestones.filter((m) => daysUntil(m.date) <= 21);
@@ -319,6 +347,12 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
           </div>
         )}
       </div>
+
+      <DeferReasonModal
+        task={deferring?.task ?? null}
+        onCancel={() => setDeferring(null)}
+        onConfirm={confirmDefer}
+      />
     </div>
   );
 };

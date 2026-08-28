@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
-import { Task, CheckInSession, SubjectId } from '../../types';
+import { Task, CheckInSession, ParentSettings, SubjectId } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
@@ -15,10 +15,13 @@ import {
   Lightbulb,
   ArrowRight,
   BookmarkCheck,
+  ChevronDown,
 } from 'lucide-react';
 import { newId } from '../../utils/id';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import { InfoTip } from '../shared/InfoTip';
+import { WhatsAppShare } from '../shared/WhatsAppShare';
+import { messageContext, questionMessage } from '../../services/whatsappService';
 
 interface DailyCheckInModalProps {
   isOpen: boolean;
@@ -68,6 +71,22 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   const [createActionTask, setCreateActionTask] = useState(true);
   const [createQuestionTask, setCreateQuestionTask] = useState(true);
 
+  /**
+   * UX-1. The express path is the default.
+   *
+   * This form asks for energy, focus, homework, minutes, subject, goal, three
+   * written answers, two more subject pickers and two task toggles. All of it
+   * is worth having - the written answers are what the weekly review reads
+   * back - but a check-in that takes four minutes after school is a check-in
+   * that gets skipped, and a skipped check-in costs the streak, the study
+   * hours, and every number computed from them.
+   *
+   * So the four things that must be logged every day are always visible, and
+   * everything else is one tap away and completely unchanged.
+   */
+  const [showDetail, setShowDetail] = useState(false);
+  const [settings, setSettings] = useState<ParentSettings | undefined>(undefined);
+
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
   const [todayCheckInCount, setTodayCheckInCount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,6 +120,8 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       setStudySubjectTouched(false);
       setCreateActionTask(true);
       setCreateQuestionTask(true);
+      setShowDetail(false);
+      db.parentSettings.get('active_settings').then(setSettings);
 
       // Auto detect session based on hour
       const hour = new Date().getHours();
@@ -507,7 +528,29 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
             )}
           </div>
 
-          {/* STRUCTURED QUESTIONS SECTION */}
+          {/* Everything below is optional. Collapsed by default so the common
+              case - energy, homework, minutes, save - is four taps. */}
+          <button
+            type="button"
+            onClick={() => setShowDetail((prev) => !prev)}
+            aria-expanded={showDetail}
+            className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/70 text-left transition-all"
+          >
+            <span className="flex items-center gap-2">
+              <Lightbulb className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-bold text-slate-200">
+                {showDetail ? 'Hide the detail' : 'Add detail'}
+              </span>
+              <span className="text-[10px] text-slate-500 hidden sm:inline">
+                what clicked, what to ask, what is next
+              </span>
+            </span>
+            <ChevronDown
+              className={`w-4 h-4 text-slate-400 transition-transform ${showDetail ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {showDetail && (
           <div className="p-3.5 bg-slate-800/50 rounded-2xl border border-slate-700/70 space-y-3">
             <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
               <Lightbulb className="w-4 h-4 text-amber-400" />
@@ -545,6 +588,22 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
                 onChange={(e) => setBlockersAndQuestions(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
               />
+
+              {/* WA-3. Some questions cannot wait for a teacher tomorrow, and
+                  the person who can answer tonight is downstairs. Appears only
+                  once there is something to ask. */}
+              {blockersAndQuestions.trim().length > 3 && (
+                <div className="mt-2">
+                  <WhatsAppShare
+                    compact
+                    previewLabel="See the message"
+                    text={questionMessage(messageContext(settings), {
+                      question: blockersAndQuestions,
+                      subject: INITIAL_SUBJECTS.find((s) => s.id === (questionSubject || studySubject)),
+                    })}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Q3: Tomorrow's Action Item */}
@@ -672,6 +731,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
               </div>
             </div>
           </div>
+          )}
 
           {/* Submit Button */}
           <div className="pt-2">

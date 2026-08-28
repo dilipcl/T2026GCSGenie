@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { AgentAuditReport, ParentSettings, RAGStatus } from '../types';
-import { calculateBurnoutCapacity } from './burnoutEngine';
+import { calculateBurnoutCapacity, type BurnoutCapacityResult } from './burnoutEngine';
 import { calculateSubjectRAG, calculateTotalXP } from './ragCalculator';
 import { calculateStreakStats } from './habitEngine';
 import { logAuditEvent } from './auditService';
@@ -117,7 +117,7 @@ export async function runAgenticAudit(settings: ParentSettings): Promise<AgentAu
 }
 
 function generateDeterministicAuditReport(data: {
-  burnout: any;
+  burnout: BurnoutCapacityResult;
   xp: any;
   streak: number;
   ragList: any[];
@@ -175,7 +175,8 @@ ${data.ragList.map((r) => `  * **${r.name}:** [${r.ragStatus}] Score: ${r.health
 #### 2. Time-Capacity & Burnout Risk Analysis
 - **Total Scheduled Load:** ${data.burnout.totalScheduledHours} hrs / ${data.burnout.safeWeeklyHoursLimit} hrs max safe capacity (includes school hours).
 - **Stress Index:** ${data.burnout.stressIndex}% (${data.burnout.stressStatus}).
-- **Base Commitments:** School (${data.burnout.schoolHours}h) + Air Cadets (${data.burnout.cadetsHours}h Tue/Fri) + Art (${data.burnout.artSupportHours}h) + Drums (${data.burnout.drumsHours}h) + DofE (${data.burnout.dofeHours}h).
+- **Base Commitments:** ${data.burnout.commitmentBreakdown.map((c) => `${c.label} (${c.netHours}h)`).join(' + ')}.
+- **Excused This Week:** ${data.burnout.excusedHours > 0 ? `${data.burnout.excusedHours}h across ${data.burnout.exceptions.length} logged absence(s) - already deducted above.` : 'Nothing; every commitment ran as scheduled.'}
 - **Logged Revision This Week:** ${data.burnout.loggedRevisionHours} hrs.
 
 #### 3. Subject Balance & Key Alerts

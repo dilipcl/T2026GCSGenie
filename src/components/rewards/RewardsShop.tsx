@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { newId } from '../../utils/id';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { WhatsAppShare } from '../shared/WhatsAppShare';
+import { messageContext, rewardApprovedMessage } from '../../services/whatsappService';
 
 interface RewardsShopProps {
   currentRole: UserRole;
@@ -33,6 +35,7 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
   const redemptions =
     useLiveQuery(() => db.redemptions.orderBy('requestedAt').reverse().toArray(), []) ?? [];
   const xpLedger = useLiveQuery(() => calculateTotalXP(), []);
+  const settings = useLiveQuery(() => db.parentSettings.get('active_settings'), []);
 
   /** Which reward has a request in flight - the double-tap guard. */
   const [busyRewardId, setBusyRewardId] = useState<string | null>(null);
@@ -331,6 +334,25 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
                   <p className="text-[11px] text-slate-400">
                     Requested on {new Date(red.requestedAt).toLocaleDateString('en-GB')} · Cost: {red.costXP} XP
                   </p>
+
+                  {/* WA-3. An approval that lands as a message is worth more
+                      than one that waits to be discovered in a list - it is the
+                      one moment in the loop where a parent gets to say well
+                      done, and the app should not be the reason that goes
+                      unsaid. */}
+                  {currentRole === 'PARENT' && red.status === 'APPROVED' && (
+                    <div className="mt-2">
+                      <WhatsAppShare
+                        compact
+                        previewLabel="See the message"
+                        text={rewardApprovedMessage(messageContext(settings), {
+                          rewardTitle: red.rewardTitle,
+                          costXP: red.costXP,
+                          note: red.parentComments,
+                        })}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Parent Approval Buttons (If in Parent Mode & Pending) */}

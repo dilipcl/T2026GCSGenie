@@ -1,41 +1,46 @@
 import { db } from '../db';
-import { RAGStatus } from '../types';
+import { CommitmentException, FixedCommitment, RAGStatus } from '../types';
 import { todayISO } from '../utils/date';
+import { currentWeek, isInWeek, WeekWindow } from './weekWindow';
+
+/** One commitment's contribution to the week, after any absences. */
+export interface CommitmentLoad {
+  id: string;
+  label: string;
+  /** The full weekly budget, before deductions. */
+  scheduledHours: number;
+  /** Hours excused this week. */
+  excusedHours: number;
+  /** What actually counts: scheduled minus excused, never below zero. */
+  netHours: number;
+  exceptionCount: number;
+  accentColor?: string;
+}
 
 export interface BurnoutCapacityResult {
-  safeWeeklyHoursLimit: number; // 45.0
+  safeWeeklyHoursLimit: number;
   totalScheduledHours: number;
-  schoolHours: number; // 32.5
-  cadetsHours: number; // 6.0
-  artSupportHours: number; // 1.5
-  drumsHours: number; // 2.0
-  dofeHours: number; // 2.0
+  /** Per-commitment breakdown, in seeded order. */
+  commitmentBreakdown: CommitmentLoad[];
+  /** Baseline commitment hours before any absence is deducted. */
+  baselineHours: number;
+  /** Hours excused this week across every commitment. */
+  excusedHours: number;
+  /** This week's exceptions, so a caller can show what was excused and why. */
+  exceptions: CommitmentException[];
   customGoalsHours: number;
   loggedRevisionHours: number;
   overdueTaskCount: number;
   highPriorityTaskCount: number;
-  remainingSafeCapacity: number; // safeWeeklyHoursLimit - totalScheduledHours
-  stressIndex: number; // % of capacity
+  remainingSafeCapacity: number;
+  stressIndex: number;
   stressStatus: RAGStatus;
   formulaExplanation: string;
   warningMessage?: string;
   moscowRecommendations: string[];
+  /** The week these figures describe. */
+  week: WeekWindow;
 }
-
-/**
- * Fixed weekly commitments that are already known, so they do not need to be
- * re-entered as goals.
- *
- * `coveredByGoalId` matters: an approved goal representing the same real-world
- * commitment must NOT be added on top, or the same hours are counted twice.
- */
-const BASELINE_COMMITMENTS = [
-  { key: 'school', label: 'School', hours: 32.5 },
-  { key: 'cadets', label: 'Air Cadets', hours: 6.0, coveredByGoalId: 'g-cadets' },
-  { key: 'artSupport', label: 'Art Support', hours: 1.5 },
-  { key: 'drums', label: 'Drums', hours: 2.0 },
-  { key: 'dofe', label: 'Bronze DofE', hours: 2.0 },
-] as const;
 
 /**
  * Weekly hours ceiling. This is a TOTAL and includes the 32.5h already spent at
@@ -49,78 +54,140 @@ const BASELINE_COMMITMENTS = [
  */
 const SAFE_WEEKLY_HOURS_LIMIT = 60.0;
 
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/**
+ * How much of a commitment this week's exceptions excuse.
+ *
+ * Only rows that actually deduct are counted - an ATTENDED row exists so the
+ * weekly review can show that the parade night happened, and must not move the
+ * total. Capped at the commitment's own weekly hours so a mis-entered absence
+ * cannot drive the week's load negative.
+ */
+function excusedFor(
+  commitment: FixedCommitment,
+  exceptions: CommitmentException[]
+): { hours: number; count: number } {
+  const mine = exceptions.filter(
+    (e) => e.commitmentId === commitment.id && e.deductsFromCapacity
+  );
+  const hours = mine.reduce((sum, e) => sum + (e.scheduledHours || 0), 0);
+  return { hours: Math.min(commitment.weeklyHours, round1(hours)), count: mine.length };
+}
+
 export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult> {
   const safeLimit = SAFE_WEEKLY_HOURS_LIMIT;
+  const week = currentWeek();
 
-  // Base commitments
-  const hoursFor = (key: string) =>
-    BASELINE_COMMITMENTS.find((c) => c.key === key)?.hours ?? 0;
+  const [allCommitments, allExceptions, activeGoals] = await Promise.all([
+    db.commitments.toArray(),
+    db.commitmentExceptions.where('date').between(week.start, week.end, true, true).toArray(),
+    db.goals.where('status').equals('APPROVED_LOCKED').toArray(),
+  ]);
 
-  const schoolHours = hoursFor('school');
-  const cadetsHours = hoursFor('cadets'); // Tue & Fri 19:00 - 22:00
-  const artSupportHours = hoursFor('artSupport');
-  const drumsHours = hoursFor('drums');
-  const dofeHours = hoursFor('dofe');
+  // `isActive` is a boolean and therefore never indexed - filter in memory.
+  const commitments = allCommitments
+    .filter((c) => c.isActive)
+    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
 
-  const baselineHours = BASELINE_COMMITMENTS.reduce((sum, c) => sum + c.hours, 0);
-  const goalIdsAlreadyInBaseline = new Set<string>(
-    BASELINE_COMMITMENTS.flatMap((c) => ('coveredByGoalId' in c ? [c.coveredByGoalId] : []))
+  const exceptions = allExceptions.filter((e) => isInWeek(e.date, week));
+
+  const commitmentBreakdown: CommitmentLoad[] = commitments.map((c) => {
+    const { hours, count } = excusedFor(c, exceptions);
+    return {
+      id: c.id,
+      label: c.label,
+      scheduledHours: c.weeklyHours,
+      excusedHours: hours,
+      netHours: round1(Math.max(0, c.weeklyHours - hours)),
+      exceptionCount: count,
+      accentColor: c.accentColor,
+    };
+  });
+
+  const baselineHours = round1(
+    commitmentBreakdown.reduce((sum, c) => sum + c.scheduledHours, 0)
+  );
+  const excusedHours = round1(
+    commitmentBreakdown.reduce((sum, c) => sum + c.excusedHours, 0)
+  );
+  const netBaselineHours = round1(
+    commitmentBreakdown.reduce((sum, c) => sum + c.netHours, 0)
   );
 
-  // Additional active goals hours
-  const activeGoals = await db.goals
-    .where('status')
-    .equals('APPROVED_LOCKED')
-    .toArray();
+  // Goals whose hours a commitment already accounts for. Air Cadets is both a
+  // commitment and a locked goal; counting both charges the week twice for one
+  // Tuesday evening.
+  const goalIdsAlreadyInBaseline = new Set(
+    commitments.flatMap((c) => (c.coveredByGoalId ? [c.coveredByGoalId] : []))
+  );
 
-  const customGoalsHours = activeGoals
-    .filter((g) => g.category === 'CO_CURRICULAR' || g.category === 'PERSONAL')
-    // Skip goals whose hours are already in the baseline above, or Air Cadets
-    // (and anything like it) gets counted twice.
-    .filter((g) => !goalIdsAlreadyInBaseline.has(g.id))
-    .reduce((sum, g) => sum + (g.weeklyHoursRequired || 0), 0);
+  const customGoalsHours = round1(
+    activeGoals
+      .filter((g) => g.category === 'CO_CURRICULAR' || g.category === 'PERSONAL')
+      .filter((g) => !goalIdsAlreadyInBaseline.has(g.id))
+      .reduce((sum, g) => sum + (g.weeklyHoursRequired || 0), 0)
+  );
 
-  // Revision hours logged this week from daily check-ins
-  const oneWeekAgo = Date.now() - 7 * 86400000;
-  const recentCheckIns = await db.checkIns
-    .where('timestamp')
-    .aboveOrEqual(oneWeekAgo)
+  /**
+   * Study time logged inside this Monday-to-Sunday week.
+   *
+   * This used to read a rolling seven days from the current timestamp while
+   * `goalProgress` read from the Monday, so the two never agreed. Once both
+   * appear in one cockpit the discrepancy is arithmetic anyone can check, and
+   * the capacity gauge is the last number in the app that can afford to look
+   * wrong.
+   */
+  const weekCheckIns = await db.checkIns
+    .where('date')
+    .between(week.start, week.end, true, true)
     .toArray();
-  const loggedRevisionMinutes = recentCheckIns.reduce(
+  const loggedRevisionMinutes = weekCheckIns.reduce(
     (sum, c) => sum + (c.completedRevisionMinutes || 0),
     0
   );
-  const loggedRevisionHours = Math.round((loggedRevisionMinutes / 60) * 10) / 10;
+  const loggedRevisionHours = round1(loggedRevisionMinutes / 60);
 
-  // Check overdue and high priority tasks
   const todayStr = todayISO();
   const allTasks = await db.tasks.toArray();
   const pendingTasks = allTasks.filter((t) => !t.completed);
   const overdueTasks = pendingTasks.filter((t) => t.dueDate < todayStr);
   const highPriorityTasks = pendingTasks.filter((t) => t.priority === 'HIGH');
 
-  const baseScheduled = baselineHours + customGoalsHours + loggedRevisionHours;
+  const totalScheduled = round1(netBaselineHours + customGoalsHours + loggedRevisionHours);
+  const remaining = round1(safeLimit - totalScheduled);
 
-  const totalScheduled = Math.round(baseScheduled * 10) / 10;
-  const remaining = Math.round((safeLimit - totalScheduled) * 10) / 10;
-
-  // Stress Index calculation: Base % + slight surcharge for overdue workload pressure
   const baseStressPercent = (totalScheduled / safeLimit) * 100;
-  const workloadSurcharge = overdueTasks.length * 2.0 + Math.max(0, highPriorityTasks.length - 2) * 1.5;
+  const workloadSurcharge =
+    overdueTasks.length * 2.0 + Math.max(0, highPriorityTasks.length - 2) * 1.5;
   const stressIndex = Math.min(150, Math.round(baseStressPercent + workloadSurcharge));
 
   let stressStatus: RAGStatus = 'GREEN';
   let warningMessage: string | undefined;
   const moscowRecommendations: string[] = [];
 
-  const formulaExplanation = `Formula: (Scheduled Hours (${totalScheduled}h) / Safe Limit (${safeLimit}h)) × 100% ${
-    workloadSurcharge > 0 ? `+ ${Math.round(workloadSurcharge)}% Task Pressure Surcharge` : ''
-  } = ${stressIndex}% Stress Index.`;
+  /**
+   * The deduction is spelled out rather than folded silently into the total.
+   *
+   * The burnout panel's whole credibility rests on its arithmetic being
+   * checkable; a figure that quietly drops by three hours between Monday and
+   * Tuesday reads as a bug, and a gauge nobody believes is a gauge nobody acts
+   * on.
+   */
+  const excusedClause =
+    excusedHours > 0
+      ? `Commitments ${baselineHours}h less ${excusedHours}h excused this week = ${netBaselineHours}h. `
+      : '';
+
+  const formulaExplanation =
+    `${excusedClause}Formula: (Scheduled Hours (${totalScheduled}h) / Safe Limit (${safeLimit}h)) × 100% ${
+      workloadSurcharge > 0 ? `+ ${Math.round(workloadSurcharge)}% Task Pressure Surcharge` : ''
+    } = ${stressIndex}% Stress Index.`;
 
   if (totalScheduled > safeLimit || stressIndex > 100) {
     stressStatus = 'RED';
     warningMessage = `CRITICAL BURNOUT RISK! Scheduled load (${totalScheduled}h) exceeds the safe ${safeLimit}h threshold by ${Math.abs(remaining)}h (${stressIndex}% Stress Index).`;
-    moscowRecommendations.push('MoSCoW (Must/Should/Could/Won\'t): Defer non-essential personal goals.');
+    moscowRecommendations.push("MoSCoW (Must/Should/Could/Won't): Defer non-essential personal goals.");
     moscowRecommendations.push('During mock exams or major Art deadlines, temporarily reduce DofE and Drum practice by 50%.');
     moscowRecommendations.push('Maintain strict 22:00 sleep cutoff (8.5+ hours rest needed).');
   } else if (stressIndex >= 90) {
@@ -136,11 +203,10 @@ export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult>
   return {
     safeWeeklyHoursLimit: safeLimit,
     totalScheduledHours: totalScheduled,
-    schoolHours,
-    cadetsHours,
-    artSupportHours,
-    drumsHours,
-    dofeHours,
+    commitmentBreakdown,
+    baselineHours,
+    excusedHours,
+    exceptions,
     customGoalsHours,
     loggedRevisionHours,
     overdueTaskCount: overdueTasks.length,
@@ -151,5 +217,21 @@ export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult>
     formulaExplanation,
     warningMessage,
     moscowRecommendations,
+    week,
   };
+}
+
+/**
+ * The study headroom a plan can actually occupy: the ceiling less the fixed
+ * commitments and locked goals, ignoring whatever has already been logged.
+ *
+ * Was computed inline in PlanView by subtracting logged hours back out of the
+ * total, which is the same sum written backwards and drifted the moment the
+ * total gained a term.
+ */
+export function safeStudyHours(result: BurnoutCapacityResult): number {
+  return round1(
+    result.safeWeeklyHoursLimit -
+      (result.totalScheduledHours - result.loggedRevisionHours)
+  );
 }

@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
-import { SubjectConfig, Goal, UserRole } from '../../types';
+import { SubjectConfig, Goal, ParentSettings, UserRole } from '../../types';
 import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalculator';
 import { lockedGoalProgress, GoalWeekProgress } from '../../services/goalProgress';
+import { allSubjectTrends, goalTrend, type Trend } from '../../services/goalTrend';
+import { goalApprovalMessage, messageContext } from '../../services/whatsappService';
+import { WhatsAppShare } from '../shared/WhatsAppShare';
+import { PaceBar, PACE_TEXT } from '../shared/PaceBar';
+import { Sparkline } from '../shared/Sparkline';
 import { logAuditEvent } from '../../services/auditService';
 import { SubjectDetailModal } from './SubjectDetailModal';
 import { GoalConsultationModal } from './GoalConsultationModal';
@@ -23,6 +28,9 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
   const [isConsultationOpen, setIsConsultationOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [progress, setProgress] = useState<Record<string, GoalWeekProgress>>({});
+  const [trends, setTrends] = useState<Record<string, Trend>>({});
+  const [subjectTrends, setSubjectTrends] = useState<Record<string, Trend>>({});
+  const [settings, setSettings] = useState<ParentSettings | undefined>(undefined);
 
   const loadData = async () => {
     const subList = await db.subjects.toArray();
@@ -37,8 +45,19 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
     setRagData(rags);
 
     const byGoal: Record<string, GoalWeekProgress> = {};
-    for (const entry of await lockedGoalProgress()) byGoal[entry.goal.id] = entry;
+    const byTrend: Record<string, Trend> = {};
+    for (const entry of await lockedGoalProgress()) {
+      byGoal[entry.goal.id] = entry;
+      byTrend[entry.goal.id] = await goalTrend(entry.goal);
+    }
     setProgress(byGoal);
+    setTrends(byTrend);
+
+    const bySubject: Record<string, Trend> = {};
+    for (const { subjectId, trend } of await allSubjectTrends()) bySubject[subjectId] = trend;
+    setSubjectTrends(bySubject);
+
+    setSettings(await db.parentSettings.get('active_settings'));
   };
 
   useEffect(() => {
@@ -191,19 +210,28 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
                   </div>
                 </div>
 
-                {rag && (
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
-                      rag.ragStatus === 'GREEN'
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                        : rag.ragStatus === 'AMBER'
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                        : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                    }`}
-                  >
-                    {rag.ragStatus}
-                  </span>
-                )}
+                <div className="flex flex-col items-end gap-1.5">
+                  {rag && (
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
+                        rag.ragStatus === 'GREEN'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : rag.ragStatus === 'AMBER'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                      }`}
+                    >
+                      {rag.ragStatus}
+                    </span>
+                  )}
+
+                  {/* Four weeks of hours. The RAG badge reads today; this reads
+                      the month, and a subject can be green on one and falling
+                      on the other - which is the drift the film is about. */}
+                  {subjectTrends[sub.id] && (
+                    <Sparkline trend={subjectTrends[sub.id]} width={64} height={20} />
+                  )}
+                </div>
               </div>
 
               {/* Progress & Metrics */}
@@ -334,31 +362,65 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
                       </p>
                     ) : (
                       <>
-                        <div className="flex items-center justify-between text-[11px] mb-1">
+                        <div className="flex items-center justify-between gap-2 text-[11px] mb-1">
                           <span className="text-slate-400">This week</span>
-                          <span
-                            className={`font-bold ${
-                              progress[g.id].needsAction ? 'text-amber-300' : 'text-emerald-300'
-                            }`}
-                          >
-                            {progress[g.id].actualHours} / {progress[g.id].targetHours}h
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold ${PACE_TEXT[progress[g.id].pace]}`}>
+                              {progress[g.id].actualHours} / {progress[g.id].targetHours}h
+                            </span>
+                            {/* Four weeks of the same number, so a month of
+                                quiet decline is visible next to a week that
+                                looks fine on its own. */}
+                            {trends[g.id] && (
+                              <Sparkline
+                                trend={trends[g.id]}
+                                targetHours={progress[g.id].targetHours}
+                                width={72}
+                                height={22}
+                              />
+                            )}
+                          </div>
                         </div>
-                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${
-                              progress[g.id].needsAction ? 'bg-amber-500' : 'bg-emerald-500'
-                            }`}
-                            style={{ width: `${progress[g.id].percentOfWeek}%` }}
-                          />
-                        </div>
-                        {progress[g.id].needsAction && (
-                          <p className="mt-1 text-[11px] text-amber-300">
-                            Needs action - {progress[g.id].proRatedTargetHours}h expected by today.
-                          </p>
+
+                        {/* The pale tick is the share expected by the end of
+                            today. It was already computed and only ever shown
+                            as a sentence, and only once the goal was already
+                            behind. */}
+                        <PaceBar
+                          percent={progress[g.id].percentOfWeek}
+                          proRatedPercent={progress[g.id].proRatedPercent}
+                          pace={progress[g.id].pace}
+                        />
+
+                        <p
+                          className={`mt-1 text-[11px] ${
+                            progress[g.id].pace === 'AHEAD' ? 'text-slate-400' : PACE_TEXT[progress[g.id].pace]
+                          }`}
+                        >
+                          {progress[g.id].pace === 'STALLED'
+                            ? `Nothing logged yet this week — ${progress[g.id].proRatedTargetHours}h was expected by today.`
+                            : progress[g.id].pace === 'BEHIND'
+                            ? `Needs action - ${progress[g.id].proRatedTargetHours}h expected by today.`
+                            : `On pace — ${progress[g.id].proRatedTargetHours}h expected by today.`}
+                        </p>
+
+                        {trends[g.id]?.message && (
+                          <p className="mt-1 text-[11px] text-slate-400">{trends[g.id].message}</p>
                         )}
                       </>
                     )}
+                  </div>
+                )}
+
+                {/* WA-3. A goal is "yours to argue with" - which needs the
+                    other person to know it is waiting. */}
+                {g.status !== 'APPROVED_LOCKED' && currentRole === 'STUDENT' && (
+                  <div className="mt-3">
+                    <WhatsAppShare
+                      compact
+                      previewLabel="See the message"
+                      text={goalApprovalMessage(messageContext(settings), g)}
+                    />
                   </div>
                 )}
               </div>

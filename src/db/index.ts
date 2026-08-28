@@ -22,6 +22,8 @@ import {
   ProofAttachment,
   Chore,
   ChoreCompletion,
+  FixedCommitment,
+  CommitmentException,
 } from '../types';
 import {
   INITIAL_SUBJECTS,
@@ -38,6 +40,7 @@ import {
   MICRO_REWARDS,
   INITIAL_TASKS,
   RETITLED_REWARDS,
+  INITIAL_COMMITMENTS,
 } from './seedData';
 
 /**
@@ -91,6 +94,8 @@ export class GCSEGenieDatabase extends Dexie {
   attachments!: Table<ProofAttachment, string>;
   chores!: Table<Chore, string>;
   choreCompletions!: Table<ChoreCompletion, string>;
+  commitments!: Table<FixedCommitment, string>;
+  commitmentExceptions!: Table<CommitmentException, string>;
 
   constructor() {
     super('GCSEGenieDB', IS_BROWSER ? { addons: [dexieCloud] } : {});
@@ -192,6 +197,47 @@ export class GCSEGenieDatabase extends Dexie {
       choreCompletions: 'id, choreId, date, [choreId+date]',
     });
 
+    /**
+     * v9 turns the fixed weekly commitments into rows, and gives them a place
+     * to record an occasion that did not happen.
+     *
+     * They were a hardcoded `const` in burnoutEngine, which meant two things:
+     * nobody could change them without a code change, and - because an absence
+     * cannot be logged against a `const` - a missed parade night still charged
+     * the week its three hours. The seeded hours are carried over exactly, so
+     * no existing capacity total moves on the day this runs.
+     *
+     * `deductsFromCapacity` and `isActive` are booleans and therefore never
+     * actually indexed (see the note at the top of this file); both are
+     * filtered in memory.
+     */
+    this.version(9).stores({
+      commitments: 'id, isActive, createdAt',
+      commitmentExceptions:
+        'id, commitmentId, date, status, [commitmentId+date]',
+    });
+
+    /**
+     * v10 backfills the exam date onto an existing settings row.
+     *
+     * `seedMissingRows` only ever inserts rows whose primary key is absent, so
+     * a new *field* on the single `active_settings` row is invisible to it: the
+     * row already exists, so it is skipped, and the countdown that is supposed
+     * to be the first thing on the Home screen quietly read "This week" on
+     * every device that had ever been opened before.
+     *
+     * Only fills a blank. A date somebody has actually set is their decision.
+     */
+    this.version(10).upgrade(async (tx) => {
+      const settings = tx.table<ParentSettings & { id: string }, string>('parentSettings');
+      const existing = await settings.get('active_settings');
+      if (existing && !existing.examSeriesStartDate) {
+        await settings.update('active_settings', {
+          examSeriesStartDate: INITIAL_PARENT_SETTINGS.examSeriesStartDate,
+        });
+      }
+    });
+
     this.on('ready', async () => {
       await this.seedMissingRows();
     });
@@ -260,9 +306,19 @@ export class GCSEGenieDatabase extends Dexie {
     await addMissing(this.revisionLinks, INITIAL_FREE_REVISION_LINKS);
     await addMissing(this.goals, INITIAL_GOALS);
     await addMissing(this.tasks, INITIAL_TASKS);
+    await addMissing(this.commitments, INITIAL_COMMITMENTS);
 
-    if (!(await this.parentSettings.get('active_settings'))) {
+    const settings = await this.parentSettings.get('active_settings');
+    if (!settings) {
       await this.parentSettings.add({ ...INITIAL_PARENT_SETTINGS, id: 'active_settings' });
+    } else if (!settings.examSeriesStartDate) {
+      // The v10 upgrade covers the normal path. This catches a row that
+      // predates it on a database that never ran the version bump - a restored
+      // backup, most likely - because a missing countdown is silent, and a
+      // silent missing feature is the kind that ships.
+      await this.parentSettings.update('active_settings', {
+        examSeriesStartDate: INITIAL_PARENT_SETTINGS.examSeriesStartDate,
+      });
     }
   }
 
