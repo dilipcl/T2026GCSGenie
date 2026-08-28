@@ -19,11 +19,11 @@ The interface is organised by **how often you actually use something**, not by h
 
 | Tier | Sections | Typical use |
 | :--- | :--- | :--- |
-| **Every day** | Home · My Work · Plan · Fix My Mistakes | Check what's due, log the day, tick things off |
+| **Every day** | Home · My Work · Plan · Fix My Mistakes · Updates | Check what's due, log the day, tick things off, sign changes off |
 | **Weekly** | Proof Log · Rewards · Timetable · Subjects & Goals · Help & Careers | Logging marked work, planning, review, spending XP |
 | **Parent only** | Parent Portal | Audits, sanctions, backups, catalogue and profile setup |
 
-On mobile the four daily sections are the bottom bar; the rest live behind **More**. On desktop they're separated by a `WEEKLY` divider.
+On mobile the daily sections are the bottom bar; the rest live behind **More**. On desktop they're separated by a `WEEKLY` divider.
 
 Section names are deliberately plain — *My Work*, *Key Dates*, *Fix My Mistakes* — and **each page banner repeats its navigation label exactly**, so tapping a tab never lands on a page that appears to be something else. Exam boards, rotations and other real detail live in the subtitle. See spec §8.5.
 
@@ -123,6 +123,68 @@ Questions that dropped marks optionally become **fix-up tasks due in three days*
 work rather than just recording it. The subject average across marked papers is reported alongside
 the RAG score — deliberately *not* folded into it, because changing the 40/35/25 weighting would
 move every subject's status without anyone asking for that.
+
+### The weekly cockpit — Home in one card
+
+Home opens on a single card answering the three questions that actually get asked, so nothing has to be added up by scrolling:
+
+- **Countdown** — days to the first morning of the exam series, the term week, and the target grade.
+- **Goal pacing** — hours logged against each locked goal's weekly budget, with a pale tick marking the share expected *by the end of today*, and a four-week sparkline beside it.
+- **Capacity** — the week's total against the 60h ceiling, broken down per commitment, with anything excused shown as a deduction.
+- **Today** — the most pressing piece of work, the next fixed commitment, and today's chore. One tap each.
+
+It computes nothing of its own. Every number comes from the same service the corresponding full screen uses, so the summary can never disagree with the page it summarises.
+
+### Pacing: ahead, behind, stalled
+
+A weekly budget is arithmetically "behind" one minute past midnight on Monday, which is true and useless. So nothing is called behind before **Wednesday**, and nothing is called **stalled** — nothing logged at all — before **Friday**. Three tiers rather than two, because "behind by twenty minutes on Wednesday" and "not started by Friday" deserve different volumes; one amber for both teaches people to ignore amber.
+
+### Fixed commitments and attendance exceptions
+
+School, Air Cadets, Art Support, Drums and Bronze DofE are rows in a table, editable in the Parent Portal, each linked to the timetable entries it is actually made of.
+
+When an evening does not happen, **Log absence** takes about fifteen seconds: a reason chip, a status, an optional note. The hours come off that week's load and the capacity explanation says so explicitly — a figure that silently drops by three hours reads as a bug.
+
+Exceptions are keyed `${commitmentId}__${date}`, so two devices logging the same absence offline merge into one row and one deduction rather than double-counting it.
+
+### Confirming changes, and the Updates tab
+
+Nothing a student changes is written until it is confirmed. The sheet states what will actually happen (`+50 XP`) rather than asking a vague yes/no, and its primary button refuses input for 300ms so a double-tap that opened it cannot also accept it. It never absorbs a tap silently — an early tap is refused *and explained*.
+
+That sheet is a reflex guard, not a review. The review lives on the **Updates** tab: everything confirmed but not yet signed off, deselectable item by item, with one comment for the batch. Confirming does three things at once:
+
+1. stamps each entry with a confirmation time and the comment,
+2. writes a dated Markdown file for the Google Drive folder,
+3. offers to forward the batch, if the family has switched that on.
+
+Each entry keeps both the time it happened and the time it was confirmed. Nothing reaches the family until it has been re-confirmed.
+
+### The Drive log
+
+Confirming produces `Genie-Updates-YYYY-MM-DD-HHMM.md`, named so a folder of them sorts chronologically as plain text, and written in Markdown so a parent can open it on a phone and read it.
+
+**This is a save, not an upload.** The app holds no Drive credentials and no OAuth token — it is offline-first by design. The family runs Drive for Desktop over the working folder, so the file is saved and the folder path is shown next to the button. The interface says this rather than implying an upload.
+
+### WhatsApp — the family log
+
+Confirmed batches, questions from the check-in, goal approval requests, schedule exceptions, reward approvals and the Sunday digest can all be sent over WhatsApp click-to-chat. Pure string construction: no API, no account, no key, nothing leaves the device.
+
+Two rules the UI enforces rather than leaving to a component to remember:
+
+- **Nothing is ever sent automatically.** Every message is composed, shown and dispatched by a human tap.
+- **The app never claims a message was sent.** Opening a link is all it can observe, so the button says *Open in WhatsApp*, never *Send*, and there is a copy fallback everywhere.
+
+WhatsApp has no URL that targets a group with a prefilled message — `wa.me/?text=` opens the chat picker and the sender chooses. The group's invite link is stored in settings and offered alongside.
+
+Which destinations are offered is a parent setting (`updateForwarding`): the family group, individual saved numbers, and whether the options appear straight after confirming.
+
+### Running on empty
+
+`energyLevel` is collected on every check-in. When three of the last five are at 2 or below, Home offers the smallest next step — cut this week's commitment, or send the "it's getting heavy" message. Written as an offer, never a telling-off.
+
+### Doors still open
+
+Each career route's `requiredGCSEGrade` is joined against the current estimated grade for its relevant subjects, so Help & Careers can say how many routes are in reach today and which single subject moving up one grade would open the most. Framed as doors open, not doors lost.
 
 ### Subjects & RAG status
 Live Red/Amber/Green per subject, weighted **40% homework · 35% remediations · 25% topic mastery**, with a manual override if the calculated value is misleading. Covers Edexcel Maths, AQA English Lang & Lit, AQA Triple Science (+ required practicals), AQA History, OCR Computer Science, AQA Art & Design.
@@ -471,6 +533,25 @@ Documented honestly so they aren't rediscovered as bugs.
 8. **Free-tier storage will bind eventually.** 75 MB of photo storage is roughly 250 downscaled
    images — about a year at a realistic rate. The Pro tier (€3/month) raises that to 20 GB. The Parent
    Portal shows current usage so the trend is visible.
+
+## Testing
+
+```bash
+npm test          # vitest, once
+npm run test:watch
+```
+
+Service-level tests run in Node with `fake-indexeddb` standing in for the browser's IndexedDB, so the **real schema, migrations and engines** are exercised rather than mocks. `db/index.ts` already guards the Dexie Cloud addon behind `typeof window !== 'undefined'`, so the sync layer stays out of the way.
+
+Components are covered by `tsc` rather than a DOM harness: the logic lives in `services/`, and the components are thin renderers over it.
+
+The suite deliberately includes the acceptance criteria from `docs/enhancement-spec.md`, not just unit behaviour — for example:
+
+- a 3h cadets absence moves the baseline **44h → 41h**, and the explanation string says why;
+- per-goal weekly hours can never exceed the capacity gauge's logged total, and both reset on the same Monday;
+- the same absence logged on two devices offline merges to **one** row and one deduction;
+- a subject with four weeks of declining hours shows a falling trend **while its RAG status is still green**;
+- a handover reset clears activity while leaving every parent setting intact.
 
 ## Project layout
 

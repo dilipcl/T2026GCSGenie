@@ -1,5 +1,179 @@
 # Changelog
 
+## August 2026 - Updates get signed off, logged to Drive, and sent to the family
+
+Three related changes, and the bug that made the first one look broken.
+
+**Nothing a student changes is written until it is confirmed.** A tap on a phone
+is easy to make by accident - a list scrolls under a thumb and something gets
+ticked - and the app had no way to tell an accident from a decision, so the
+number it reported afterwards was wrong and nobody knew why. The sheet at the
+point of action states what will actually happen ("+50 XP") rather than asking a
+vague yes/no, and its primary button refuses input for 300ms so that a
+double-tap which opened it cannot also accept it.
+
+That guard was originally implemented by *disabling* the button, which was a
+mistake: a disabled control absorbs the tap and explains nothing, so an early
+tap did nothing and said nothing - indistinguishable from a broken button, and
+the most likely reason to report the whole mechanism as not working. It now
+stays live, refuses the early tap, and says "that was a fraction too quick".
+
+**The reviewing moved to its own tab.** The sheet is a reflex guard; it cannot
+also be a review, because nobody reads carefully in the second before they meant
+to tap something else. The Updates tab lists everything confirmed but not yet
+signed off, lets individual entries be deselected, takes one comment for the
+batch, and ends in three things: a confirmation timestamp, a dated Markdown file
+for the Google Drive folder, and - if the family has switched it on - a message.
+
+Each entry keeps both the time it happened and the time it was confirmed. Those
+are different facts and the gap between them is occasionally the interesting
+part.
+
+**Nothing reaches the family until it has been re-confirmed.** Forwarding an
+unconfirmed change would send them a draft of somebody's day.
+
+### The Drive log is a save, not an upload
+
+The app holds no Drive credentials and no OAuth token - it is offline-first by
+design. So confirming produces `Genie-Updates-YYYY-MM-DD-HHMM.md`, named so a
+folder of them sorts chronologically as plain text, and the working folder path
+is shown next to the button because Drive for Desktop syncs from there. The file
+is written *before* the batch is marked confirmed: a confirmation whose evidence
+never got written is worse than one that has not happened yet.
+
+The interface says all of this plainly rather than implying an upload.
+
+### Forwarding is a setting, and WhatsApp still cannot be automated
+
+`updateForwarding` in the Parent Portal decides whether to offer the family
+group, which saved numbers to offer directly, and whether to show the options
+straight after confirming. Numbers that get deleted drop out of the destinations
+rather than being left pointing at nothing.
+
+WhatsApp has no URL that targets a group with a prefilled message. `wa.me/?text=`
+opens the chat picker and the sender chooses. Every control says so.
+
+### The reset keeps what the parent set up
+
+`commitmentExceptions` was neither cleared nor reset, so a handover shipped a
+week with hours already excused from it. A logged absence is a thing that
+happened on a Tuesday, not configuration - it is now cleared, along with the
+change log.
+
+The other half was already true and is now guaranteed by a test rather than by
+reading the code: the reset touches exactly three fields on the settings row, so
+the WhatsApp numbers, the family group, the exam date, the student profile and
+the passphrase all survive, as do chores, commitments and the reward catalogue.
+The preview names them, because "nothing you configured is touched" is only
+believable if the screen can list what that means.
+
+### Two dead buttons, and why they were silent
+
+Reported as sign-in and Parent Mode doing nothing on a phone. Both work on the
+deployed site, so the specific report could not be reproduced - but the reason
+such a failure is *invisible* was a real defect, and the schema bump shipped
+immediately before is exactly what triggers it.
+
+Every screen reads IndexedDB, and a read against a database that never opened
+does not throw - it never settles. So each control waiting on one becomes a
+silent no-op. IndexedDB will not upgrade while an older connection holds the
+database, which is ordinary when a backgrounded phone tab is still open.
+
+- `ParentPinModal` read the lock state with no `catch`, above an
+  `if (!lockState) return null`. A failed read rendered nothing at all. It now
+  shows a loading state, and an error with a reload if the read fails.
+- `SyncStatus` called `db.cloud.sync()` and rendered nothing on success, and a
+  `console.warn` on failure. Both now say something.
+- The database reports `blocked`, `versionchange` and open failures, and a
+  banner explains it with a reload button.
+
+### The settings backfill, three times over
+
+`seedMissingRows` only inserts rows whose primary key is absent - deliberately,
+so a synced device cannot have its edits overwritten. That makes a new *field*
+on the single settings row invisible to it: the row already exists, so it is
+skipped. Every new setting therefore arrived only on a brand new install and did
+nothing on the devices people actually use.
+
+It hid the exam countdown, then the family group link, then the forwarding
+options - each one silent, each one found by noticing something missing in the
+browser rather than by any error. The backfill is now generalised over a list of
+defaultable fields, only ever fills a blank, and is asserted in a test.
+
+---
+
+## August 2026 - The weekly cockpit, attendance exceptions, and the family digest
+
+Implements `docs/enhancement-spec.md`: the 5-pillar blueprint and the launch
+film's on-screen promises, reconciled against what the code already did. About a
+third of the proposed work turned out to be built already, and rebuilding it
+would have produced a second, disagreeing copy.
+
+### Three data defects had to go first
+
+The cockpit puts these numbers side by side, where any disagreement becomes
+arithmetic anyone can check.
+
+**"This week" meant two different things.** The capacity gauge read a rolling
+seven days while the goal budgets read from the Monday, so on a Wednesday a
+session logged the previous Sunday counted towards one and not the other.
+`services/weekWindow.ts` is now the single definition; the rolling window is
+kept, but renamed `hoursLast7Days` so the two cannot be swapped at a call site.
+
+**Fixed commitments existed twice.** A hardcoded `const` in `burnoutEngine` and
+a set of hard-locked timetable rows, unlinked - and Drums already disagreed, 2.0h
+counted against a 1.0h lesson. They are now a table, seeded with the exact
+previous hours so no capacity total moved on migration day, and the missing drum
+practice block is in the timetable so the two sources agree.
+
+**An absence could not be logged against a `const`**, which is why a cancelled
+parade night still charged the week three hours.
+
+### What that unlocked
+
+Commitment exceptions are keyed `${commitmentId}__${date}`, on the same
+reasoning as `ChoreCompletion`: two devices logging the same absence offline
+merge to one row and one deduction. The capacity explanation spells the
+deduction out rather than quietly shrinking, because a number that drops by 3h
+unexplained reads as a bug.
+
+A weekly cockpit on Home carries goal pacing, capacity and today's three things,
+absorbing the chores card, the schedule and the workload gauge that the field
+test found unread at the bottom of the page. It computes nothing of its own, so
+it cannot tell a different story from the screen it summarises.
+
+The pro-rata marker is rendered on the bar rather than described in a sentence,
+there is a third `STALLED` tier, and a four-week sparkline sits on every subject
+and goal - the film's "it drifts, and it stays invisible" made visible from data
+that already existed.
+
+`energyLevel` was collected on every check-in and read by nothing. It now
+surfaces a low-energy offer to make the week smaller, which is the scene the film
+spends two shots on and the app had no answer for.
+
+`careerResources.requiredGCSEGrade` is joined against each subject's
+`currentEstimatedGrade`, so "how many doors are still open" is answerable. Framed
+as doors open, deliberately.
+
+WhatsApp click-to-chat for questions, goal approvals, exceptions, reward
+approvals and the Sunday digest. Pure string construction - no API, no key,
+nothing leaves the device.
+
+Plus an express check-in, a timetable-aware subject default in Quick Add, an
+optional reason when work leaves this week, and the Parent Portal grouped into
+collapsible sections.
+
+### Testing arrived with it
+
+There was no harness at all - no test script, and the multi-device consistency
+harness the database comments refer to was not in the repository. This adds
+vitest with fake-indexeddb, exercising the real schema and migrations rather
+than mocks, including the spec's own acceptance criteria: a 3h cadets absence
+moving the baseline 44h to 41h, and per-goal hours never exceeding the logged
+total.
+
+---
+
 ## August 2026 - Goals arrive as drafts, and the reset can hand over the keys
 
 Three seeded goals used to arrive `APPROVED_LOCKED`: Grade 9 Maths, Grade 9

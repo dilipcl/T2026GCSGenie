@@ -523,11 +523,17 @@ reset works by clearing the activity that produces them.
 
 | | Tables |
 | :--- | :--- |
-| **Cleared** | `checkIns`, `redemptions`, `sanctions`, `assessments`, `attachments`, `choreCompletions`, `agentAuditReports`, `auditLogs` |
+| **Cleared** | `checkIns`, `redemptions`, `sanctions`, `assessments`, `attachments`, `choreCompletions`, `commitmentExceptions`, `changeLog`, `agentAuditReports`, `auditLogs` |
 | **Progress reset, rows kept** | `tasks`, `milestones`, `remediations`, `syllabusTopics` |
 | **Status reset, wording kept** | `goals` — seeded goals return to their seeded status (`DRAFT`), `lockedAt` removed |
 | **Cleared on request** | `parentCredential` and `parentPinHash`, only when `clearPassphrase` is passed |
-| **Untouched** | Everything else — timetable, subjects, chores, rewards, links |
+| **Untouched** | Everything else — timetable, subjects, chores, **commitments**, rewards, links, and **every parent setting** (WhatsApp numbers, family group, exam date, student profile, passphrase) |
+
+Only three fields on the settings row are touched by a reset: `auditChainTips`, `failedUnlockAttempts`
+and `unlockLockedUntil`. A reset that wiped the settings row would make a parent set the app up again
+every time they cleared the student's activity, which is how a reset stops being used. The preview
+names what survives, because "nothing you configured is touched" is only believable if the screen can
+list what that means.
 
 Everything recording *what happened* is cleared; everything describing *the set-up* is kept. A
 topic's `confidenceRating` survives the reset: that is a judgement someone actually made about a
@@ -839,6 +845,9 @@ export interface ProofAttachment {
 | 6 | `tasks.bucket` indexed, so the Plan tab queries each column instead of filtering in memory |
 | 7 | Rewards retitled in place — the seeder only inserts *absent* rows, so a rename is invisible to it. Only rewards still holding their seeded title are touched |
 | 8 | `chores` and `choreCompletions` |
+| 9 | `commitments` and `commitmentExceptions` — fixed weekly load becomes data, and absences become loggable |
+| 10 | Backfills `examSeriesStartDate` onto an existing settings row |
+| 11 | `changeLog` — the record of confirmed changes |
 
 `attachments` carries a compound index `[ownerType+ownerId]`, which is the only lookup that matters.
 Booleans are never indexed — see 8.6.
@@ -938,7 +947,7 @@ state.
 ## 8. Implementation Status vs. Specification
 
 This section records where the running application diverges from the design above, so that gaps are
-not rediscovered as bugs. Last reviewed: **August 2026** (post pre-launch QA pass).
+not rediscovered as bugs. Last reviewed: **August 2026** (post enhancement release — see `docs/enhancement-spec.md`).
 
 ### 8.1. Built and working
 
@@ -958,6 +967,18 @@ not rediscovered as bugs. Last reviewed: **August 2026** (post pre-launch QA pas
 | **Handover reset** | ✅ Preview, rescue export and typed confirmation; clears activity, keeps set-up — see 4.13 |
 | **Editing content** | ✅ Goals, tasks, key dates, lessons, topics, subjects, fix-ups, rewards, guidance links, period times, student profile. Field-level audit rows |
 | **In-app help** | ✅ "How Genie works" tab, shown once on first launch; `InfoTip` beside the undefined numbers |
+| **Weekly cockpit** | ✅ Countdown, goal pacing with pro-rata marker, capacity breakdown, today's triad — reads existing services only, computes nothing of its own |
+| **One week window** | ✅ `services/weekWindow.ts` is the single Monday-start definition; the rolling variant is named `hoursLast7Days` so the two cannot be swapped |
+| **Fixed commitments** | ✅ A table rather than a `const`, linked to the timetable rows they are made of, editable in the Parent Portal |
+| **Attendance exceptions** | ✅ Keyed `${commitmentId}__${date}` so offline devices merge; deduction shown explicitly in the capacity explanation |
+| **Four-week trajectory** | ✅ Derived from existing check-ins, no schema change; the current partial week is excluded from the direction |
+| **Change confirmation** | ✅ Point-of-action sheet with a 300ms guard that refuses *and explains* an early tap, then a separate Updates tab for sign-off |
+| **Drive log** | ⚠️ A dated Markdown **save**, not an upload — the app holds no Drive credentials. Working folder path shown; Drive for Desktop syncs from there |
+| **WhatsApp** | ⚠️ Click-to-chat only. No URL can target a group with a prefilled message, so `wa.me/?text=` opens the picker. Never labelled "Send" |
+| **Low-energy signal** | ✅ `energyLevel` finally read by something — three of the last five at ≤2 offers to make the week smaller |
+| **Doors still open** | ✅ `requiredGCSEGrade` joined against `currentEstimatedGrade` |
+| **Database failure reporting** | ✅ `blocked`, `versionchange` and open failures surface a banner rather than leaving controls as silent no-ops |
+| **Automated tests** | ✅ vitest + fake-indexeddb over the real schema and migrations; the spec's acceptance criteria are assertions |
 | XP, rewards shop, sanctions | ✅ Pending requests now reserve XP; overdraft approval blocked |
 | Parent PIN + Parent Portal | ⚠️ Works, but gates the UI only — see 8.2 |
 | JSON backup / restore | ✅ Schema-walking export, pre-flight diff, automatic rescue copy, API key stripped |
