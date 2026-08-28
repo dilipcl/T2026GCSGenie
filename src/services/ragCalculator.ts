@@ -121,6 +121,14 @@ export async function calculateTotalXP(): Promise<XPLedger> {
   const remediations = await db.remediations.toArray();
   const remXP = remediations.filter((r) => r.isCompleted).reduce((sum, r) => sum + (r.xpReward || 0), 0);
 
+  // Chores XP.
+  //
+  // Read straight from the completion rows rather than from the chore's current
+  // value: changing a chore from 10 XP to 25 XP must not retroactively repay
+  // every time it was already done.
+  const choreCompletions = await db.choreCompletions.toArray();
+  const choreXP = choreCompletions.reduce((sum, c) => sum + (c.xpAwarded || 0), 0);
+
   // Sanctions penalty & freeze status
   const sanctions = await db.sanctions.toArray();
   const penaltyXP = sanctions.reduce((sum, s) => sum + Math.abs(s.penaltyXP || 0), 0);
@@ -141,7 +149,7 @@ export async function calculateTotalXP(): Promise<XPLedger> {
     .filter((r) => r.status === 'PENDING')
     .reduce((sum, r) => sum + (r.costXP || 0), 0);
 
-  const totalEarned = checkInXP + taskXP + remXP;
+  const totalEarned = checkInXP + taskXP + remXP + choreXP;
   const trueBalance = totalEarned - penaltyXP - redeemedXP - reservedXP;
 
   return {

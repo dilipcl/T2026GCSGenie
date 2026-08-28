@@ -1,5 +1,181 @@
 # Changelog
 
+## August 2026 - The pre-launch QA pass: editing, and knowing where the hours went
+
+The launch-readiness walkthrough found one blocking layout bug, three smaller
+ones, and a shape problem underneath all of it: the app could add things and
+complete things, and almost nothing in it could be *changed*.
+
+### The four bugs
+
+**The More menu's second row was under the nav bar.** On a phone the sheet
+opened flush with the bottom of the screen with only `pb-safe` beneath it, and
+the fixed bottom bar paints on top - so Subjects, Careers and, in parent mode,
+the Parent Portal tile itself had about twenty tappable pixels each. There is
+now a `pb-nav-safe` that clears the bar, and collapses again above the
+breakpoint where the bar does not exist.
+
+**Nothing closed on Escape.** Only the shared confirm dialog listened for it;
+the nine real modals did not. One hook now does it everywhere. It keeps a stack,
+because a modal routinely opens a confirm on top of itself and both listen on
+`window` - without an ordering rule a single Escape cancelled the confirm *and*
+closed the half-filled form underneath it. The same hook gave every modal
+`role="dialog"` and `aria-modal`.
+
+**The change history showed the time and not the date.** Forty-one entries
+across four synced devices read 21:40 / 20:39 / 22:38. They were sorted
+correctly the whole time; only the label was missing. Now "Today 21:40",
+"Yesterday 20:39", "25 Aug, 22:38".
+
+**The weekly review's Sign off step was not gated.** It was 24px tall. Any step
+was always reachable directly - it was simply too small to hit. Now 44.
+
+### Editing
+
+Ten kinds of content could be added and deleted and never edited. All ten now
+can be, and every field-level change writes its own audit row - "weekly hours
+2 became 4" rather than "goal updated", because the second one satisfies the
+letter of an audit trail and tells nobody anything.
+
+**Goals were the one that mattered.** A goal was write-once: the only exits from
+a proposal were Approve & Lock or Decline, so a wording the parent disagreed
+with meant deleting it and retyping. That also made the intended opening ritual
+impossible - "the student drafts, reviews and finalises, then the parent
+reviews" had no screen on which to finalise anything. A goal can now be edited,
+saved as a draft, and sent for approval when it reads right. A locked goal stays
+parent-only: its hours are live in the capacity model, and letting the student
+edit them afterwards is a way to edit around the lock.
+
+The rest: homework, key dates and lessons through the Quick Add sheet with the
+row loaded into it, rather than a second form to keep in step with the first;
+syllabus topics in place; every printed field of a subject, including the board
+and both grades; the rewards catalogue and the revision and careers links, both
+of which were seed-only and had drifted from what anyone was really using; the
+fix-up quests, which could only ever have come from the Year 9 papers and now
+accept a November mock; the bell times behind the period chips; and the student
+profile - the name, year, school and target grade were literal strings in the
+header, so moving up a year needed a code change.
+
+Rewards and links are retired rather than deleted, like chores: seeding
+re-inserts any row it knows about and finds missing, so a deleted seed row comes
+straight back on the next open.
+
+### Where the hours actually went
+
+A locked goal reserved its weekly hours in the burnout model and was then never
+checked against them. Study time was logged - by the focus timer and at
+check-in - but it went into one global bucket, so a goal could sit locked for a
+month with nothing worked and every screen still read green.
+
+Minutes now carry the subject they were spent on. The focus block asks once and
+remembers; the check-in defaults to whatever homework is being ticked off, and
+follows that homework's linked goal when it has one. `goalProgress` turns that
+into "2.0 / 3.5h this week" on each locked goal, pro-rated by weekday so nothing
+is called behind on Monday morning, with a dashboard nudge from Wednesday and
+the full list in the weekly review.
+
+The measure itself - "14-day homework streak + 90% on quizzes" - is still free
+text and stays that way. Parsing an English sentence into a tracker is a worse
+product than asking a person what the number should be.
+
+### Saying what any of it means
+
+"Careers & Help" was careers advice, revision links and a teacher directory, and
+nothing anywhere explained the app. There is now a **How Genie works** tab -
+first, and the default - covering what each screen is for, how XP works, how a
+streak survives a missed day, and why a goal has to be locked before its hours
+count. The same component opens once on a first launch, so a tour can never
+disagree with the help page.
+
+Beside it, an `InfoTip`: a round "i" next to the numbers the app expected people
+to act on without ever defining - XP, the streak, subject health, a goal's
+weekly hours, the workload gauge, committed-versus-capacity, and the three
+check-in questions. A number nobody understands is a number nobody trusts, and
+an untrusted number gets ignored rather than questioned.
+
+---
+
+## August 2026 - Chores, and a clean slate to hand over
+
+Two things the launch needed that the study plan had no room for.
+
+### The small reliable jobs
+
+The weekly review asks a parent to add anything that was missed, and doing that
+for "put the bins out" meant opening Quick Add and filling in a homework form:
+subject, due date, priority. So it never got logged, and the jobs that actually
+build the habit stayed invisible next to the essays.
+
+**A chore is deliberately not a task.** No due date, no subject, no place in the
+weekly load, no effect on the burnout gauge. Modelling one as a task would put
+emptying the dishwasher in the same list as a mock paper and count it against
+revision hours, which is how a planning tool stops being believed. They earn XP
+because the reward shop is the loop everything else feeds into, and because a
+job worth doing is worth counting - but the defaults are small (10 XP daily,
+25 weekly) so chores cannot out-earn revision.
+
+Three cadences: every day, school days, or one named day a week. Today's fall
+onto the dashboard as one card that renders nothing at all when nothing is due -
+an empty card saying "no chores" is one more thing to scroll past on the screen
+the app is opened to read. One tap, no confirmation: a chore that takes four
+minutes cannot cost thirty seconds to log. Un-ticking is a first-class action,
+because a mis-tap that cannot be taken back leaves XP in the balance that was
+never earned.
+
+**A completion's id is `choreId__date`, never a generated one.** One chore on one
+day is one row whichever device ticks it, so two devices ticking the same chore
+offline and syncing later merge into a single row and the XP is paid once. A
+generated id would have paid twice and read as a sync fault rather than the
+modelling mistake it actually was.
+
+The XP ledger reads `xpAwarded` off the completion row rather than the chore's
+current value, so re-pricing a chore from 10 XP to 25 does not retroactively
+repay every time it was already done. Chores are retired rather than deleted,
+and the starter suggestions are offered in the UI rather than seeded - seeding
+re-inserts any row it knows about and finds missing, so a seeded chore a parent
+deleted would reappear on the next open. The list has to be genuinely theirs.
+
+The weekly review reports how the week went and can add a chore inline, without
+sending the parent to the portal in the middle of a fifteen-minute ritual.
+
+### Prepare for launch
+
+A fortnight of QA leaves a database that looks like someone else's week: XP from
+check-ins nobody made, a stress-test goal, a dummy marked paper. Handing that to
+a teenager as their starting point makes the first number they see untrue, and
+every number after it suspect.
+
+**XP and the streak are derived, not stored.** There is no counter to set to
+zero - XP is check-ins plus completions minus sanctions and redemptions, and the
+streak is computed from check-in dates. So the reset works by clearing the
+activity that produces them.
+
+The rule is one sentence: everything recording *what happened* is cleared;
+everything describing *the set-up* is kept. Check-ins, redemptions, sanctions,
+marked work, attachments, chore ticks, AI reports and the change history go.
+The timetable, subjects, syllabus, chores, reward catalogue and the parent
+passphrase stay, with the progress flags on tasks, key dates, quests and topics
+reset. A topic's confidence rating survives - that is a judgement someone
+actually made, not testing residue.
+
+**The audit tips are cleared with the log they belong to.** Tamper detection
+compares each device's stored high-water mark against the rows present, so
+emptying `auditLogs` and leaving the tips behind would make an honest reset look
+exactly like someone deleting the tail of the log. The first entry written after
+a reset is the reset itself, so the new chain opens by saying what happened to
+the old one.
+
+Three gates, in the order they matter: a preview naming every row that will go,
+a rescue export downloaded before anything is touched, and the word RESET typed
+out. This is the one destructive action a parent will reach for deliberately,
+and muscle memory is exactly what stops a confirmation dialog being read.
+
+Goals are configuration and are kept - but a stress-test goal left behind would
+distort the workload cap from day one, so any goal that is not part of the
+starting set is named in the preview for a parent to check.
+
+---
+
 ## August 2026 - Rewards a family actually asked for, and the lock on a second device
 
 ### The catalogue

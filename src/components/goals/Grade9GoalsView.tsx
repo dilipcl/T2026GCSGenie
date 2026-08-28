@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
 import { SubjectConfig, Goal, UserRole } from '../../types';
 import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalculator';
+import { lockedGoalProgress, GoalWeekProgress } from '../../services/goalProgress';
 import { logAuditEvent } from '../../services/auditService';
 import { SubjectDetailModal } from './SubjectDetailModal';
 import { GoalConsultationModal } from './GoalConsultationModal';
-import { Target, Plus, ShieldCheck, Lock, Unlock, X } from 'lucide-react';
+import { Target, Plus, ShieldCheck, Lock, Unlock, X, PencilLine, Send } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { InfoTip } from '../shared/InfoTip';
 
 interface Grade9GoalsViewProps {
   currentRole: UserRole;
@@ -19,6 +21,8 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
   const [goals, setGoals] = useState<Goal[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<SubjectConfig | null>(null);
   const [isConsultationOpen, setIsConsultationOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [progress, setProgress] = useState<Record<string, GoalWeekProgress>>({});
 
   const loadData = async () => {
     const subList = await db.subjects.toArray();
@@ -31,6 +35,10 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
       rags[sub.id] = await calculateSubjectRAG(sub.id);
     }
     setRagData(rags);
+
+    const byGoal: Record<string, GoalWeekProgress> = {};
+    for (const entry of await lockedGoalProgress()) byGoal[entry.goal.id] = entry;
+    setProgress(byGoal);
   };
 
   useEffect(() => {
@@ -104,6 +112,27 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
     loadData();
   };
 
+  /**
+   * A draft is the student's own working copy - it is not offered to anyone
+   * until this. Without it a draft had no way forward and the DRAFT status was
+   * a dead end that only seedData could produce.
+   */
+  const handleSubmitDraft = async (goal: Goal) => {
+    await db.goals.update(goal.id, { status: 'PENDING_DISCUSSION' });
+    await logAuditEvent({
+      user: 'STUDENT',
+      action: 'UPDATE',
+      entity: 'Goal',
+      entityId: goal.id,
+      fieldChanged: 'status',
+      oldValue: 'DRAFT',
+      newValue: 'PENDING_DISCUSSION (sent for parent approval)',
+    });
+    toast.success(`"${goal.title}" sent for approval`, 'A parent reviews it and locks it in.');
+    loadData();
+  };
+
+  const draftCount = goals.filter((g) => g.status === 'DRAFT').length;
   const pendingCount = goals.filter((g) => g.status === 'PENDING_DISCUSSION').length;
   const lockedHours = goals
     .filter((g) => g.status === 'APPROVED_LOCKED')
@@ -181,7 +210,13 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
               {rag ? (
                 <div className="space-y-2 pt-2 border-t border-slate-800/80">
                   <div className="flex justify-between text-xs text-slate-300">
-                    <span>Grade 9 Health</span>
+                    <span className="flex items-center gap-1.5">
+                      <span>Grade 9 Health</span>
+                      <InfoTip label="Grade 9 Health">
+                        A 0-100 read on this subject from homework done, fix-ups cleared and topics
+                        mastered. Red means it needs attention now.
+                      </InfoTip>
+                    </span>
                     <span className="font-bold text-indigo-400">{rag.healthScore}/100</span>
                   </div>
                   <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -223,6 +258,16 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
           </span>
         </div>
 
+        {draftCount > 0 && (
+          <div className="mb-3 p-3 bg-slate-800/50 border border-slate-700 rounded-xl text-xs text-slate-300 flex items-start gap-2">
+            <PencilLine className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+            <span>
+              {draftCount} draft{draftCount === 1 ? '' : 's'} - still yours to change. Send one for
+              approval when it reads right.
+            </span>
+          </div>
+        )}
+
         {pendingCount > 0 && (
           <div className="mb-4 p-3 bg-amber-950/30 border border-amber-500/40 rounded-xl text-xs text-amber-100 flex items-start gap-2">
             <Lock className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
@@ -256,13 +301,15 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
                   </span>
                   <h4 className="font-bold text-sm text-white">{g.title}</h4>
                   <span
-                    className={`text-[10px] px-2 py-0.2 rounded font-semibold uppercase ${
+                    className={`text-[10px] px-2 py-0.5 rounded font-semibold uppercase ${
                       g.status === 'APPROVED_LOCKED'
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : g.status === 'DRAFT'
+                        ? 'bg-slate-700/50 text-slate-300 border border-slate-600'
                         : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                     }`}
                   >
-                    {g.status.replace('_', ' ')}
+                    {g.status.replace(/_/g, ' ')}
                   </span>
                 </div>
 
@@ -274,6 +321,46 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
                     <strong className="text-slate-300">Measure:</strong> {g.smartMeasurable}
                   </p>
                 </div>
+
+                {/* Hours reserved vs hours actually worked. A locked goal used
+                    to reserve time in the capacity model and then never be
+                    checked against it. */}
+                {progress[g.id] && (
+                  <div className="mt-2 max-w-xs">
+                    {progress[g.id].isUnattributable ? (
+                      <p className="text-[11px] text-slate-500">
+                        No subject set, so study time cannot be counted towards this. Edit the goal
+                        to pick one.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between text-[11px] mb-1">
+                          <span className="text-slate-400">This week</span>
+                          <span
+                            className={`font-bold ${
+                              progress[g.id].needsAction ? 'text-amber-300' : 'text-emerald-300'
+                            }`}
+                          >
+                            {progress[g.id].actualHours} / {progress[g.id].targetHours}h
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${
+                              progress[g.id].needsAction ? 'bg-amber-500' : 'bg-emerald-500'
+                            }`}
+                            style={{ width: `${progress[g.id].percentOfWeek}%` }}
+                          />
+                        </div>
+                        {progress[g.id].needsAction && (
+                          <p className="mt-1 text-[11px] text-amber-300">
+                            Needs action - {progress[g.id].proRatedTargetHours}h expected by today.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3">
@@ -292,11 +379,40 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
                   {g.weeklyHoursRequired} hrs/wk
                 </span>
 
+                <InfoTip label="Weekly hours">
+                  The weekly time this goal needs. It only counts towards your week once a parent
+                  locks the goal.
+                </InfoTip>
+
                 {g.status === 'APPROVED_LOCKED' && (
                   <span className="text-[11px] text-emerald-400 flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" />
                     <span>Locked</span>
                   </span>
+                )}
+
+                {/* Editing was the largest gap in the app: a goal used to be
+                    write-once, so "the student reviews and finalises, then the
+                    parent reviews" had no screen to happen on. A locked goal
+                    stays parent-only. */}
+                {(g.status !== 'APPROVED_LOCKED' || currentRole === 'PARENT') && (
+                  <button
+                    onClick={() => setEditingGoal(g)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border bg-slate-800 border-slate-700 text-slate-300 hover:text-indigo-300 hover:border-indigo-500/40 transition-all"
+                  >
+                    <PencilLine className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
+                )}
+
+                {g.status === 'DRAFT' && (
+                  <button
+                    onClick={() => handleSubmitDraft(g)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500 transition-all"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send for approval</span>
+                  </button>
                 )}
 
                 {currentRole === 'PARENT' && g.status !== 'APPROVED_LOCKED' && (
@@ -308,7 +424,7 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
                     <span>Decline</span>
                   </button>
                 )}
-                {currentRole === 'PARENT' && (
+                {currentRole === 'PARENT' && g.status !== 'DRAFT' && (
                   <button
                     onClick={() => handleToggleLock(g)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
@@ -345,8 +461,13 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
       />
 
       <GoalConsultationModal
-        isOpen={isConsultationOpen}
-        onClose={() => setIsConsultationOpen(false)}
+        isOpen={isConsultationOpen || !!editingGoal}
+        goal={editingGoal}
+        currentRole={currentRole}
+        onClose={() => {
+          setIsConsultationOpen(false);
+          setEditingGoal(null);
+        }}
         onSuccess={loadData}
       />
     </div>

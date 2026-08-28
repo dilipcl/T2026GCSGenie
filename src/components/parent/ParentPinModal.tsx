@@ -9,6 +9,7 @@ import {
 } from '../../services/parentLockService';
 import { MIN_PASSPHRASE_LENGTH } from '../../utils/credential';
 import { X, Lock, AlertCircle, ShieldAlert, KeyRound, CloudOff, RefreshCw } from 'lucide-react';
+import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 
 interface ParentPinModalProps {
   isOpen: boolean;
@@ -51,6 +52,10 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
     setUpgrading(false);
     refresh();
   }, [isOpen]);
+
+  // Escape closes, like every other dialog in the app. Must sit above the
+  // early return - a hook cannot be called conditionally.
+  useEscapeToClose(isOpen, onClose);
 
   if (!isOpen || !lockState) return null;
 
@@ -127,7 +132,12 @@ export const ParentPinModal: React.FC<ParentPinModalProps> = ({
     (!isClaiming || (passphrase.length >= MIN_PASSPHRASE_LENGTH && confirmPhrase.length > 0));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Parent access"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+    >
       <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-sm w-full p-6 shadow-2xl relative text-center">
         <button
           onClick={onClose}

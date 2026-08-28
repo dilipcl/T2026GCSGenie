@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { newId } from '../../utils/id';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 
 interface RemediationSolveModalProps {
   quest: RemediationAction | null;
@@ -57,6 +58,10 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
     setShowSubQuestForm(false);
     setIsSaving(false);
   }, [quest?.id]);
+
+  // Escape closes, like every other dialog in the app. Must sit above the
+  // early return - a hook cannot be called conditionally.
+  useEscapeToClose(isOpen, onClose);
 
   if (!isOpen || !quest) return null;
 
@@ -171,7 +176,12 @@ export const RemediationSolveModal: React.FC<RemediationSolveModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Fix-up quest"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+    >
       <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}

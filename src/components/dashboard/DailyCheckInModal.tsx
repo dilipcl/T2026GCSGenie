@@ -17,6 +17,8 @@ import {
   BookmarkCheck,
 } from 'lucide-react';
 import { newId } from '../../utils/id';
+import { useEscapeToClose } from '../../hooks/useEscapeToClose';
+import { InfoTip } from '../shared/InfoTip';
 
 interface DailyCheckInModalProps {
   isOpen: boolean;
@@ -35,6 +37,16 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   const [pendingTasks, setPendingTasks] = useState<Task[]>([]);
   const [completedTaskIds, setCompletedTaskIds] = useState<string[]>([]);
   const [revisionMinutes, setRevisionMinutes] = useState<number>(30);
+  /**
+   * Which subject the logged minutes belong to. Empty means "don't attribute" -
+   * honest, and better than silently filing an hour under whatever happened to
+   * be first in the list.
+   */
+  const [studySubject, setStudySubject] = useState<SubjectId | ''>('');
+  /** True once the picker has been touched, so the default stops following the ticked homework. */
+  const [studySubjectTouched, setStudySubjectTouched] = useState(false);
+  /** Set only when the ticked homework itself pointed at a goal. */
+  const [studyGoal, setStudyGoal] = useState('');
 
   // Structured Log Questions
   const [blockersAndQuestions, setBlockersAndQuestions] = useState('');
@@ -83,7 +95,10 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       setBlockersAndQuestions('');
       setActionForTomorrow('');
       setActionSubject('');
-    setQuestionSubject('');
+      setQuestionSubject('');
+      setStudySubject('');
+      setStudyGoal('');
+      setStudySubjectTouched(false);
       setCreateActionTask(true);
       setCreateQuestionTask(true);
 
@@ -94,6 +109,25 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       else setSession('EVENING');
     }
   }, [isOpen, todayStr]);
+
+  /**
+   * Default the study subject to whatever homework is being ticked off. Most
+   * check-ins log time against the work just finished, and a picker that starts
+   * empty is a picker that stays empty. Stops following once it has been set by
+   * hand, so a deliberate choice is never overwritten by ticking another box.
+   */
+  useEffect(() => {
+    if (studySubjectTouched) return;
+    const firstTicked = pendingTasks.find((t) => completedTaskIds.includes(t.id));
+    setStudySubject(firstTicked ? firstTicked.subjectId : '');
+    // If that homework was linked to a goal, the time belongs to that goal
+    // specifically rather than to everything sharing its subject.
+    setStudyGoal(firstTicked?.linkedGoalId || '');
+  }, [completedTaskIds, pendingTasks, studySubjectTouched]);
+
+  // Escape closes, like every other dialog in the app. Must sit above the
+  // early return - a hook cannot be called conditionally.
+  useEscapeToClose(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -149,6 +183,8 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
         focusRating: focus,
         completedHomeworkIds: completedTaskIds,
         completedRevisionMinutes: revisionMinutes,
+        studySubjectId: revisionMinutes > 0 ? studySubject || undefined : undefined,
+        studyGoalId: revisionMinutes > 0 ? studyGoal || undefined : undefined,
         structuredNotes: {
           blockersAndQuestions: blockersAndQuestions.trim() || undefined,
           keyLearning: keyLearning.trim() || undefined,
@@ -243,7 +279,12 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Daily check-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+    >
       <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
@@ -430,6 +471,40 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
               onChange={(e) => setRevisionMinutes(Number(e.target.value))}
               className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
+
+            {/* Where those minutes are credited. A locked goal reserves weekly
+                hours; without this the app can never say whether any were
+                actually worked. */}
+            {revisionMinutes > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <label
+                  htmlFor="checkin-study-subject"
+                  className="text-[11px] text-slate-400"
+                >
+                  Spent on
+                </label>
+                <select
+                  id="checkin-study-subject"
+                  value={studySubject}
+                  onChange={(e) => {
+                    setStudySubjectTouched(true);
+                    setStudySubject(e.target.value as SubjectId | '');
+                    // Choosing a subject by hand overrides the goal the ticked
+                    // homework implied - otherwise the minutes would be credited
+                    // to a goal on a subject that was just changed away from.
+                    setStudyGoal('');
+                  }}
+                  className="flex-1 min-w-[10rem] bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white"
+                >
+                  <option value="">Not set - counts towards nothing</option>
+                  {INITIAL_SUBJECTS.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* STRUCTURED QUESTIONS SECTION */}
@@ -437,6 +512,10 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
             <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
               <Lightbulb className="w-4 h-4 text-amber-400" />
               <span>Three quick questions</span>
+              <InfoTip label="The three questions">
+                30 seconds of reflection - what clicked, what to ask tomorrow, what is next. Your
+                best revision notes come from here.
+              </InfoTip>
             </h4>
 
             {/* Q1: Key Concept */}

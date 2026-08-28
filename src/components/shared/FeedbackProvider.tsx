@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import { triggerCelebration } from '../../utils/confetti';
 import { newId } from '../../utils/id';
 import { CheckCircle2, AlertTriangle, Info, X, Sparkles } from 'lucide-react';
@@ -105,16 +106,17 @@ export const FeedbackProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     []
   );
 
-  // Escape cancels, and the confirm button takes focus so Enter works
+  // The confirm button takes focus so Enter works
   useEffect(() => {
     if (!confirmState) return;
     confirmButtonRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') settle(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [confirmState, settle]);
+  }, [confirmState]);
+
+  // Escape cancels. Through the shared hook rather than its own listener, so a
+  // confirm raised from inside a modal is the layer that answers Escape and the
+  // modal beneath it stays open.
+  const cancelConfirm = useCallback(() => settle(false), [settle]);
+  useEscapeToClose(!!confirmState, cancelConfirm);
 
   const api = useMemo<FeedbackApi>(
     () => ({

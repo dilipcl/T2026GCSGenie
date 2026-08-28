@@ -26,7 +26,10 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
    * ago is already reflected in the affordability check for the next one, and a
    * parent approving on another screen updates this one without a reload.
    */
-  const rewards = useLiveQuery(() => db.rewards.toArray(), []) ?? [];
+  // Retired rewards stay in the table so old redemptions still resolve, but
+  // they are off the shelf.
+  const rewards =
+    useLiveQuery(async () => (await db.rewards.toArray()).filter((r) => !r.isArchived), []) ?? [];
   const redemptions =
     useLiveQuery(() => db.redemptions.orderBy('requestedAt').reverse().toArray(), []) ?? [];
   const xpLedger = useLiveQuery(() => calculateTotalXP(), []);

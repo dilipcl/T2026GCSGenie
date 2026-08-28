@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Circle,
 } from 'lucide-react';
+import { InfoTip } from '../shared/InfoTip';
 
 interface PlanViewProps {
   onAdd: () => void;
@@ -117,12 +118,18 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
         {/* Committed n of m · x h, against the headroom a plan can use */}
         <div className="mt-4 pt-4 border-t border-slate-800">
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
-            <span className="text-xs font-bold text-white">
-              Committed {commitment.committedDone} of {commitment.committedCount}
-              <span className="text-slate-400 font-normal">
-                {' · '}
-                {commitment.committedHours}h of {health.safeStudyHours}h study time left this week
+            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+              <span>
+                Committed {commitment.committedDone} of {commitment.committedCount}
+                <span className="text-slate-400 font-normal">
+                  {' · '}
+                  {commitment.committedHours}h of {health.safeStudyHours}h study time left this week
+                </span>
               </span>
+              <InfoTip label="Committed vs capacity">
+                Hours you have promised this week vs. what safely fits. Move things out and they
+                stop counting against you.
+              </InfoTip>
             </span>
             <span
               className={`text-[11px] font-bold ${

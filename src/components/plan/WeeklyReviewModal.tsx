@@ -5,6 +5,9 @@ import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { loadWeekCommitment } from '../../services/planService';
 import { calculateStreakStats, calculateEffortStats } from '../../services/habitEngine';
 import { calculateTotalXP } from '../../services/ragCalculator';
+import { choreWeekSummary, saveChore, CADENCE_LABEL } from '../../services/choreService';
+import { lockedGoalProgress } from '../../services/goalProgress';
+import { ChoreCadence } from '../../types';
 import { logAuditEvent } from '../../services/auditService';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { addDaysISO, formatFriendlyDate, daysUntil } from '../../utils/date';
@@ -16,6 +19,7 @@ import {
 
   Handshake,
 } from 'lucide-react';
+import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 
 interface WeeklyReviewModalProps {
   isOpen: boolean;
@@ -55,6 +59,14 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
   const streak = useLiveQuery(() => (isOpen ? calculateStreakStats() : undefined), [isOpen]);
   const effort = useLiveQuery(() => (isOpen ? calculateEffortStats() : undefined), [isOpen]);
   const xp = useLiveQuery(() => (isOpen ? calculateTotalXP() : undefined), [isOpen]);
+  const chores = useLiveQuery(() => (isOpen ? choreWeekSummary() : undefined), [isOpen]);
+  const goalHours = useLiveQuery(() => (isOpen ? lockedGoalProgress() : []), [isOpen], []);
+
+  // Adding a chore inline rather than sending the parent to the Parent Portal.
+  // This is a fifteen-minute ritual with both people sitting down; navigating
+  // away from it to log "put the bins out" is how the ritual stops happening.
+  const [choreTitle, setChoreTitle] = useState('');
+  const [choreCadence, setChoreCadence] = useState<ChoreCadence>('WEEKLY');
 
   const pendingRewards = useLiveQuery(
     async () =>
@@ -80,12 +92,29 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
     [isOpen]
   );
 
+  // Escape closes, like every other dialog in the app. Must sit above the
+  // early return - a hook cannot be called conditionally.
+  useEscapeToClose(isOpen, onClose);
+
   if (!isOpen) return null;
   if (!commitment || !streak || !effort || !xp) return null;
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
   const approvalCount =
     (pendingRewards?.length ?? 0) + (pendingGoals?.length ?? 0) + (unverifiedPapers?.length ?? 0);
+
+  const handleAddChore = async () => {
+    const title = choreTitle.trim();
+    if (!title) return;
+    try {
+      await saveChore({ title, cadence: choreCadence });
+      setChoreTitle('');
+      toast.success('Chore added', `${title} · ${CADENCE_LABEL[choreCadence].toLowerCase()}`);
+    } catch (err) {
+      console.error('Could not add chore:', err);
+      toast.error('Could not add that chore', 'Nothing was changed.');
+    }
+  };
 
   const handleSignOff = async () => {
     await logAuditEvent({
@@ -95,7 +124,8 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
       entityId: `review_${addDaysISO(0)}`,
       newValue:
         `Weekly review completed. ${commitment.committedDone}/${commitment.committedCount} committed tasks done, ` +
-        `${effort.hoursThisWeek}h studied, ${streak.current}-day streak, ${approvalCount} items were awaiting approval.`,
+        `${effort.hoursThisWeek}h studied, ${streak.current}-day streak, ${approvalCount} items were awaiting approval` +
+        ((chores?.due ?? 0) > 0 ? `, chores ${chores!.done}/${chores!.due}.` : '.'),
     });
     toast.celebrate('Reviewed together', 'Logged to the change history. Same time next week.');
     setStep('LAST_WEEK');
@@ -114,7 +144,12 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Weekly review"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+    >
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative w-full sm:max-w-2xl bg-slate-900 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl p-5 pb-safe sm:pb-5 shadow-2xl max-h-[92vh] overflow-y-auto">
@@ -134,13 +169,18 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
           </button>
         </div>
 
-        {/* Progress through the four steps */}
+        {/* Progress through the four steps. Any step is reachable directly -
+            nothing is gated behind "Next" - but at py-1.5 these were 24px tall,
+            well under a thumb, which is why jumping straight to Sign off could
+            look like it had been refused. */}
         <div className="flex items-center gap-1 mb-4">
           {STEPS.map((s, i) => (
             <button
               key={s.id}
+              type="button"
               onClick={() => setStep(s.id)}
-              className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+              aria-current={i === stepIndex ? 'step' : undefined}
+              className={`flex-1 min-h-[44px] px-1 rounded-lg text-[10px] font-bold border transition-all ${
                 i === stepIndex
                   ? 'bg-indigo-600 border-indigo-400 text-white'
                   : i < stepIndex
@@ -181,6 +221,46 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
             <p className="text-[11px] text-slate-400">
               {effort.votes} votes cast for being someone who does the work — {effort.tasksCompleted}{' '}
               tasks, {effort.questsCompleted} quests, {effort.checkInDays} days checked in.
+            </p>
+          </div>
+        )}
+
+        {/* Every locked goal against the hours it reserved. The review is the
+            natural place for it: this is the conversation where a goal that is
+            not getting its time either gets it or gets renegotiated. */}
+        {step === 'LAST_WEEK' && goalHours.length > 0 && (
+          <div className="mt-3 p-3 bg-slate-900/70 border border-slate-800 rounded-xl space-y-2">
+            <p className="text-xs font-bold text-white">Goals against their weekly hours</p>
+            {goalHours.map((p) => (
+              <div key={p.goal.id} className="flex items-center justify-between gap-3">
+                <span className="text-[11px] text-slate-300 flex-1 min-w-0 truncate">
+                  {p.goal.title}
+                </span>
+                {p.isUnattributable ? (
+                  <span className="text-[11px] text-slate-500 whitespace-nowrap">no subject set</span>
+                ) : (
+                  <span
+                    className={`text-[11px] font-bold whitespace-nowrap ${
+                      p.needsAction ? 'text-amber-300' : 'text-emerald-300'
+                    }`}
+                  >
+                    {p.actualHours} / {p.targetHours}h
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {step === 'LAST_WEEK' && (chores?.due ?? 0) > 0 && (
+          <div className="p-3 bg-slate-900/70 border border-slate-800 rounded-xl">
+            <p className="text-xs font-bold text-white">
+              Chores: {chores!.done} of {chores!.due} done
+              {chores!.xp > 0 ? ` · ${chores!.xp} XP` : ''}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              The small reliable jobs. Worth naming out loud - they are the easiest evidence that
+              the week held together.
             </p>
           </div>
         )}
@@ -231,12 +311,45 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
               </div>
             )}
 
-            <button
-              onClick={onAddItem}
-              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-all"
-            >
-              Parent: add anything missed (chore, family event, forgotten homework)
-            </button>
+            <div className="pt-1 space-y-2">
+              <p className="text-[10px] font-bold uppercase text-slate-400">
+                Parent: add anything missed
+              </p>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <input
+                  value={choreTitle}
+                  onChange={(e) => setChoreTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddChore();
+                  }}
+                  placeholder="A recurring chore"
+                  className="flex-1 min-w-[8rem] bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+                <button
+                  onClick={() =>
+                    setChoreCadence(choreCadence === 'WEEKLY' ? 'DAILY' : 'WEEKLY')
+                  }
+                  className="px-2.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-bold"
+                >
+                  {CADENCE_LABEL[choreCadence]}
+                </button>
+                <button
+                  onClick={handleAddChore}
+                  disabled={!choreTitle.trim()}
+                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold disabled:opacity-40"
+                >
+                  Add
+                </button>
+              </div>
+
+              <button
+                onClick={onAddItem}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-all"
+              >
+                Or add a one-off: homework, key date or lesson
+              </button>
+            </div>
           </div>
         )}
 

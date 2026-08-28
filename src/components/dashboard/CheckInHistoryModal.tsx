@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
 import { DailyCheckIn } from '../../types';
 import { X, Calendar, Lightbulb, HelpCircle, ArrowRight, BookmarkCheck } from 'lucide-react';
+import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 
 interface CheckInHistoryModalProps {
   isOpen: boolean;
@@ -20,10 +21,19 @@ export const CheckInHistoryModal: React.FC<CheckInHistoryModalProps> = ({
     }
   }, [isOpen]);
 
+  // Escape closes, like every other dialog in the app. Must sit above the
+  // early return - a hook cannot be called conditionally.
+  useEscapeToClose(isOpen, onClose);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Check-in history"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+    >
       <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}

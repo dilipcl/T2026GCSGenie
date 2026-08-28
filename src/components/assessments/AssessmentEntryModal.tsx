@@ -17,6 +17,7 @@ import { ProofUploader } from '../shared/ProofUploader';
 import { X, Plus, Trash2, Check, Calculator, ChevronDown, ChevronUp } from 'lucide-react';
 import { newId } from '../../utils/id';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 
 interface AssessmentEntryModalProps {
   isOpen: boolean;
@@ -144,6 +145,10 @@ export const AssessmentEntryModal: React.FC<AssessmentEntryModalProps> = ({
     [questions]
   );
 
+  // Escape closes, like every other dialog in the app. Must sit above the
+  // early return - a hook cannot be called conditionally.
+  useEscapeToClose(isOpen, onClose);
+
   if (!isOpen) return null;
 
   const scored = Number(marksScored);
@@ -247,7 +252,12 @@ export const AssessmentEntryModal: React.FC<AssessmentEntryModalProps> = ({
     }`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Assessment"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+    >
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={handleCancel} />
 
       <div className="relative w-full sm:max-w-2xl bg-slate-900 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl p-5 pb-safe sm:pb-5 shadow-2xl max-h-[94vh] overflow-y-auto">

@@ -1,10 +1,13 @@
 import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { readPlanPulse, checkStreakRepair } from '../../services/breakEngine';
-import { Flame, TrendingDown, Coffee } from 'lucide-react';
+import { goalsNeedingAction } from '../../services/goalProgress';
+import { Flame, TrendingDown, Coffee, Target } from 'lucide-react';
 
 interface PlanPulseBannerProps {
   onOpenCheckIn: () => void;
+  /** Optional: lets the nudge send them to the goal it is about. */
+  onOpenGoals?: () => void;
 }
 
 /**
@@ -19,13 +22,18 @@ interface PlanPulseBannerProps {
  * Renders nothing when there is nothing to say. A banner that is always there
  * stops being read.
  */
-export const PlanPulseBanner: React.FC<PlanPulseBannerProps> = ({ onOpenCheckIn }) => {
+export const PlanPulseBanner: React.FC<PlanPulseBannerProps> = ({
+  onOpenCheckIn,
+  onOpenGoals,
+}) => {
   const pulse = useLiveQuery(() => readPlanPulse(), []);
   const repair = useLiveQuery(() => checkStreakRepair(), []);
+  const behindGoals = useLiveQuery(() => goalsNeedingAction(), [], []);
 
   const showRepair = repair?.available;
   const showPulse = pulse?.slipping || pulse?.breaksEatingThePlan;
-  if (!showRepair && !showPulse) return null;
+  const showGoals = behindGoals.length > 0;
+  if (!showRepair && !showPulse && !showGoals) return null;
 
   return (
     <div className="space-y-3">
@@ -61,6 +69,42 @@ export const PlanPulseBanner: React.FC<PlanPulseBannerProps> = ({ onOpenCheckIn 
               <p className="text-[11px] text-slate-300 mt-0.5 max-w-lg">{pulse.message}</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* A locked goal reserving hours nobody has worked. Only fires from
+          Wednesday - being "behind" on a weekly budget at Monday breakfast is
+          arithmetically true and completely useless. */}
+      {showGoals && (
+        <div className="p-4 rounded-2xl border border-amber-500/40 bg-slate-900/70 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Target className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                {behindGoals.length === 1
+                  ? `${behindGoals[0].goal.title} needs action`
+                  : `${behindGoals.length} goals need action`}
+              </h3>
+              <p className="text-[11px] text-slate-300 mt-0.5 max-w-lg">
+                {behindGoals
+                  .slice(0, 3)
+                  .map(
+                    (p) =>
+                      `${p.goal.title} ${p.actualHours}/${p.targetHours}h logged this week`
+                  )
+                  .join(' · ')}
+                {behindGoals.length > 3 ? ' · and more' : ''}
+              </p>
+            </div>
+          </div>
+          {onOpenGoals && (
+            <button
+              onClick={onOpenGoals}
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-all"
+            >
+              See goals
+            </button>
+          )}
         </div>
       )}
 

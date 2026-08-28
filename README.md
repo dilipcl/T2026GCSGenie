@@ -20,8 +20,8 @@ The interface is organised by **how often you actually use something**, not by h
 | Tier | Sections | Typical use |
 | :--- | :--- | :--- |
 | **Every day** | Home · My Work · Plan · Fix My Mistakes | Check what's due, log the day, tick things off |
-| **Weekly** | Proof Log · Rewards · Timetable · Subjects & Goals · Careers & Help | Logging marked work, planning, review, spending XP |
-| **Parent only** | Parent Portal | Audits, sanctions, backups, PIN |
+| **Weekly** | Proof Log · Rewards · Timetable · Subjects & Goals · Help & Careers | Logging marked work, planning, review, spending XP |
+| **Parent only** | Parent Portal | Audits, sanctions, backups, catalogue and profile setup |
 
 On mobile the four daily sections are the bottom bar; the rest live behind **More**. On desktop they're separated by a `WEEKLY` divider.
 
@@ -53,8 +53,9 @@ Key dates live here too, and the **Weekly review** runs from here: four steps, f
 ending in a sign-off that is recorded.
 
 ### Focus blocks
-25 minutes with the break attached, logging its own study time. Two gentle nudges catch a plan
-slipping late in the week, or breaks displacing the study they were meant to punctuate.
+25 minutes with the break attached, logging its own study time against the subject being worked on.
+Three gentle nudges catch a plan slipping late in the week, breaks displacing the study they were
+meant to punctuate, or a locked goal not getting the hours it reserved.
 
 ### What's next
 The top card on Home. Overdue first, then due today, then the next seven days, with upcoming key dates counting down beneath. Tasks can be ticked off without leaving the page.
@@ -126,6 +127,50 @@ move every subject's status without anyone asking for that.
 ### Subjects & RAG status
 Live Red/Amber/Green per subject, weighted **40% homework · 35% remediations · 25% topic mastery**, with a manual override if the calculated value is misleading. Covers Edexcel Maths, AQA English Lang & Lit, AQA Triple Science (+ required practicals), AQA History, OCR Computer Science, AQA Art & Design.
 
+### Chores
+The small reliable jobs, kept deliberately outside the study plan: no due date, no subject, no place
+in the weekly load, no effect on the burnout gauge. Putting "empty the dishwasher" in the same list
+as a mock paper — and counting it against revision hours — is how a planning tool stops being
+believed.
+
+Three cadences: **every day**, **school days**, or **one named day a week**. Today's appear as a
+single card on Home that renders nothing at all when nothing is due. One tap to tick, one to
+un-tick, no confirmation either way — a chore that takes four minutes cannot cost thirty seconds to
+log, and a mis-tap that cannot be taken back leaves XP in the balance that was never earned.
+
+A parent owns the list from the Parent Portal, with one-tap starter suggestions on an empty list;
+the weekly review reports how the week went and can add one inline. Chores are **retired** rather
+than deleted, so past completions keep pointing at a real row and XP already earned stays earned.
+
+XP defaults are small on purpose — 10 for a daily chore, 25 for a weekly one — so chores cannot
+out-earn revision. The ledger reads what was awarded at the time, so re-pricing a chore does not
+retroactively repay every time it was already done.
+
+### Editing
+Everything the app holds can be changed after it was created, not only completed or deleted:
+homework, key dates and lessons through the same Quick Add sheet with the row loaded into it;
+syllabus topics in place; every field of a subject; goals; fix-up quests; the rewards catalogue;
+revision and career links; the bell times behind the period chips; and the student profile.
+
+Every field-level change writes its own row to the change history — *weekly hours: 2 → 4*, not
+"goal updated". A summary row satisfies the letter of an audit trail and tells nobody anything.
+
+### Goals: draft → discussion → locked
+A goal is written the SMART way with a weekly hour budget and, optionally, the subject it belongs
+to. It can be kept as a **draft** while the wording is still being worked out, **sent for approval**
+when it reads right, and **locked** by a parent — only then do its hours count towards the weekly
+capacity. A locked goal can still be edited, but only by a parent: the hours are live in the
+capacity model, so student-side edits would be a way to edit around the lock.
+
+Locked goals are then measured against their budget. Study time logged at check-in or by a focus
+block carries the subject it was spent on (and the goal, when the homework being ticked off was
+linked to one), so each locked goal shows **2.0 / 3.5h this week** — pro-rated by weekday, so
+nothing is called behind on a Monday morning. Past mid-week, anything under pace surfaces on Home
+and in the weekly review.
+
+The SMART *measure* — "14-day homework streak + 90% on quizzes" — stays free text. Parsing an
+English sentence into a tracker is a worse product than asking a person what the number should be.
+
 ### Weekly time budget
 Tracks total committed hours against a safe weekly ceiling and warns before a new goal pushes the load too high. See *Time budget* below for the numbers.
 
@@ -135,6 +180,7 @@ Tracks total committed hours against a safe weekly ceiling and warns before a ne
 | First check-in of the day | +10 |
 | Study time logged | +10 per 30 min |
 | Homework completed | +50 (+60 if High priority) |
+| Chore ticked off | +10 daily / +25 weekly, set per chore |
 | Diagnostic quest completed | +100 to +300 |
 | School sanction logged by parent | −500 and Rewards Shop frozen |
 
@@ -146,17 +192,56 @@ could be overdrawn — three 1,000 XP requests each passed the affordability che
 against a 1,200 XP balance, and approving all three took the true balance to −1,800, which the
 old `Math.max(0, …)` then displayed as a tidy zero.
 
-The rewards catalogue runs from **50 XP** (pick tonight's dinner music, skip a chore) up to 5,000 XP,
+The rewards catalogue runs from **50 XP** (pick tonight's dinner music, TV at the table) up to 5,000 XP,
 sorted cheapest first, with a progress bar to the next affordable item. Small rewards matter: if the
 cheapest thing on the shelf is ten days away, nothing reinforces the effort made today.
 
-### Parent Portal (PIN-protected)
-Audit reports, rewards approval queue, sanction logger, backup/restore, a **Change History** of every
-mutation (deletes included), proof-log storage usage, and the PIN change form.
+### Help & Careers
+Opens on **How Genie works**: what each screen is for in the student's own language, plus how XP
+works, how a streak survives one missed day but not two, and why a goal has to be locked before its
+hours count. The same page opens once automatically on a first launch, so the tour can never
+disagree with the help itself.
 
-> The change history is *not* a tamper-proof ledger. Each row carries a SHA-256 checksum of its own payload, but there is no previous-hash chain and rows remain deletable. It is labelled accordingly in the UI.
+Behind it, the careers pathways, free revision sites and teacher directory — all three now editable
+by a parent from the Parent Portal.
 
-> The parent PIN gates the *interface*, not the data. Anyone who opens devtools can read and rewrite
+Beside the numbers the app expects people to act on — XP, the streak, subject health, a goal's
+weekly hours, the workload gauge, committed-versus-capacity, the three check-in questions — there is
+a small **i** that says what each one means. A number nobody understands is a number nobody trusts,
+and an untrusted number gets ignored rather than questioned.
+
+### Parent Portal (passphrase-protected)
+Audit reports, rewards approval queue, sanction logger, backup/restore, CSV import/export, a
+**Change History** of every mutation (deletes included) with its integrity check, proof-log storage
+usage, and the passphrase form.
+
+It is also where the things a family configures now live: the **student profile** (name, year,
+school, headline target grade), the **chore list**, the **rewards catalogue**, and the **revision
+sites and career pathways** that appear under Help & Careers. All of them used to be constants in
+source.
+
+**Prepare for launch** clears a fortnight of QA out before the app is handed over. The rule is one
+sentence: everything that records *what happened* is cleared, everything that describes *the set-up*
+is kept — so check-ins, reward requests, sanctions, marked work, photos, chore ticks, AI reports and
+the change history go, while the timetable, subjects, syllabus, chores, reward catalogue and the
+parent passphrase stay, with the done-flags on homework, key dates, quests and topics reset. A
+topic's confidence rating survives: that is a judgement someone made, not testing residue.
+
+There is no XP counter to zero. XP and the streak are *derived* — XP from check-ins and completions
+less sanctions and redemptions, the streak from check-in dates — so clearing the activity is what
+resets them.
+
+Three gates: a preview naming every row that will go, a rescue export downloaded before anything is
+touched, and the word `RESET` typed out. Any goal that is not part of the seeded starting set is
+named in the preview, because a stress-test goal left behind would distort the workload cap from
+day one.
+
+> The change history is tamper-**evident**, not tamper-proof. Rows are hash-chained per device, so
+> edits, mid-chain deletions and tail truncation all fail the integrity check — but the hashes are
+> unsigned, so someone who recomputes the whole chain after editing it would still pass. It is
+> labelled accordingly in the UI.
+
+> The parent passphrase gates the *interface*, not the data. Anyone who opens devtools can read and rewrite
 > IndexedDB directly — approve their own reward requests, lift their own sanctions, edit the log.
 > Making that boundary real needs Dexie Cloud realms and roles; see *Known limitations*.
 
@@ -366,8 +451,11 @@ Documented honestly so they aren't rediscovered as bugs.
 5. **The seeded timetable is a placeholder.** Both weeks are populated so the app is usable and the
    workload meter has something behind it, but the lesson pattern is invented, not Tejas's real
    timetable. Replace it via Quick Add's multi-day Lesson mode.
-6. **Tasks, key dates and timetable blocks still can't be edited** after creation, only created and
-   deleted. Assessments in the Proof Log *can* be edited; subjects can be edited in place.
+6. **Two things still cannot be edited.** Everything else can, as of the pre-launch QA pass. The
+   subject *set* is fixed at nine - which subjects a student is entered for is not something the app
+   should invent - though every field on one is editable. And a proposed goal's history is
+   append-only: editing a goal rewrites the goal, and the previous wording lives only in the change
+   history rather than on the goal itself.
 7. **Assessment results don't feed the RAG score.** The subject average over marked papers is
    calculated and displayed, but the health score is still 40% homework / 35% remediations / 25% topic
    mastery. Folding attainment in would move every subject's status, so it's a deliberate decision
@@ -381,24 +469,29 @@ Documented honestly so they aren't rediscovered as bugs.
 ```
 src/
 ├── components/
-│   ├── shared/QuickAddSheet.tsx      # unified add - homework / key date / lesson
+│   ├── shared/QuickAddSheet.tsx      # unified add AND edit - homework / key date / lesson
+│   ├── shared/InfoTip.tsx            # the "i" beside a number the app never explained
 │   ├── shared/ProofUploader.tsx      # photo & PDF capture, thumbnails, cleanup
 │   ├── assessments/                   # Proof Log: entry modal + log view
 │   ├── dashboard/                     # Home: what's next, check-in, schedule, quests
 │   ├── tasks/  calendar/  goals/      # My Work, Key Dates, Subjects & Goals
 │   ├── remediation/                   # Fix My Mistakes
-│   ├── timetable/  rewards/  guidance/
+│   ├── timetable/  rewards/  guidance/ # incl. How Genie works + first-run tour
 │   ├── parent/                        # PIN + Parent Portal
 │   └── layout/                        # Header, Navigation, SyncStatus chip
 ├── services/
 │   ├── ragCalculator.ts               # subject health, XP ledger (incl. reservations)
 │   ├── habitEngine.ts                 # streaks, never-miss-twice, heat-map
+│   ├── goalProgress.ts                # locked goals vs the hours actually logged
+│   ├── choreService.ts                # recurring jobs, idempotent per-day completions
 │   ├── attachmentService.ts           # proof files: downscale, store, tally
 │   ├── parentLockService.ts           # claim / unlock / change the passphrase
-│   ├── auditService.ts                # hash-chained change log + verification
+│   ├── auditService.ts                # hash-chained change log + field-level diffs
 │   ├── burnoutEngine.ts               # weekly time budget
 │   ├── llmAgentService.ts             # agentic audit (live + offline)
 │   ├── backupService.ts               # schema-walking export, safe restore
+│   ├── handoverService.ts             # preview + clear the QA activity before launch
+├── hooks/useEscapeToClose.ts          # one Escape handler, layer-stacked (see below)
 ├── db/                                # Dexie schema (+ Dexie Cloud) + seed data
 ├── utils/date.ts                      # local-date helpers (see below)
 ├── utils/id.ts                        # globally unique record IDs (see below)
@@ -407,7 +500,7 @@ src/
 └── types/                             # shared type definitions
 ```
 
-### Three traps worth knowing about
+### Five traps worth knowing about
 
 **Booleans cannot be indexed in IndexedDB.** Fields like `completed` and `isCompleted` appear in the Dexie schema strings but are never actually indexed, so `.where('completed').equals(0)` silently returns an empty array. Always filter booleans in memory: `.filter(t => !t.completed)`.
 
@@ -415,5 +508,19 @@ src/
 two devices creating a record in the same millisecond produce the same key, and a sync then keeps one
 and destroys the other. Dexie Cloud requires primary keys with "sufficient entropy for global
 uniqueness". Use `newId('task')` from `src/utils/id.ts`, which pairs a readable prefix with a UUID.
+
+**A sheet flush with the bottom of the screen must clear the nav bar.** The mobile bottom bar is
+`fixed` and paints over anything beneath it, so `pb-safe` alone leaves the last row of a bottom sheet
+untappable — which is exactly how the More menu lost its second row. Use `pb-nav-safe`, which adds
+the bar's height and collapses again above `md`, where the bar does not exist. Note that both
+classes are defined *after* `@tailwind utilities`, so they beat a responsive `sm:pb-5` written
+alongside them; that is why the breakpoint is handled inside the class itself.
+
+**Escape belongs to the topmost layer only.** `useEscapeToClose(isOpen, onClose)` keeps a shared
+stack, because a modal routinely opens the confirm dialog on top of itself and both listen on
+`window` — without an ordering rule, one Escape cancels the confirm *and* closes the half-filled
+form underneath it. The hook holds `onClose` in a ref and subscribes on `isOpen` alone, so a
+background re-render cannot re-push a modal to the top of the stack. Call it above the
+`if (!isOpen) return null` — a hook cannot be called conditionally.
 
 **Never use `toISOString()` for "today".** It resolves in UTC, so during British Summer Time anything between 00:00 and 01:00 local returns the *previous* day — a check-in at 00:30 lands on yesterday and breaks the streak. Use the helpers in `src/utils/date.ts` (`todayISO`, `addDaysISO`, `daysUntil`, `formatFriendlyDate`, `formatCountdown`).

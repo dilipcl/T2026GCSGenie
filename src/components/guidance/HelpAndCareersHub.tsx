@@ -1,18 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
 import { SubjectConfig, CareerGuidanceResource, FreeRevisionLink } from '../../types';
+import { HowItWorksPanel } from './HowItWorksPanel';
 import {
   ExternalLink,
   BookOpen,
   UserCheck,
   Rocket,
+  LifeBuoy,
 } from 'lucide-react';
 
 export const HelpAndCareersHub: React.FC = () => {
   const [subjects, setSubjects] = useState<SubjectConfig[]>([]);
   const [careers, setCareers] = useState<CareerGuidanceResource[]>([]);
   const [revisionLinks, setRevisionLinks] = useState<FreeRevisionLink[]>([]);
-  const [activeTab, setActiveTab] = useState<'TEACHERS' | 'REVISION_SITES' | 'CAREERS'>('CAREERS');
+  /**
+   * "How it works" leads, and is the default. The section was named for careers
+   * and opened on them, which put the only page explaining the app three tabs
+   * deep behind advice about degree apprenticeships.
+   */
+  const [activeTab, setActiveTab] = useState<
+    'HOW_IT_WORKS' | 'TEACHERS' | 'REVISION_SITES' | 'CAREERS'
+  >('HOW_IT_WORKS');
 
   useEffect(() => {
     db.subjects.toArray().then(setSubjects);
@@ -28,17 +37,18 @@ export const HelpAndCareersHub: React.FC = () => {
           <span className="p-2 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
             🧭
           </span>
-          <h2 className="text-xl font-bold text-white">Careers &amp; Help</h2>
+          <h2 className="text-xl font-bold text-white">Help &amp; Careers</h2>
         </div>
         <p className="text-xs text-slate-300 max-w-xl">
-          Where these grades actually lead — A-Levels, degree apprenticeships and careers — plus
-          free revision sites and who teaches what.
+          How Genie works, and where these grades actually lead — A-Levels, degree apprenticeships
+          and careers — plus free revision sites and who teaches what.
         </p>
       </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
         {[
+          { id: 'HOW_IT_WORKS', label: '🧞 How Genie works', icon: LifeBuoy },
           { id: 'CAREERS', label: '🚀 Where this leads', icon: Rocket },
           { id: 'REVISION_SITES', label: '📚 Free revision sites', icon: BookOpen },
           { id: 'TEACHERS', label: '👨‍🏫 Your teachers', icon: UserCheck },
@@ -60,6 +70,8 @@ export const HelpAndCareersHub: React.FC = () => {
           );
         })}
       </div>
+
+      {activeTab === 'HOW_IT_WORKS' && <HowItWorksPanel />}
 
       {/* 1. Career Pathways Tab */}
       {activeTab === 'CAREERS' && (

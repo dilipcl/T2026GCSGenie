@@ -18,9 +18,14 @@ import {
 import { totalAttachmentBytes, formatBytes } from '../../services/attachmentService';
 import { WORKING_FOLDER_URL, WORKING_FOLDER_PATH, BACKUPS_FOLDER_URL } from '../../db/driveFolders';
 import { DataExchangePanel } from './DataExchangePanel';
+import { ChoreManagerPanel } from './ChoreManagerPanel';
+import { RewardManagerPanel } from './RewardManagerPanel';
+import { StudentProfilePanel } from './StudentProfilePanel';
+import { GuidanceLinksPanel } from './GuidanceLinksPanel';
+import { HandoverResetPanel } from './HandoverResetPanel';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
-import { todayISO } from '../../utils/date';
+import { todayISO, formatLogTimestamp } from '../../utils/date';
 import { setPassphrase, getLockState, LockState } from '../../services/parentLockService';
 import { MIN_PASSPHRASE_LENGTH, PBKDF2_ITERATIONS } from '../../utils/credential';
 import { verifyAuditChain, ChainVerification } from '../../services/auditService';
@@ -783,7 +788,17 @@ export const ParentPortal: React.FC = () => {
         )}
       </div>
 
+      <StudentProfilePanel />
+
+      <ChoreManagerPanel />
+
+      <RewardManagerPanel />
+
+      <GuidanceLinksPanel />
+
       <DataExchangePanel />
+
+      <HandoverResetPanel />
 
       {/* Backup & Google Drive Sync (Option A) */}
       <div className="glass-card p-6">
@@ -903,7 +918,7 @@ export const ParentPortal: React.FC = () => {
               {auditLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-800/30">
                   <td className="p-2 whitespace-nowrap text-slate-400">
-                    {new Date(log.timestamp).toLocaleTimeString('en-GB')}
+                    {formatLogTimestamp(log.timestamp)}
                   </td>
                   <td className="p-2">
                     <span

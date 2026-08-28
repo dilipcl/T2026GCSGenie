@@ -76,6 +76,18 @@ export interface DailyCheckIn {
   focusRating: 'LOW' | 'NORMAL' | 'HIGH';
   completedHomeworkIds: string[];
   completedRevisionMinutes: number;
+  /**
+   * Which subject the logged minutes were spent on.
+   *
+   * Study time used to go into a single global bucket, which is why a locked
+   * goal could reserve 3.5 hrs/week in the capacity model and the app still had
+   * nothing to say about whether any of them had been worked. Optional, because
+   * a check-in with no study time attached does not need one and older rows do
+   * not have one.
+   */
+  studySubjectId?: SubjectId;
+  /** Set when the session was worked against one specific goal. */
+  studyGoalId?: string;
   structuredNotes?: StructuredCheckInNotes;
   notes?: string; // Legacy fallback
   xpEarned: number;
@@ -275,6 +287,52 @@ export interface ProofAttachment {
   createdAt: number;
 }
 
+/** How often a chore comes round. */
+export type ChoreCadence = 'DAILY' | 'WEEKDAYS' | 'WEEKLY';
+
+/**
+ * A small recurring household job.
+ *
+ * Deliberately not a Task. A task has a due date, a subject, a priority and a
+ * place in the weekly load; a chore has none of those and must never touch the
+ * study plan or the burnout arithmetic. Modelling chores as tasks would put
+ * "empty the dishwasher" in the same list as a mock paper and count it against
+ * revision hours, which is how a planning tool stops being believed.
+ */
+export interface Chore {
+  id: string;
+  title: string;
+  xpValue: number;
+  cadence: ChoreCadence;
+  /** WEEKLY only: the day it falls on. */
+  dayOfWeek?: DayOfWeek;
+  /**
+   * Archived rather than deleted. Seeding re-inserts any absent row it knows
+   * about, so a deleted row can come back; an archived one stays gone. It also
+   * keeps past completions pointing at something real.
+   */
+  isActive: boolean;
+  createdAt: number;
+  createdBy: UserRole;
+}
+
+export interface ChoreCompletion {
+  /**
+   * `${choreId}__${date}` by construction, never a random id.
+   *
+   * One chore on one day is one row whichever device ticks it. Two devices
+   * ticking the same chore offline then syncing produce the same primary key
+   * and merge into a single row, so the XP is paid once. A generated id would
+   * have paid twice and looked like a sync bug rather than a modelling one.
+   */
+  id: string;
+  choreId: string;
+  /** Local ISO date the chore was done for. */
+  date: string;
+  completedAt: number;
+  xpAwarded: number;
+}
+
 export interface RewardItem {
   id: string;
   title: string;
@@ -282,6 +340,13 @@ export interface RewardItem {
   costXP: number;
   icon: string;
   category: 'SCREEN_TIME' | 'PRIVILEGE' | 'ACTIVITY' | 'CUSTOM';
+  /**
+   * Retired rather than deleted, for the same reason as a chore: seeding
+   * re-inserts any row it knows about and finds missing, so a deleted seed
+   * reward would reappear on the next open. It also keeps past redemptions
+   * pointing at something real.
+   */
+  isArchived?: boolean;
 }
 
 export interface RewardRedemption {
@@ -337,6 +402,16 @@ export interface AuditLogEntry {
 }
 
 export interface ParentSettings {
+  /**
+   * Who the app is for. Name, year, school and the headline target grade were
+   * literal strings inside Header.tsx, so a second child - or simply moving up
+   * a year - needed a code change. Optional so an existing settings row that
+   * predates them still reads, with the previous values as the fallback.
+   */
+  studentName?: string;
+  studentYearGroup?: string;
+  studentSchool?: string;
+  studentTargetGrade?: number;
   /** @deprecated Bare SHA-256 of a 4-digit PIN. Read for migration only. */
   parentPinHash?: string;
   /** PBKDF2 passphrase credential. See utils/credential.ts. */

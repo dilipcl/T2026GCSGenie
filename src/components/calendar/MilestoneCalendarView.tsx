@@ -10,6 +10,7 @@ import {
   Plus,
   CheckCircle2,
   Trash2,
+  PencilLine,
   Clock,
   ExternalLink,
   ChevronLeft,
@@ -21,6 +22,8 @@ import { newId } from '../../utils/id';
 import { useFeedback } from '../shared/FeedbackProvider';
 
 interface MilestoneCalendarViewProps {
+  /** Opens the shared add sheet loaded with this key date. */
+  onEdit?: (milestone: MilestoneReminder) => void;
   refreshKey?: number;
   onAdd: () => void;
 }
@@ -28,6 +31,7 @@ interface MilestoneCalendarViewProps {
 export const MilestoneCalendarView: React.FC<MilestoneCalendarViewProps> = ({
   refreshKey = 0,
   onAdd,
+  onEdit,
 }) => {
   const { confirm } = useFeedback();
   const [milestones, setMilestones] = useState<MilestoneReminder[]>([]);
@@ -405,6 +409,17 @@ export const MilestoneCalendarView: React.FC<MilestoneCalendarViewProps> = ({
                       <span>Drive File</span>
                       <ExternalLink className="w-3 h-3" />
                     </a>
+                  )}
+
+                  {onEdit && (
+                    <button
+                      onClick={() => onEdit(m)}
+                      aria-label={`Edit key date ${m.title}`}
+                      title={`Edit "${m.title}"`}
+                      className="p-1 text-slate-500 hover:text-indigo-300 transition-colors"
+                    >
+                      <PencilLine className="w-4 h-4" />
+                    </button>
                   )}
 
                   <button

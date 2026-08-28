@@ -13,7 +13,7 @@ For what the app actually does today, read in this order:
 
 Figures in this brief that have since changed are flagged inline with [SUPERSEDED].
 A summary of the significant divergences is at the end of this file.
-Last reconciled: August 2026 (multi-device sync / Proof Log pass).
+Last reconciled: August 2026 (pre-launch QA pass).
 ================================================================================
 
 GCSE Genie - Master Software Specification & Prompt Blueprint (v3)
@@ -191,6 +191,29 @@ BUILT SINCE THIS BRIEF WAS LAST RECONCILED (August 2026)
     Wrong answers optionally become fix-up tasks due in three days.
   - Cross-device sync, via Dexie Cloud. Optional, off until sign-in, one login
     per device lasting months.
+  - Editing. The brief assumed content could be amended; for most of the app's
+    life it could only be added, completed and deleted. Goals, homework, key
+    dates, lessons, topics, subjects, fix-up quests, the rewards catalogue, the
+    revision and career links, the period bell times and the student profile are
+    all editable now, each change recorded field by field.
+  - Goals gained the draft stage the brief asked for: a student drafts, reviews
+    and finalises, then sends it for parental approval and locking.
+  - Locked goals are measured against the hours they reserve. Logged study time
+    now carries the subject it was spent on, so "3.5 hrs/week" is compared with
+    what was actually worked rather than only reserved.
+  - In-app help. The brief's "General Help" section was careers advice and
+    revision links; there is now a page explaining how the app itself works,
+    shown once on a first launch.
+  - Chores. Not in this brief at all. Recurring household jobs, kept outside the
+    study plan entirely - no due date, no subject, no weekly load, no effect on
+    the burnout gauge - because counting the dishwasher against revision hours
+    would make the workload figure meaningless. They earn small XP into the same
+    reward loop.
+  - A handover reset. Clears the testing activity - check-ins, XP, marked work,
+    the change history - while keeping everything that describes the set-up.
+    Needed because XP and the streak are derived rather than stored, so there is
+    no counter to zero; the only way to reset them is to clear what produces
+    them.
 
 NOT BUILT
   - Enforced parent authority. The PIN gates the interface, not the data: anyone
@@ -208,9 +231,12 @@ KNOWN DEFECTS
   - [FIXED Aug 2026] Backup export omitted the milestones table, so every restore
     destroyed all key dates and exam milestones. The exporter now walks the live
     schema so no table can be omitted, and restore takes a rescue copy first.
-  - The audit ledger is described in this brief as tamper-evident and hash-chained.
-    Each entry is hashed independently with no previous-hash link, and rows are
-    deletable. Still true; the UI wording was corrected to "Change History".
+  - [FIXED Aug 2026] The audit ledger is described in this brief as tamper-evident
+    and hash-chained, and for a while it was neither: each entry was hashed
+    independently, with no previous-hash link. Rows are now chained per device,
+    with a high-water mark that also catches deletion of the newest entries. The
+    hashes remain unsigned, so a full recompute would still pass - tamper-evident,
+    not tamper-proof, and the UI says so.
   - Only Monday of the Odd week is seeded in the timetable. Quick Add can now
     write a lesson to several days at once, which makes filling it in quick.
 ================================================================================
