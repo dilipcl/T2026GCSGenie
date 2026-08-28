@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
+import { SubjectId } from '../../types';
 import { newId } from '../../utils/id';
 import { todayISO } from '../../utils/date';
 import { logAuditEvent } from '../../services/auditService';
@@ -10,6 +12,22 @@ import {
   TimerPhase,
 } from '../../services/breakEngine';
 import { Play, Pause, RotateCcw, Coffee, Brain } from 'lucide-react';
+
+/**
+ * The last subject worked on, remembered across reloads. A picker that resets
+ * to "not set" every block is a picker that gets left at "not set", and the
+ * whole point of asking is that the minutes land somewhere.
+ */
+const LAST_SUBJECT_KEY = 'genie.focus.lastSubject';
+
+function readLastSubject(): SubjectId | '' {
+  try {
+    return (window.localStorage.getItem(LAST_SUBJECT_KEY) as SubjectId | null) || '';
+  } catch {
+    // Private mode, or storage blocked. Not worth failing the timer over.
+    return '';
+  }
+}
 
 /**
  * A 25-minute block with the break attached.
@@ -29,6 +47,19 @@ export const SessionTimerCard: React.FC = () => {
   const [secondsLeft, setSecondsLeft] = useState(FOCUS_MINUTES * 60);
   const [running, setRunning] = useState(false);
   const [blocksToday, setBlocksToday] = useState(0);
+  const [subjectId, setSubjectId] = useState<SubjectId | ''>(readLastSubject);
+
+  const subjects = useLiveQuery(() => db.subjects.toArray(), [], []);
+
+  const chooseSubject = (next: SubjectId | '') => {
+    setSubjectId(next);
+    try {
+      if (next) window.localStorage.setItem(LAST_SUBJECT_KEY, next);
+      else window.localStorage.removeItem(LAST_SUBJECT_KEY);
+    } catch {
+      // Nothing to do - the picker still works for this session.
+    }
+  };
 
   /**
    * Anchor to wall-clock time rather than counting ticks. Browsers throttle
@@ -84,6 +115,9 @@ export const SessionTimerCard: React.FC = () => {
         focusRating: 'NORMAL',
         completedHomeworkIds: [],
         completedRevisionMinutes: FOCUS_MINUTES,
+        // What the minutes were spent on. Without this they land in a global
+        // bucket and no goal can ever be shown as worked.
+        studySubjectId: subjectId || undefined,
         // The daily base XP belongs to a real check-in, not to a timer block
         xpEarned: 10,
         isDailyBaseXPAwarded: false,
@@ -95,7 +129,9 @@ export const SessionTimerCard: React.FC = () => {
         action: 'INSERT',
         entity: 'DailyCheckIn',
         entityId: 'session-timer',
-        newValue: `Focus block completed (${FOCUS_MINUTES} min), block ${completed} today`,
+        newValue:
+          `Focus block completed (${FOCUS_MINUTES} min), block ${completed} today` +
+          (subjectId ? ` on ${subjectId}` : ''),
       });
 
       const next = nextPhase(completed);
@@ -188,6 +224,29 @@ export const SessionTimerCard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Which subject this block counts towards. Asked here rather than at
+          check-in because it is known now and forgotten by then. */}
+      {!isBreak && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <label htmlFor="focus-subject" className="text-[11px] text-slate-400">
+            Working on
+          </label>
+          <select
+            id="focus-subject"
+            value={subjectId}
+            onChange={(e) => chooseSubject(e.target.value as SubjectId | '')}
+            className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white"
+          >
+            <option value="">Not set - counts towards nothing</option>
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="mt-3 w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
         <div

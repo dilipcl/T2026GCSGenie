@@ -5,19 +5,35 @@ import {
   MilestoneReminder,
   TimetableEntry,
   TimetableSlotConfig,
+  Goal,
   PriorityLevel,
   SubjectId,
   WeekType,
   DayOfWeek,
 } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
-import { logAuditEvent } from '../../services/auditService';
+import { logAuditEvent, logFieldChanges } from '../../services/auditService';
 import { todayISO, addDaysISO, formatFriendlyDate } from '../../utils/date';
 import { X, ListTodo, CalendarDays, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { newId } from '../../utils/id';
 import { useFeedback } from './FeedbackProvider';
+import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 
 export type AddMode = 'TASK' | 'REMINDER' | 'LESSON';
+
+/**
+ * An existing row this sheet is editing rather than creating.
+ *
+ * The app could add homework, key dates and lessons and then only complete or
+ * delete them - a due date typed wrong meant deleting the task and typing the
+ * whole thing again. The add form already knows every field, so editing is the
+ * same form with the record loaded into it rather than a second screen that
+ * has to be kept in step with the first.
+ */
+export type QuickAddEditing =
+  | { kind: 'TASK'; record: Task }
+  | { kind: 'REMINDER'; record: MilestoneReminder }
+  | { kind: 'LESSON'; record: TimetableEntry };
 
 interface QuickAddSheetProps {
   isOpen: boolean;
@@ -26,6 +42,7 @@ interface QuickAddSheetProps {
   defaultMode?: AddMode;
   defaultWeek?: WeekType;
   defaultDay?: DayOfWeek;
+  editing?: QuickAddEditing | null;
 }
 
 const DAYS: { id: DayOfWeek; label: string }[] = [
@@ -63,6 +80,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   defaultMode = 'TASK',
   defaultWeek = 'ODD',
   defaultDay = 'MON',
+  editing = null,
 }) => {
   const { toast } = useFeedback();
   const [mode, setMode] = useState<AddMode>(defaultMode);
@@ -72,6 +90,9 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   const [priority, setPriority] = useState<PriorityLevel>('MEDIUM');
   const [category, setCategory] = useState<MilestoneReminder['category']>('EXAM_MOCK');
   const [notes, setNotes] = useState('');
+  const [estimatedHours, setEstimatedHours] = useState('');
+  const [linkedGoalId, setLinkedGoalId] = useState('');
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [showMore, setShowMore] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -86,18 +107,61 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setMode(defaultMode);
-    setTitle('');
-    setDueDate(addDaysISO(1));
-    setSubjectId('');
-    setPriority('MEDIUM');
-    setCategory('EXAM_MOCK');
-    setNotes('');
-    setShowMore(false);
-    setIsSaving(false);
-    setSelectedDays([defaultDay]);
-    setWeekType(defaultWeek);
-    setRoom('');
+
+    // Editing loads the row; adding starts from the defaults.
+    if (editing) {
+      setMode(editing.kind);
+      setIsSaving(false);
+      setShowMore(true);
+
+      if (editing.kind === 'TASK') {
+        const t = editing.record;
+        setTitle(t.title);
+        setDueDate(t.dueDate);
+        setSubjectId(t.subjectId);
+        setPriority(t.priority);
+        setNotes(t.description || '');
+        setEstimatedHours(t.estimatedHours != null ? String(t.estimatedHours) : '');
+        setLinkedGoalId(t.linkedGoalId || '');
+      } else if (editing.kind === 'REMINDER') {
+        const m = editing.record;
+        setTitle(m.title);
+        setDueDate(m.date);
+        setSubjectId(m.subjectId || '');
+        setPriority(m.priority);
+        setCategory(m.category);
+        setNotes(m.notes || '');
+      } else {
+        const e = editing.record;
+        setTitle(e.activityName);
+        setSubjectId(e.subjectId || '');
+        setSelectedDays([e.dayOfWeek]);
+        setWeekType(e.weekType);
+        setSlotName(e.slotName);
+        setStartTime(e.startTime);
+        setEndTime(e.endTime);
+        setRoom(e.room || '');
+      }
+    } else {
+      setMode(defaultMode);
+      setTitle('');
+      setDueDate(addDaysISO(1));
+      setSubjectId('');
+      setPriority('MEDIUM');
+      setCategory('EXAM_MOCK');
+      setNotes('');
+      setEstimatedHours('');
+      setLinkedGoalId('');
+      setShowMore(false);
+      setIsSaving(false);
+      setSelectedDays([defaultDay]);
+      setWeekType(defaultWeek);
+      setRoom('');
+    }
+
+    db.goals.toArray().then((list) =>
+      setGoals(list.filter((g) => g.status !== 'COMPLETED' && g.status !== 'DEFERRED'))
+    );
 
     db.timetableSlots.toArray().then((list) => {
       // Dexie returns rows in primary-key order, which puts "After School" first
@@ -107,14 +171,21 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
         .filter((s) => !s.isBreakOrLunch)
         .sort((a, b) => a.defaultStartTime.localeCompare(b.defaultStartTime));
       setSlots(teaching);
+      // Only pick a default period when adding. An edited lesson already has
+      // its own times, and overwriting them with Period 1 would silently move
+      // the lesson the moment the sheet opened.
       const first = teaching[0];
-      if (first) {
+      if (first && !editing) {
         setSlotName(first.name);
         setStartTime(first.defaultStartTime);
         setEndTime(first.defaultEndTime);
       }
     });
-  }, [isOpen, defaultMode, defaultWeek, defaultDay]);
+  }, [isOpen, defaultMode, defaultWeek, defaultDay, editing]);
+
+  // Escape closes, like every other dialog in the app. Must sit above the
+  // early return - a hook cannot be called conditionally.
+  useEscapeToClose(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -146,13 +217,109 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
       ? title.trim().length > 0 && !!subjectId
       : title.trim().length > 0;
 
+  /**
+   * Writes the changed fields back to the row being edited.
+   *
+   * Field-level audit rows rather than one "task updated": a due date that moved
+   * from Friday to Monday is the thing a parent needs to see, and a single
+   * summary row would have satisfied the audit trail while telling nobody
+   * anything.
+   */
+  const saveEdit = async () => {
+    if (!editing) return;
+
+    if (editing.kind === 'TASK') {
+      const hours = estimatedHours.trim() === '' ? undefined : Number(estimatedHours);
+      const fields = {
+        title: title.trim(),
+        subjectId: subjectId as SubjectId,
+        description: notes.trim() || undefined,
+        dueDate,
+        priority,
+        estimatedHours: Number.isFinite(hours as number) ? hours : undefined,
+        linkedGoalId: linkedGoalId || undefined,
+      };
+      await db.tasks.update(editing.record.id, fields);
+      await logFieldChanges({
+        user: 'STUDENT',
+        entity: 'Task',
+        entityId: editing.record.id,
+        before: editing.record as unknown as Record<string, unknown>,
+        after: fields as unknown as Record<string, unknown>,
+        labels: {
+          description: 'notes',
+          dueDate: 'due date',
+          estimatedHours: 'estimated hours',
+          linkedGoalId: 'linked goal',
+        },
+      });
+      toast.success('Homework updated', formatFriendlyDate(dueDate));
+      return;
+    }
+
+    if (editing.kind === 'REMINDER') {
+      const fields = {
+        title: title.trim(),
+        date: dueDate,
+        category,
+        subjectId: subjectId ? (subjectId as SubjectId) : undefined,
+        priority,
+        notes: notes.trim() || undefined,
+      };
+      await db.milestones.update(editing.record.id, fields);
+      await logFieldChanges({
+        user: 'STUDENT',
+        entity: 'MilestoneReminder',
+        entityId: editing.record.id,
+        before: editing.record as unknown as Record<string, unknown>,
+        after: fields as unknown as Record<string, unknown>,
+        labels: { date: 'when', category: 'type of date' },
+      });
+      toast.success('Key date updated', formatFriendlyDate(dueDate));
+      return;
+    }
+
+    // A lesson is edited one row at a time. The multi-day picker adds the same
+    // lesson to several days at once, which is a create-only convenience -
+    // applying it to an edit would silently spawn rows nobody asked for.
+    const fields = {
+      activityName: effectiveLessonName,
+      subjectId: subjectId ? (subjectId as SubjectId) : undefined,
+      weekType,
+      dayOfWeek: selectedDays[0] || editing.record.dayOfWeek,
+      slotName,
+      startTime,
+      endTime,
+      room: room.trim() || undefined,
+    };
+    await db.timetableEntries.update(editing.record.id, fields);
+    await logFieldChanges({
+      user: 'STUDENT',
+      entity: 'TimetableEntry',
+      entityId: editing.record.id,
+      before: editing.record as unknown as Record<string, unknown>,
+      after: fields as unknown as Record<string, unknown>,
+      labels: {
+        activityName: 'lesson',
+        weekType: 'week',
+        dayOfWeek: 'day',
+        slotName: 'period',
+        startTime: 'starts',
+        endTime: 'ends',
+      },
+    });
+    toast.success('Lesson updated', `${slotName} · ${startTime}-${endTime}`);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit || isSaving) return;
 
     setIsSaving(true);
     try {
-      if (mode === 'TASK') {
+      if (editing) {
+        await saveEdit();
+      } else if (mode === 'TASK') {
         const task: Task = {
           id: newId('task'),
           subjectId: subjectId as SubjectId,
@@ -162,6 +329,11 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
           priority,
           isHomework: true,
           isRemediation: false,
+          estimatedHours:
+            estimatedHours.trim() === '' || !Number.isFinite(Number(estimatedHours))
+              ? undefined
+              : Number(estimatedHours),
+          linkedGoalId: linkedGoalId || undefined,
           xpValue: priority === 'HIGH' ? 60 : 50,
           completed: false,
           createdAt: Date.now(),
@@ -242,12 +414,25 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
     }`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Quick add"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+    >
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative w-full sm:max-w-md bg-slate-900 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-2xl p-5 pb-safe sm:pb-5 shadow-2xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">Add something</h2>
+          <h2 className="text-lg font-bold text-white">
+            {editing
+              ? editing.kind === 'TASK'
+                ? 'Edit homework'
+                : editing.kind === 'REMINDER'
+                ? 'Edit key date'
+                : 'Edit lesson'
+              : 'Add something'}
+          </h2>
           <button
             onClick={onClose}
             aria-label="Close"
@@ -257,8 +442,9 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
           </button>
         </div>
 
-        {/* What kind of thing */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        {/* What kind of thing. Hidden while editing: an existing row cannot
+            change from homework into a timetable lesson. */}
+        <div className={`grid grid-cols-3 gap-2 mb-4 ${editing ? 'hidden' : ''}`}>
           {(
             [
               { id: 'TASK', label: 'Homework', hint: 'To do', icon: ListTodo },
@@ -589,6 +775,55 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                 </>
               )}
 
+              {/* Hours feed the Plan tab's live workload total; the linked goal
+                  is what lets a piece of homework belong to something bigger
+                  than itself. Both were previously set-once-at-creation only,
+                  and the goal link had no UI at all. */}
+              {mode === 'TASK' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label
+                      htmlFor="quick-add-hours"
+                      className="block text-[11px] font-bold text-slate-300 uppercase mb-1.5"
+                    >
+                      Rough hours
+                    </label>
+                    <input
+                      id="quick-add-hours"
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.5"
+                      placeholder="1.5"
+                      value={estimatedHours}
+                      onChange={(e) => setEstimatedHours(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white placeholder-slate-500"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="quick-add-goal"
+                      className="block text-[11px] font-bold text-slate-300 uppercase mb-1.5"
+                    >
+                      Towards a goal
+                    </label>
+                    <select
+                      id="quick-add-goal"
+                      value={linkedGoalId}
+                      onChange={(e) => setLinkedGoalId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white"
+                    >
+                      <option value="">Not linked</option>
+                      {goals.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {mode !== 'LESSON' && (
                 <div>
                   <label
@@ -629,6 +864,8 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
             <span>
               {isSaving
                 ? 'Saving...'
+                : editing
+                ? 'Save changes'
                 : mode === 'TASK'
                 ? `Add homework (+${priority === 'HIGH' ? 60 : 50} XP when done)`
                 : mode === 'REMINDER'

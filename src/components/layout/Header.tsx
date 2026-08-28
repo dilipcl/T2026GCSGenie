@@ -1,8 +1,10 @@
 import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { UserRole, WeekType } from '../../types';
+import { InfoTip } from '../shared/InfoTip';
 import { calculateTotalXP } from '../../services/ragCalculator';
 import { calculateStreakStats } from '../../services/habitEngine';
+import { db } from '../../db';
 import { Sparkles, Flame, Calendar, Lock, Unlock } from 'lucide-react';
 import { SyncStatus } from './SyncStatus';
 
@@ -33,6 +35,15 @@ export const Header: React.FC<HeaderProps> = ({
   const streak = useLiveQuery(() => calculateStreakStats(), []);
   const xp = useLiveQuery(() => calculateTotalXP(), []);
 
+  // Who the app is for. Was three hardcoded strings here; a parent sets it in
+  // the portal now. The fallbacks keep an older settings row rendering exactly
+  // as it did before the fields existed.
+  const settings = useLiveQuery(() => db.parentSettings.get('active_settings'), []);
+  const studentName = settings?.studentName || 'Tejas Dilip';
+  const yearGroup = settings?.studentYearGroup || 'Year 10';
+  const school = settings?.studentSchool || 'GCS';
+  const targetGrade = settings?.studentTargetGrade ?? 9;
+
   const todayFormatted = new Intl.DateTimeFormat('en-GB', {
     weekday: 'short',
     day: 'numeric',
@@ -51,10 +62,13 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center gap-2">
               <h1 className="font-bold text-lg text-white tracking-tight">GCSE Genie</h1>
               <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                Target: Grade 9
+                Target: Grade {targetGrade}
               </span>
             </div>
-            <p className="text-xs text-slate-400">Tejas Dilip · Year 10 (GCS)</p>
+            <p className="text-xs text-slate-400">
+              {studentName} · {yearGroup}
+              {school ? ` (${school})` : ''}
+            </p>
           </div>
         </div>
 
@@ -93,23 +107,31 @@ export const Header: React.FC<HeaderProps> = ({
             <span>
               {streak ? `${streak.current} Day Streak${streak.atRisk ? ' · at risk' : ''}` : '· · ·'}
             </span>
+            <InfoTip label="Streak">
+              Days in a row you have checked in. One missed day is forgiven; two in a row resets it.
+            </InfoTip>
           </div>
 
           {/* XP Badge - doubles as the shortcut into the rewards shop, so spending
               XP is always one tap away without using a nav slot */}
-          <button
-            onClick={onOpenRewards}
-            title="Spend your XP in the rewards shop"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-medium hover:bg-indigo-500/20 hover:border-indigo-400/50 transition-colors"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>{xp ? `${xp.availableXP.toLocaleString()} XP` : '· · ·'}</span>
-            {xp?.isShopFrozen && (
-              <span className="text-[10px] bg-rose-500/20 text-rose-300 px-1 rounded border border-rose-500/40">
-                Shop Locked
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-medium">
+            <button
+              onClick={onOpenRewards}
+              title="Spend your XP in the rewards shop"
+              className="flex items-center gap-1.5 hover:text-indigo-200 transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>{xp ? `${xp.availableXP.toLocaleString()} XP` : '· · ·'}</span>
+              {xp?.isShopFrozen && (
+                <span className="text-[10px] bg-rose-500/20 text-rose-300 px-1 rounded border border-rose-500/40">
+                  Shop Locked
+                </span>
+              )}
+            </button>
+            <InfoTip label="XP">
+              Points you earn for showing up and doing the work. Spend them in Rewards.
+            </InfoTip>
+          </div>
 
           {/* Quick Daily Check-in Button */}
           <button

@@ -20,6 +20,8 @@ import {
   FreeRevisionLink,
   Assessment,
   ProofAttachment,
+  Chore,
+  ChoreCompletion,
 } from '../types';
 import {
   INITIAL_SUBJECTS,
@@ -87,6 +89,8 @@ export class GCSEGenieDatabase extends Dexie {
   revisionLinks!: Table<FreeRevisionLink, string>;
   assessments!: Table<Assessment, string>;
   attachments!: Table<ProofAttachment, string>;
+  chores!: Table<Chore, string>;
+  choreCompletions!: Table<ChoreCompletion, string>;
 
   constructor() {
     super('GCSEGenieDB', IS_BROWSER ? { addons: [dexieCloud] } : {});
@@ -174,6 +178,18 @@ export class GCSEGenieDatabase extends Dexie {
         const replacement = INITIAL_REWARDS.find((r) => r.id === id);
         if (replacement) await rewards.put(replacement);
       }
+    });
+
+    /**
+     * v8 adds recurring chores.
+     *
+     * `isActive` is in the schema string but is a boolean, so it is never
+     * actually indexed - see the note at the top of this file. Chores are
+     * filtered in memory.
+     */
+    this.version(8).stores({
+      chores: 'id, cadence, dayOfWeek, isActive, createdAt',
+      choreCompletions: 'id, choreId, date, [choreId+date]',
     });
 
     this.on('ready', async () => {

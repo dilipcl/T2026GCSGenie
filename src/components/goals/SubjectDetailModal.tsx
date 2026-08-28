@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { SubjectConfig, SyllabusTopic, Task, RAGStatus } from '../../types';
 import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalculator';
-import { logAuditEvent } from '../../services/auditService';
+import { logAuditEvent, logFieldChanges } from '../../services/auditService';
 import { resolveTopicFolder } from '../../db/driveFolders';
 import { attachmentCountsFor } from '../../services/attachmentService';
 import { TopicMaterialPanel } from './TopicMaterialPanel';
@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { newId } from '../../utils/id';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 
 interface SubjectDetailModalProps {
   subject: SubjectConfig | null;
@@ -60,11 +61,27 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
   const [isEditingSubject, setIsEditingSubject] = useState(false);
   const [openTopicId, setOpenTopicId] = useState<string | null>(null);
   const [materialCounts, setMaterialCounts] = useState<Record<string, number>>({});
+  const [editedName, setEditedName] = useState('');
+  const [editedShortName, setEditedShortName] = useState('');
+  const [editedIcon, setEditedIcon] = useState('');
+  const [editedBoard, setEditedBoard] = useState('');
+  const [editedTargetGrade, setEditedTargetGrade] = useState(9);
+  const [editedEstimatedGrade, setEditedEstimatedGrade] = useState(7);
+  const [editedExamStructure, setEditedExamStructure] = useState('');
+  const [editedTeacherEmail, setEditedTeacherEmail] = useState('');
   const [editedTeacher, setEditedTeacher] = useState('');
   const [editedNotes, setEditedNotes] = useState('');
   const [editedDriveUrl, setEditedDriveUrl] = useState('');
   const [manualRAG, setManualRAG] = useState<RAGStatus | 'AUTO'>('AUTO');
   const [manualScore, setManualScore] = useState<number>(85);
+
+  // Editing an existing topic in place. A topic used to be add-or-delete only,
+  // so a typo in a syllabus title meant deleting the row - and with it the
+  // mastery rating and any material attached to it.
+  const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
+  const [topicDraftTitle, setTopicDraftTitle] = useState('');
+  const [topicDraftUnit, setTopicDraftUnit] = useState('');
+  const [topicDraftPractical, setTopicDraftPractical] = useState(false);
 
   // Add New Topic State
   const [newTopicUnit, setNewTopicUnit] = useState('Year 10 Unit');
@@ -78,6 +95,14 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
   useEffect(() => {
     if (subject && isOpen) {
       loadSubjectData();
+      setEditedName(subject.name);
+      setEditedShortName(subject.shortName);
+      setEditedIcon(subject.icon || '');
+      setEditedBoard(subject.examBoard || '');
+      setEditedTargetGrade(subject.targetGrade ?? 9);
+      setEditedEstimatedGrade(subject.currentEstimatedGrade ?? 7);
+      setEditedExamStructure(subject.examStructure || '');
+      setEditedTeacherEmail(subject.teacherEmail || '');
       setEditedTeacher(subject.teacherName || '');
       setEditedNotes(subject.teacherNotes || '');
       setEditedDriveUrl(subject.driveFolderUrl || '');
@@ -101,24 +126,57 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     setRag(ragRes);
   };
 
+  // Escape closes, like every other dialog in the app. Must sit above the
+  // early return - a hook cannot be called conditionally.
+  useEscapeToClose(isOpen, onClose);
+
   if (!isOpen || !subject) return null;
 
+  /**
+   * The nine subjects are fixed - the set a student is entered for is not a
+   * thing the app should invent - but everything printed on one is now
+   * editable. Name, board, target and estimated grade, exam structure and icon
+   * used to live only in seedData, so a school changing board mid-year meant a
+   * code change.
+   */
   const handleSaveSubjectSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    await db.subjects.update(subject.id, {
+
+    const fields = {
+      name: editedName.trim() || subject.name,
+      shortName: editedShortName.trim() || subject.shortName,
+      icon: editedIcon.trim() || subject.icon,
+      examBoard: editedBoard.trim() || subject.examBoard,
+      targetGrade: editedTargetGrade,
+      currentEstimatedGrade: editedEstimatedGrade,
+      examStructure: editedExamStructure.trim(),
       teacherName: editedTeacher.trim(),
+      teacherEmail: editedTeacherEmail.trim() || undefined,
       teacherNotes: editedNotes.trim(),
       driveFolderUrl: editedDriveUrl.trim(),
       manualRAGOverride: manualRAG === 'AUTO' ? null : (manualRAG as RAGStatus),
       manualHealthScore: manualRAG === 'AUTO' ? null : manualScore,
-    });
+    };
 
-    await logAuditEvent({
+    await db.subjects.update(subject.id, fields);
+    await logFieldChanges({
       user: 'PARENT',
-      action: 'UPDATE',
       entity: 'SubjectConfig',
       entityId: subject.id,
-      newValue: `Updated settings (RAG Override: ${manualRAG}, Drive: ${editedDriveUrl})`,
+      before: subject as unknown as Record<string, unknown>,
+      after: fields as unknown as Record<string, unknown>,
+      labels: {
+        examBoard: 'exam board',
+        targetGrade: 'target grade',
+        currentEstimatedGrade: 'estimated grade',
+        examStructure: 'exam structure',
+        teacherName: 'teacher',
+        teacherEmail: 'teacher email',
+        teacherNotes: 'teacher notes',
+        driveFolderUrl: 'Drive folder',
+        manualRAGOverride: 'RAG override',
+        manualHealthScore: 'manual health score',
+      },
     });
 
     setIsEditingSubject(false);
@@ -156,6 +214,33 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     setNewTopicTitle('');
     setNewTopicDriveUrl('');
     setNewTopicIsPractical(false);
+    loadSubjectData();
+    onRefresh();
+  };
+
+  const startEditingTopic = (topic: SyllabusTopic) => {
+    setEditingTopicId(topic.id);
+    setTopicDraftTitle(topic.title);
+    setTopicDraftUnit(topic.unit);
+    setTopicDraftPractical(!!topic.isRequiredPractical);
+  };
+
+  const handleSaveTopic = async (topic: SyllabusTopic) => {
+    const fields = {
+      title: topicDraftTitle.trim() || topic.title,
+      unit: topicDraftUnit.trim() || topic.unit,
+      isRequiredPractical: topicDraftPractical,
+    };
+    await db.syllabusTopics.update(topic.id, fields);
+    await logFieldChanges({
+      user: 'STUDENT',
+      entity: 'SyllabusTopic',
+      entityId: topic.id,
+      before: topic as unknown as Record<string, unknown>,
+      after: fields as unknown as Record<string, unknown>,
+      labels: { isRequiredPractical: 'required practical' },
+    });
+    setEditingTopicId(null);
     loadSubjectData();
     onRefresh();
   };
@@ -234,7 +319,12 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Subject detail"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+    >
       <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
@@ -295,7 +385,99 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
               <span>Subject settings</span>
             </h4>
 
+            <div className="grid grid-cols-[3rem,1fr,1fr] gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Icon</label>
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={editedIcon}
+                  onChange={(e) => setEditedIcon(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-center text-base text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Subject name</label>
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Short name</label>
+                <input
+                  type="text"
+                  value={editedShortName}
+                  onChange={(e) => setEditedShortName(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Exam board</label>
+                <input
+                  type="text"
+                  placeholder="AQA / Edexcel / OCR"
+                  value={editedBoard}
+                  onChange={(e) => setEditedBoard(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Target grade</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="9"
+                  value={editedTargetGrade}
+                  onChange={(e) => setEditedTargetGrade(Number(e.target.value))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Estimated grade</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="9"
+                  value={editedEstimatedGrade}
+                  onChange={(e) => setEditedEstimatedGrade(Number(e.target.value))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Exam structure</label>
+              <input
+                type="text"
+                placeholder="e.g. Paper 1 (50%) + Paper 2 (50%), both 1h45"
+                value={editedExamStructure}
+                onChange={(e) => setEditedExamStructure(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Teacher email</label>
+                <input
+                  type="email"
+                  placeholder="name@school.org"
+                  value={editedTeacherEmail}
+                  onChange={(e) => setEditedTeacherEmail(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                />
+              </div>
+
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">Teacher Name</label>
                 <input
@@ -499,11 +681,53 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
                         <Circle className="w-5 h-5 text-slate-500" />
                       )}
                     </button>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-white">{topic.title}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">[{topic.unit}]</span>
-                      </div>
+                    <div className="flex-1 min-w-0">
+                      {editingTopicId === topic.id ? (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <input
+                            type="text"
+                            aria-label="Topic title"
+                            value={topicDraftTitle}
+                            onChange={(e) => setTopicDraftTitle(e.target.value)}
+                            className="flex-1 min-w-[10rem] bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 text-xs text-white"
+                          />
+                          <input
+                            type="text"
+                            aria-label="Unit"
+                            value={topicDraftUnit}
+                            onChange={(e) => setTopicDraftUnit(e.target.value)}
+                            className="w-28 bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 text-[11px] font-mono text-white"
+                          />
+                          <label className="flex items-center gap-1 text-[10px] text-slate-400">
+                            <input
+                              type="checkbox"
+                              checked={topicDraftPractical}
+                              onChange={(e) => setTopicDraftPractical(e.target.checked)}
+                              className="accent-purple-500"
+                            />
+                            <span>Practical</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveTopic(topic)}
+                            className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingTopicId(null)}
+                            className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-white">{topic.title}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">[{topic.unit}]</span>
+                        </div>
+                      )}
                       {/* Topics have no folder of their own - the structure stops
                           at subject level on purpose. Falling back means "open my
                           notes" always goes somewhere rather than being absent for
@@ -568,6 +792,16 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
                     >
                       <Paperclip className="w-3 h-3" />
                       <span>{materialCounts[topic.id] || 'Material'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => startEditingTopic(topic)}
+                      aria-label={`Edit topic ${topic.title}`}
+                      title={`Edit "${topic.title}"`}
+                      className="p-1 text-slate-500 hover:text-indigo-300 rounded transition-colors"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
                     </button>
 
                     <button

@@ -1,15 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../db';
-import { RemediationAction, SubjectId } from '../../types';
+import { RemediationAction, SubjectConfig, SubjectId, UserRole } from '../../types';
 import { RemediationSolveModal } from './RemediationSolveModal';
-import { Sparkles, CheckCircle2, ArrowRight, FileText } from 'lucide-react';
+import { RemediationEditorModal } from './RemediationEditorModal';
+import { logAuditEvent } from '../../services/auditService';
+import { useFeedback } from '../shared/FeedbackProvider';
+import {
+  Sparkles,
+  CheckCircle2,
+  ArrowRight,
+  FileText,
+  Plus,
+  PencilLine,
+  Trash2,
+} from 'lucide-react';
 
 interface RemediationHubProps {
   initialQuestId?: string;
+  currentRole: UserRole;
 }
 
-export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }) => {
+export const RemediationHub: React.FC<RemediationHubProps> = ({
+  initialQuestId,
+  currentRole,
+}) => {
+  const { toast, confirm } = useFeedback();
   const [remediations, setRemediations] = useState<RemediationAction[]>([]);
+  const [subjects, setSubjects] = useState<SubjectConfig[]>([]);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingQuest, setEditingQuest] = useState<RemediationAction | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<SubjectId | 'ALL'>('ALL');
   const [activeQuestId, setActiveQuestId] = useState<string | null>(null);
   const autoOpenedQuestId = useRef<string | null>(null);
@@ -20,6 +39,33 @@ export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }
 
   const loadRemediations = async () => {
     setRemediations(await db.remediations.toArray());
+    setSubjects(await db.subjects.toArray());
+  };
+
+  const openEditor = (quest?: RemediationAction) => {
+    setEditingQuest(quest ?? null);
+    setIsEditorOpen(true);
+  };
+
+  const handleDeleteQuest = async (quest: RemediationAction) => {
+    const ok = await confirm({
+      title: `Delete "${quest.taskTitle}"?`,
+      body: 'The quest is removed. Any XP already claimed for it stays claimed, and the deletion is recorded in the change history.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    await db.remediations.delete(quest.id);
+    await logAuditEvent({
+      user: 'PARENT',
+      action: 'DELETE',
+      entity: 'RemediationAction',
+      entityId: quest.id,
+      oldValue: `${quest.taskTitle} (${quest.subjectId}, +${quest.xpReward} XP)`,
+    });
+    toast.info(`Deleted "${quest.taskTitle}"`);
+    loadRemediations();
   };
 
   useEffect(() => {
@@ -62,6 +108,16 @@ export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }
           </p>
         </div>
 
+        {currentRole === 'PARENT' && (
+          <button
+            onClick={() => openEditor()}
+            className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs flex items-center gap-2 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add a fix-up</span>
+          </button>
+        )}
+
         <div className="flex items-center gap-3 bg-slate-900/90 px-4 py-2.5 rounded-2xl border border-slate-800">
           <div>
             <span className="block text-[10px] uppercase font-bold text-slate-400">
@@ -79,13 +135,13 @@ export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }
 
       {/* Subject Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {/* Derived from the subject table rather than a hardcoded five. A fix-up
+            written by hand for Biology used to have no tab to appear under. */}
         {[
           { id: 'ALL', label: 'All Subjects' },
-          { id: 'maths', label: 'Mathematics' },
-          { id: 'chemistry', label: 'Chemistry' },
-          { id: 'physics', label: 'Physics' },
-          { id: 'history', label: 'History' },
-          { id: 'computer_science', label: 'Computer Science' },
+          ...subjects
+            .filter((sub) => remediations.some((r) => r.subjectId === sub.id))
+            .map((sub) => ({ id: sub.id as string, label: sub.name })),
         ].map((tab) => (
           <button
             key={tab.id}
@@ -159,10 +215,47 @@ export const RemediationHub: React.FC<RemediationHubProps> = ({ initialQuestId }
                 <span>{quest.isCompleted ? 'Review Quest' : 'Solve & Claim XP'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </span>
+
+              {/* Parent-only: a quest is a statement about what went wrong in an
+                  exam, so correcting or removing one is not the student's call. */}
+              {currentRole === 'PARENT' && (
+                <span className="flex items-center gap-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openEditor(quest);
+                    }}
+                    aria-label={`Edit ${quest.taskTitle}`}
+                    className="p-1.5 text-slate-500 hover:text-indigo-300 transition-colors"
+                  >
+                    <PencilLine className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteQuest(quest);
+                    }}
+                    aria-label={`Delete ${quest.taskTitle}`}
+                    className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </span>
+              )}
             </div>
           </div>
         ))}
       </div>
+
+      <RemediationEditorModal
+        isOpen={isEditorOpen}
+        quest={editingQuest}
+        onClose={() => {
+          setIsEditorOpen(false);
+          setEditingQuest(null);
+        }}
+        onSuccess={loadRemediations}
+      />
 
       <RemediationSolveModal
         quest={activeQuest}

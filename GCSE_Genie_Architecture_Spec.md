@@ -159,7 +159,7 @@ The dashboard is ordered by **daily frequency of use**, not by conceptual import
   specified but not yet implemented.)
 
 > **Navigation tiers.** Sections are split into `daily` (Home, My Work, Key Dates, Fix My Mistakes)
-> and `weekly` (Rewards, Timetable, Subjects & Goals, Careers & Help, Parent Portal). On mobile the
+> and `weekly` (Rewards, Timetable, Subjects & Goals, Help & Careers, Parent Portal). On mobile the
 > daily four form the bottom bar and the rest sit behind a **More** sheet; on desktop a `WEEKLY`
 > divider separates them. Goal creation and amendment is explicitly a weekly-tier activity.
 > The XP badge in the header doubles as a shortcut into the Rewards shop so that spending XP stays
@@ -439,6 +439,111 @@ transaction, because two events logged in the same tick would otherwise claim th
 number. The SHA-256 call inside that transaction must be wrapped in `Dexie.waitFor()` — awaiting a
 WebCrypto promise directly lets IndexedDB auto-commit and throws `PrematureCommitError`.
 
+### 4.11. Module 11: Goal time attribution *(added August 2026)*
+
+Module 2 locks a goal and Module 5 reserves its `weeklyHoursRequired` in the capacity model. Until
+this, nothing closed the loop: the hours were a budget the app reserved and then never checked, so a
+locked goal could sit for a month with nothing worked against it and every screen still read green.
+
+**Attribution rides on the check-in, not a new table.** The focus timer and the daily check-in both
+already write their minutes to `DailyCheckIn`; adding `studySubjectId` there is one new field on a
+row that exists, rather than a second source of truth that can disagree with the first. The focus
+block asks once and remembers the answer; the check-in defaults to the subject of the homework being
+ticked off, and picks up that homework's `linkedGoalId` when it has one.
+
+**Crediting.** Time attributed to a goal directly wins. Otherwise time on the goal's subject counts
+towards it, provided that check-in was not already claimed by a different goal. Two locked goals on
+one subject are therefore each credited the same minutes — generous rather than wrong: the
+alternative is asking a fourteen year old to split a revision session across goals, and a number
+nobody enters is worse than one that is slightly kind.
+
+**Pro-rating.** The target is scaled by ISO weekday, and nothing is flagged before Wednesday. A
+weekly budget is arithmetically unmet at one minute past midnight on Monday, which is both true and
+useless; a nudge that fires when it cannot yet be acted on is a nudge that gets dismissed by reflex.
+
+```
+proRatedTarget = weeklyHoursRequired × isoWeekday ÷ 7
+needsAction    = locked ∧ hasSubject ∧ isoWeekday ≥ 3 ∧ actual < proRatedTarget
+```
+
+**What is deliberately not tracked.** `smartMeasurable` — "14-day homework streak + 90% on quizzes"
+— stays free text, shown and never parsed. Turning an English sentence into a tracker is a different
+and worse product than asking a person to say what the number should be.
+
+`weekStart` is the Monday of the current week (`startOfWeekISO`), not a rolling seven days. The
+rolling window is right for "how hard have you been working lately", which is what `EffortStats`
+answers; a *budget* has to reset on a known day or the same session keeps counting for a week and
+the goal never looks behind.
+
+### 4.12. Module 12: Chores *(added August 2026)*
+
+**A chore is deliberately not a `Task`.** A task has a due date, a subject, a priority and a place
+in the weekly load; a chore has none of those and must never touch the study plan or the burnout
+arithmetic. Modelling chores as tasks would put "empty the dishwasher" beside a mock paper and count
+it against revision hours, which is how a planning tool stops being believed.
+
+| Cadence | Falls due |
+| :--- | :--- |
+| `DAILY` | Every day |
+| `WEEKDAYS` | Mon–Fri |
+| `WEEKLY` | The single `dayOfWeek` named on the chore |
+
+`dayOfWeek` is cleared when the cadence is not `WEEKLY`, so a row can never carry a stale day that
+would start meaning something again if the cadence changed back.
+
+**A completion's primary key is `${choreId}__${date}`, never generated.** One chore on one day is
+one row whichever device ticks it: two devices ticking the same chore offline and syncing later
+produce the same key and merge into a single row, so the XP is paid once. A generated id would have
+paid twice and presented as a sync fault rather than the modelling error it was. This is the same
+class of problem as clock-derived ids in 8.6, solved from the opposite direction — there by adding
+entropy, here by removing it.
+
+**XP is read from `ChoreCompletion.xpAwarded`, not from the chore's current `xpValue`.** Re-pricing
+a chore from 10 XP to 25 must not retroactively repay every time it was already done. Defaults are
+small — 10 daily, 25 weekly — so chores cannot out-earn revision.
+
+Chores are **retired** (`isActive: false`), never deleted: past completions keep pointing at a real
+row, and XP genuinely earned stays earned. The starter list in `CHORE_SUGGESTIONS` is offered in the
+UI and never seeded, because the seeder re-inserts absent rows it knows about — a seeded chore a
+parent deleted would return on the next open, and the list has to be genuinely theirs.
+
+`ChoresCard` renders `null` when nothing falls due today, and ticking takes one tap with no
+confirmation. A chore that takes four minutes cannot cost thirty seconds to log. Un-ticking is a
+first-class action: a mis-tap that cannot be undone leaves XP in the balance that was never earned,
+and the whole economy depends on that number being true.
+
+### 4.13. Module 13: Handover reset *(added August 2026)*
+
+A fortnight of QA leaves a database that looks like someone else's week. Handing that over as a
+starting point makes the first number the student sees untrue, and every number after it suspect.
+
+**XP and the streak are derived, not stored** — XP is check-ins plus completions less sanctions and
+redemptions; the streak is computed from check-in dates. There is no counter to set to zero, so the
+reset works by clearing the activity that produces them.
+
+| | Tables |
+| :--- | :--- |
+| **Cleared** | `checkIns`, `redemptions`, `sanctions`, `assessments`, `attachments`, `choreCompletions`, `agentAuditReports`, `auditLogs` |
+| **Progress reset, rows kept** | `tasks`, `milestones`, `remediations`, `syllabusTopics` |
+| **Untouched** | Everything else — timetable, subjects, chores, rewards, goals, links, parent credential |
+
+Everything recording *what happened* is cleared; everything describing *the set-up* is kept. A
+topic's `confidenceRating` survives the reset: that is a judgement someone actually made about a
+topic, not testing residue. Fix-up *tasks* that were generated from marked papers are deleted
+outright rather than reset, because the papers they came from are gone.
+
+**`auditChainTips` is cleared in the same write as `auditLogs`.** Tamper detection compares each
+device's stored high-water mark against the rows present (4.10), so emptying the log and leaving the
+tips behind would make an honest reset indistinguishable from someone deleting the tail of the
+chain. The first entry written afterwards is the reset itself, so the new chain opens by stating
+what happened to the old one. The lockout counters are zeroed at the same time.
+
+Three gates, in this order: a **preview** naming every row that will go, a **rescue export** taken
+before anything is touched, and a **typed confirmation word**. This is the one destructive action a
+parent will reach for deliberately, and muscle memory is precisely what stops a confirmation dialog
+from being read. Goals are configuration and are kept, but any goal outside the seeded starting set
+is named in the preview — a stress-test goal left behind would distort the workload cap from day one.
+
 ---
 
 ## 5. Comprehensive Database Schema (IndexedDB / Dexie.js)
@@ -472,6 +577,10 @@ export interface DailyCheckIn {
   focusRating: 'LOW' | 'NORMAL' | 'HIGH';
   completedHomeworkIds: string[];
   completedRevisionMinutes: number;
+  // Where the minutes are credited. Without these, study time lands in one
+  // global bucket and no goal can be measured against its budget - see 4.11.
+  studySubjectId?: SubjectId;
+  studyGoalId?: string;
   notes?: string;
   xpEarned: number;
 }
@@ -530,12 +639,40 @@ export interface TimetableEntry {
   isHardLocked: boolean;
 }
 
+export interface Chore {
+  id: string;
+  title: string;
+  xpValue: number;
+  cadence: 'DAILY' | 'WEEKDAYS' | 'WEEKLY';
+  dayOfWeek?: DayOfWeek;        // WEEKLY only; cleared for the other cadences
+  isActive: boolean;            // retired, never deleted - see 4.12
+  createdAt: number;
+  createdBy: UserRole;
+}
+
+export interface ChoreCompletion {
+  // `${choreId}__${date}` by construction, never generated. One chore on one day
+  // is one row whichever device ticks it, so two offline ticks merge rather than
+  // paying the XP twice. See 4.12.
+  id: string;
+  choreId: string;
+  date: string;                 // local YYYY-MM-DD
+  completedAt: number;
+  // What was awarded at the time. Re-pricing the chore must not retroactively
+  // repay every past completion.
+  xpAwarded: number;
+}
+
 export interface RewardItem {
   id: string;
   title: string;
   description: string;
   costXP: number;
   icon: string;
+  // Retired, never deleted: the seeder re-inserts any row it knows about and
+  // finds missing, so a deleted seed reward returns on the next open. Also
+  // keeps past redemptions resolving to something real.
+  isArchived?: boolean;
 }
 
 export interface RewardRedemption {
@@ -575,6 +712,12 @@ export interface AuditLogEntry {
 }
 
 export interface ParentSettings {
+  // Who the app is for. Was three literal strings in Header.tsx, so moving up a
+  // year needed a code change and a second child was impossible.
+  studentName?: string;
+  studentYearGroup?: string;
+  studentSchool?: string;
+  studentTargetGrade?: number;
   parentPinHash: string;
   googleDriveBackupPath: string; // e.g. "G:/My Drive/Documents/UK/Family/Tejas/GCSE-Genie/Backups"
   llmProvider: LLMProvider;
@@ -676,9 +819,18 @@ export interface ProofAttachment {
 | 3 | `MICRO_REWARDS` back-filled into existing installs |
 | 4 | `assessments` and `attachments` (Proof Log) |
 | 5 | `auditLogs` gains `deviceId` and a `[deviceId+sequence]` compound index for the chain |
+| 6 | `tasks.bucket` indexed, so the Plan tab queries each column instead of filtering in memory |
+| 7 | Rewards retitled in place — the seeder only inserts *absent* rows, so a rename is invisible to it. Only rewards still holding their seeded title are touched |
+| 8 | `chores` and `choreCompletions` |
 
 `attachments` carries a compound index `[ownerType+ownerId]`, which is the only lookup that matters.
 Booleans are never indexed — see 8.6.
+
+The fields added by the August 2026 QA pass — `DailyCheckIn.studySubjectId` / `studyGoalId`,
+`RewardItem.isArchived`, and the student profile on `ParentSettings` — deliberately carry **no**
+version bump. None of them is indexed, IndexedDB stores whatever shape it is handed, and every
+reader treats them as optional with the previous behaviour as the fallback. A version bump exists to
+change indexes or rewrite rows; adding an optional unindexed field needs neither.
 
 ### 5.2. Sync configuration
 
@@ -686,7 +838,16 @@ Booleans are never indexed — see 8.6.
 db.cloud.configure({
   databaseUrl: 'https://z80xp4ajs.dexie.cloud',
   requireAuth: false,                                  // works fully signed out
-  unsyncedProperties: { parentSettings: ['llmApiKey'] } // key never leaves the device
+  customLoginGui: true,                                // the stock dialog reads as a browser prompt
+  unsyncedProperties: {
+    // The key never leaves the device. The lockout counters are device-local
+    // for a different reason: they describe a keyboard, not the family. Synced,
+    // three fumbled attempts on a phone lock the parent out of the laptop, and
+    // two devices counting into one field through per-property merge produce a
+    // total neither of them saw. The credential itself still syncs, so one
+    // passphrase works everywhere.
+    parentSettings: ['llmApiKey', 'failedUnlockAttempts', 'unlockLockedUntil'],
+  },
 });
 ```
 
@@ -746,7 +907,7 @@ content. The seeder only inserts rows whose primary key is absent, and deduplica
 ## 8. Implementation Status vs. Specification
 
 This section records where the running application diverges from the design above, so that gaps are
-not rediscovered as bugs. Last reviewed: **August 2026** (post multi-device / Proof Log pass).
+not rediscovered as bugs. Last reviewed: **August 2026** (post pre-launch QA pass).
 
 ### 8.1. Built and working
 
@@ -754,20 +915,26 @@ not rediscovered as bugs. Last reviewed: **August 2026** (post multi-device / Pr
 | :--- | :--- |
 | Daily check-in & structured learning log | ✅ Multiple sessions/day, XP banked once |
 | "What's next" dashboard card | ✅ Overdue → today → next 7 days, tick in place |
-| Quick Add | ✅ Homework / key date / **lesson**, chip pickers, multi-day lesson entry |
+| Quick Add | ✅ Homework / key date / **lesson**, chip pickers, multi-day lesson entry. Doubles as the **editor** for all three |
 | Frequency-tiered navigation | ✅ Daily vs weekly tiers, mobile "More" sheet |
 | Diagnostic quests | ✅ Instructions, formula, score, notebook link, photo proof, sub-quests. Claiming XP requires a score **and** proof — see 4.4 |
 | **Proof Log (assessments)** | ✅ Per-question marks, error cause, photo/PDF proof, parent verification, auto fix-up tasks |
 | Subject RAG matrix | ⚠️ Effort-weighted; marked-work average reported but not folded in — see 8.3 |
 | Weekly time-capacity gauge | ✅ Recalibrated, see 4.5 |
-| **Goal approval / locking** | ✅ Parent Approve & Lock; unlocked goals show struck-through hours |
+| **Goal approval / locking** | ✅ Draft → discussion → parent Approve & Lock; unlocked goals show struck-through hours. Locked goals are editable by a parent only |
+| **Goal time attribution** | ✅ Logged minutes carry a subject/goal; locked goals show actual vs pro-rated budget — see 4.11 |
+| **Chores** | ✅ Three cadences, idempotent per-day completions, parent-owned list, XP in the ledger — see 4.12 |
+| **Handover reset** | ✅ Preview, rescue export and typed confirmation; clears activity, keeps set-up — see 4.13 |
+| **Editing content** | ✅ Goals, tasks, key dates, lessons, topics, subjects, fix-ups, rewards, guidance links, period times, student profile. Field-level audit rows |
+| **In-app help** | ✅ "How Genie works" tab, shown once on first launch; `InfoTip` beside the undefined numbers |
 | XP, rewards shop, sanctions | ✅ Pending requests now reserve XP; overdraft approval blocked |
 | Parent PIN + Parent Portal | ⚠️ Works, but gates the UI only — see 8.2 |
 | JSON backup / restore | ✅ Schema-walking export, pre-flight diff, automatic rescue copy, API key stripped |
 | Offline agentic audit engine | ✅ Deterministic rules engine, with a visible reason when it is a fallback |
 | Live LLM audits | ✅ Gemini / Claude / OpenAI all implemented — see 8.4 |
 | **Cross-device sync** | ⚠️ Dexie Cloud wired and verified cold; not yet proven with two real devices |
-| Change log | ✅ Now records deletions too |
+| Change log | ✅ Records deletions, and one row per changed field rather than a "record updated" summary |
+| Keyboard / a11y on dialogs | ✅ Escape closes every modal via one layer-stacked hook; `role="dialog"` + `aria-modal` throughout |
 
 ### 8.2. Specified but not implemented
 
@@ -795,6 +962,7 @@ not rediscovered as bugs. Last reviewed: **August 2026** (post multi-device / Pr
 | RAG weighting | 35/35/20/10 incl. assessments | 40/35/25. Assessment data now exists and the per-subject average is computed and displayed, but is deliberately **not** folded into the score — doing so would move every subject's status without an explicit decision |
 | Sync | Encrypted JSON bundles to Google Drive | Dexie Cloud; JSON export retained as backup only |
 | Verification of quests | — | Self-marked. Proof Log assessments *do* carry a parent verification flag |
+| Content lifecycle | Implicitly full CRUD | Was add/complete/delete only until August 2026. Now editable throughout, with two deliberate exceptions: the subject *set* is fixed at nine, and seeded rewards and links are **retired** rather than deleted — the seeder re-inserts absent rows it knows about, so a delete would not stick |
 | Audit ledger | "Cryptographically chained" | Now genuinely chained per device, with a high-water mark catching tail truncation. Still **unsigned**, so a full recompute would pass — tamper-evident, not tamper-proof |
 | Parent credential | 4-digit PIN, bare SHA-256, default `1234` | Passphrase, PBKDF2-SHA256 with random salt over 600,000 iterations, no default — first use sets it |
 | Record IDs | — | UUID-based (`utils/id.ts`). Clock-derived IDs were unique per device only and collided across devices |
@@ -832,14 +1000,20 @@ Diagnostic Remediation Portal" — which defeats the point of the rename.
 | :--- | :--- | :--- | :--- |
 | `DASHBOARD` | Home | *(dashboard cards)* | Dashboard |
 | `TASKS` | My Work | My Work | Workload Prioritization & Homework Planning |
+| `PLAN` | Plan | Plan | *(added August 2026)* |
 | `CALENDAR` | Key Dates | Key Dates | Academic Milestones, Mocks & Reminders Calendar |
 | `REMEDIATIONS` | Fix My Mistakes | Fix My Mistakes | Year 9 Assessment Diagnostic Remediation Portal |
 | `PROOF` | Proof Log | Proof Log | *(new August 2026)* |
 | `REWARDS` | Rewards | Rewards | Parent-Managed Rewards Ledger |
 | `TIMETABLE` | Timetable | Timetable | Guildford County School Rotational Timetable |
 | `GOALS` | Subjects & Goals | Subjects & Goals | GCSE Grade 9 Target Hierarchy |
-| `GUIDANCE` | Careers & Help | Careers & Help | General Guidance, Free Revision Links & Career Pathways |
+| `GUIDANCE` | Help & Careers | Help & Careers | Careers & Help → General Guidance, Free Revision Links & Career Pathways |
 | `PARENT` | Parent Portal | Parent Portal | Parent Portal & Agentic Governance |
+
+`GUIDANCE` was renamed again in the pre-launch pass, from *Careers & Help* to **Help & Careers**.
+The tab now holds the only explanation of how the app works, and leading with "Careers" gave nobody
+a reason to open it looking for that. The mobile short label is "Help" for the same reason. The rule
+above still applies: nav label, page banner and short label all changed together.
 
 Detail that carries real information (exam boards, the Odd/Even rotation, what a section is for)
 moved into the subtitle rather than being deleted. Sub-headings follow the same rule: "What you can
@@ -857,6 +1031,22 @@ Mastery Checklist".
 - **Clock-derived IDs are not unique.** `task_${Date.now()}` is unique on one device and nowhere
   else; two devices creating a record in the same millisecond produce the same key and a sync keeps
   one and destroys the other. All IDs come from `newId(prefix)` in `src/utils/id.ts`.
+- **A fixed bottom bar eats the last row of a bottom sheet.** The mobile nav is `fixed` and paints
+  over anything beneath it, so a sheet anchored to the bottom of the screen with only `pb-safe`
+  leaves its final row untappable — which is how the "More" menu lost Subjects, Careers and the
+  Parent Portal tile. Use `pb-nav-safe`. Note that both classes are declared *after*
+  `@tailwind utilities` and therefore beat a responsive `sm:pb-5` written alongside them; the
+  breakpoint is handled inside the class itself for exactly that reason.
+- **A global `keydown` listener per dialog fires them all at once.** A modal routinely opens the
+  shared confirm on top of itself, and one Escape closed both — cancelling the confirm *and*
+  discarding the form underneath. `useEscapeToClose` keeps a module-level stack and only the layer
+  registered last responds. It holds `onClose` in a ref and subscribes on `isOpen` alone, so a
+  background re-render cannot re-push a modal to the top of the stack, and it must be called above
+  the `if (!isOpen) return null` guard because a hook cannot be called conditionally.
+- **`Table.update` with `undefined` deletes the property.** That is what the editors want when a
+  field is cleared — an unlinked goal, a removed hours estimate — but it means a partial update
+  object built from optional form state silently removes anything left blank. Build the object
+  explicitly rather than spreading form state into it.
 - **Spreading one seed list into another double-adds.** `INITIAL_REWARDS` already spreads in
   `MICRO_REWARDS`; seeding both failed the whole batch with a `ConstraintError` on first database
   creation. The seeder now deduplicates its input by id, but the underlying trap remains: `bulkGet`

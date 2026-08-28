@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
 import { TimetableEntry, WeekType, DayOfWeek } from '../../types';
 import { QuickAddSheet } from '../shared/QuickAddSheet';
+import { PeriodTimesPanel } from './PeriodTimesPanel';
 import { logAuditEvent } from '../../services/auditService';
 import {
   Calendar,
   Clock,
   Plus,
   Trash2,
+  PencilLine,
   Lock,
   MapPin,
 } from 'lucide-react';
@@ -16,11 +18,14 @@ import { useFeedback } from '../shared/FeedbackProvider';
 interface TimetableManagerProps {
   activeWeek: WeekType;
   onToggleWeek: () => void;
+  /** Opens the shared add sheet loaded with this lesson. */
+  onEdit?: (entry: TimetableEntry) => void;
 }
 
 export const TimetableManager: React.FC<TimetableManagerProps> = ({
   activeWeek,
   onToggleWeek,
+  onEdit,
 }) => {
   const { confirm } = useFeedback();
   const [entries, setEntries] = useState<TimetableEntry[]>([]);
@@ -110,6 +115,8 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
         </div>
       </div>
 
+      <PeriodTimesPanel />
+
       {/* Day Selector Pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {days.map((d) => (
@@ -182,6 +189,17 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                       <MapPin className="w-3.5 h-3.5 text-slate-500" />
                       <span>{entry.room}</span>
                     </span>
+                  )}
+
+                  {!entry.isHardLocked && onEdit && (
+                    <button
+                      onClick={() => onEdit(entry)}
+                      aria-label={`Edit ${entry.activityName}`}
+                      title="Edit this lesson"
+                      className="p-1.5 text-slate-500 hover:text-indigo-300 rounded-lg hover:bg-slate-800 transition-colors"
+                    >
+                      <PencilLine className="w-4 h-4" />
+                    </button>
                   )}
 
                   {!entry.isHardLocked && (

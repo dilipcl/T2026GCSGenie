@@ -93,6 +93,50 @@ export async function logAuditEvent(params: {
   });
 }
 
+/**
+ * Writes one audit row per field that actually changed.
+ *
+ * Editing became possible across most of the app in August 2026, and an edit is
+ * only accountable if the history says which field moved and what it was
+ * before. A single "record updated" row would have satisfied the letter of the
+ * audit trail and none of its purpose - a parent looking at a goal's weekly
+ * hours needs to see 2 became 4, not that something changed.
+ *
+ * Unchanged fields are skipped, so saving a form without touching it writes
+ * nothing and the history stays readable.
+ */
+export async function logFieldChanges<T extends Record<string, unknown>>(params: {
+  user: UserRole;
+  entity: string;
+  entityId: string;
+  before: T;
+  after: Partial<T>;
+  /** Human labels for the field names, where the key is not self-explanatory. */
+  labels?: Partial<Record<keyof T, string>>;
+}): Promise<number> {
+  const asText = (value: unknown) =>
+    value === undefined || value === null || value === '' ? '(blank)' : String(value);
+
+  let written = 0;
+  for (const key of Object.keys(params.after) as (keyof T)[]) {
+    const from = params.before[key];
+    const to = params.after[key];
+    if (asText(from) === asText(to)) continue;
+
+    await logAuditEvent({
+      user: params.user,
+      action: 'UPDATE',
+      entity: params.entity,
+      entityId: params.entityId,
+      fieldChanged: (params.labels?.[key] as string) || String(key),
+      oldValue: asText(from),
+      newValue: asText(to),
+    });
+    written += 1;
+  }
+  return written;
+}
+
 export type ChainFault =
   | { kind: 'ALTERED'; deviceId: string; sequence: number; entryId: string; detail: string }
   | { kind: 'MISSING'; deviceId: string; sequence: number; detail: string }

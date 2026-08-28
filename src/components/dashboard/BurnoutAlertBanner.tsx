@@ -2,6 +2,7 @@ import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { calculateBurnoutCapacity } from '../../services/burnoutEngine';
 import { ShieldAlert, AlertTriangle, BatteryCharging, Info } from 'lucide-react';
+import { InfoTip } from '../shared/InfoTip';
 
 interface BurnoutAlertBannerProps {
   refreshKey?: number;
@@ -36,8 +37,12 @@ export const BurnoutAlertBanner: React.FC<BurnoutAlertBannerProps> = () => {
             <BatteryCharging className="w-5 h-5 text-emerald-400" />
           )}
           <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white">
-              This Week's Workload ({burnout.stressIndex}%)
+            <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+              <span>This Week's Workload ({burnout.stressIndex}%)</span>
+              <InfoTip label="Workload">
+                Everything on your plate this week - school, clubs and study. The buffer is how much
+                room is left before it is too much.
+              </InfoTip>
             </h4>
             <p className="text-[11px] text-slate-300">
               {burnout.totalScheduledHours} hrs total / {burnout.safeWeeklyHoursLimit} hrs safe weekly

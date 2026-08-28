@@ -28,6 +28,10 @@ import {
  * instead of checking one.
  */
 export const INITIAL_PARENT_SETTINGS: ParentSettings = {
+  studentName: 'Tejas Dilip',
+  studentYearGroup: 'Year 10',
+  studentSchool: 'GCS',
+  studentTargetGrade: 9,
   googleDriveBackupPath: `${WORKING_FOLDER_PATH}\\_Genie-Backups`,
   googleDriveFolderUrl: WORKING_FOLDER_URL,
   backupsFolderUrl: BACKUPS_FOLDER_URL,

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { UserRole } from '../../types';
+import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import {
   LayoutDashboard,
   Target,
@@ -59,7 +60,9 @@ export const Navigation: React.FC<NavigationProps> = ({
     { id: 'REWARDS', label: 'Rewards', shortLabel: 'Rewards', icon: Gift, tier: 'weekly' },
     { id: 'TIMETABLE', label: 'Timetable', shortLabel: 'Timetable', icon: Calendar, tier: 'weekly' },
     { id: 'GOALS', label: 'Subjects & Goals', shortLabel: 'Subjects', icon: Target, tier: 'weekly' },
-    { id: 'GUIDANCE', label: 'Careers & Help', shortLabel: 'Careers', icon: HelpCircle, tier: 'weekly' },
+    // Named for help first: the tab holds the only explanation of how the app
+    // works, and "Careers" gave no reason to open it looking for that.
+    { id: 'GUIDANCE', label: 'Help & Careers', shortLabel: 'Help', icon: HelpCircle, tier: 'weekly' },
     ...(currentRole === 'PARENT'
       ? [
           {
@@ -76,6 +79,8 @@ export const Navigation: React.FC<NavigationProps> = ({
   const dailyItems = navItems.filter((item) => item.tier === 'daily');
   const weeklyItems = navItems.filter((item) => item.tier === 'weekly');
   const isOverflowActive = weeklyItems.some((item) => item.id === activeTab);
+
+  useEscapeToClose(isMoreOpen, () => setIsMoreOpen(false));
 
   const handleSelect = (tab: NavTab) => {
     onSelectTab(tab);
@@ -132,13 +137,22 @@ export const Navigation: React.FC<NavigationProps> = ({
 
       {/* Mobile "More" sheet - holds every tab that does not fit in the bottom bar */}
       {isMoreOpen && (
-        <div className="md:hidden fixed inset-0 z-40 flex flex-col justify-end">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Everything else"
+          className="md:hidden fixed inset-0 z-40 flex flex-col justify-end"
+        >
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setIsMoreOpen(false)}
           />
 
-          <div className="relative bg-slate-900 border-t border-slate-700 rounded-t-3xl p-4 pb-safe shadow-2xl max-h-[70vh] overflow-y-auto">
+          {/* pb-nav-safe, not pb-safe: this sheet opens flush with the bottom of
+              the screen and the fixed bottom bar paints on top of it, so the
+              second row of tiles - Subjects, Careers, and Parent Portal in
+              parent mode - was all but untappable on a phone. */}
+          <div className="relative bg-slate-900 border-t border-slate-700 rounded-t-3xl p-4 pb-nav-safe shadow-2xl max-h-[70vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-sm font-bold text-white">Everything else</h3>

@@ -12,16 +12,23 @@ import {
   Circle,
   Calendar,
   Trash2,
+  PencilLine,
   Filter,
 } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
 
 interface TaskManagerViewProps {
+  /** Opens the shared add sheet loaded with this task. */
+  onEdit?: (task: Task) => void;
   refreshKey?: number;
   onAdd: () => void;
 }
 
-export const TaskManagerView: React.FC<TaskManagerViewProps> = ({ refreshKey = 0, onAdd }) => {
+export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
+  refreshKey = 0,
+  onAdd,
+  onEdit,
+}) => {
   const { confirm } = useFeedback();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -281,6 +288,17 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({ refreshKey = 0
                   <span className="text-amber-400 font-bold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/60">
                     +{task.xpValue} XP
                   </span>
+
+                  {onEdit && (
+                    <button
+                      onClick={() => onEdit(task)}
+                      aria-label={`Edit task ${task.title}`}
+                      title={`Edit "${task.title}"`}
+                      className="p-1.5 text-slate-500 hover:text-indigo-300 transition-colors"
+                    >
+                      <PencilLine className="w-4 h-4" />
+                    </button>
+                  )}
 
                   <button
                     onClick={() => handleDeleteTask(task)}

@@ -52,6 +52,26 @@ export function daysUntil(iso: string): number {
 }
 
 /**
+ * The Monday of the week containing `iso`, as a local YYYY-MM-DD string.
+ *
+ * Weekly totals elsewhere in the app use a rolling seven days, which is right
+ * for "how hard have you been working lately". A weekly *budget* is different:
+ * 3.5 hrs/week has to reset on a known day or the same session keeps counting
+ * for a week and the goal never looks behind.
+ */
+export function startOfWeekISO(iso: string = todayISO()): string {
+  const date = parseISODate(iso);
+  const weekday = (date.getDay() + 6) % 7; // Mon = 0
+  date.setDate(date.getDate() - weekday);
+  return toLocalISODate(date);
+}
+
+/** 1 on Monday, 7 on Sunday. */
+export function isoWeekdayNumber(iso: string = todayISO()): number {
+  return ((parseISODate(iso).getDay() + 6) % 7) + 1;
+}
+
+/**
  * A short human label: "Overdue by 2 days", "Today", "Tomorrow", "Fri 28 Aug".
  * Written for a 14 year old reading it at a glance, not for a log file.
  */
@@ -83,4 +103,30 @@ export function formatCountdown(iso: string): string {
   if (diff < 14) return `in ${diff} days`;
   if (diff < 60) return `in ${Math.round(diff / 7)} weeks`;
   return `in ${Math.round(diff / 30)} months`;
+}
+
+/**
+ * An audit-log timestamp a parent can actually place: "Today 21:40",
+ * "Yesterday 20:39", "25 Aug, 22:38".
+ *
+ * The change history rendered the time alone, so forty-odd entries spanning
+ * several days across four synced devices read as 21:40 · 20:39 · 22:38 with
+ * nothing to say which day was which. The rows were sorted correctly the whole
+ * time - only the label was missing.
+ */
+export function formatLogTimestamp(epochMs: number): string {
+  const when = new Date(epochMs);
+  const time = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const days = daysBetween(toLocalISODate(when), todayISO());
+
+  if (days === 0) return `Today ${time}`;
+  if (days === 1) return `Yesterday ${time}`;
+
+  const sameYear = when.getFullYear() === new Date().getFullYear();
+  const date = when.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+  return `${date}, ${time}`;
 }

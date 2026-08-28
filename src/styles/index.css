@@ -24,6 +24,28 @@ body {
   padding-top: env(safe-area-inset-top, 0.5rem);
 }
 
+/*
+ * For a sheet that opens flush with the bottom of the screen on a phone, where
+ * the fixed bottom navigation bar sits on top of it. `pb-safe` alone leaves the
+ * sheet's last row under the bar - the bar is ~60px of buttons plus its own
+ * safe-area padding - so anything in that row cannot be tapped.
+ */
+.pb-nav-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 1rem) + 76px);
+}
+
+/*
+ * The bottom bar is md:hidden, so above that breakpoint there is nothing to
+ * clear. Handled here rather than with a `md:pb-safe` alongside it: these rules
+ * are defined after @tailwind utilities and would win against the responsive
+ * variant, leaving 76px of dead space at the bottom of every desktop sheet.
+ */
+@media (min-width: 768px) {
+  .pb-nav-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+}
+
 /* Custom glowing glassmorphism cards */
 .glass-card {
   background: rgba(15, 23, 42, 0.75);

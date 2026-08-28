@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserRole, WeekType } from './types';
+import { UserRole, WeekType, Task, MilestoneReminder, TimetableEntry } from './types';
 import { Header } from './components/layout/Header';
 import { Navigation, NavTab } from './components/layout/Navigation';
 import { DailyCheckInModal } from './components/dashboard/DailyCheckInModal';
@@ -11,7 +11,8 @@ import { DueSoonCard } from './components/dashboard/DueSoonCard';
 import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
 import { SessionTimerCard } from './components/dashboard/SessionTimerCard';
 import { PlanPulseBanner } from './components/dashboard/PlanPulseBanner';
-import { QuickAddSheet } from './components/shared/QuickAddSheet';
+import { ChoresCard } from './components/dashboard/ChoresCard';
+import { QuickAddSheet, QuickAddEditing } from './components/shared/QuickAddSheet';
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
 import { TaskManagerView } from './components/tasks/TaskManagerView';
@@ -24,6 +25,11 @@ import { TimetableManager } from './components/timetable/TimetableManager';
 import { RemediationHub } from './components/remediation/RemediationHub';
 import { RewardsShop } from './components/rewards/RewardsShop';
 import { HelpAndCareersHub } from './components/guidance/HelpAndCareersHub';
+import {
+  WelcomeTourModal,
+  hasSeenTour,
+  markTourSeen,
+} from './components/guidance/WelcomeTourModal';
 import { ParentPortal } from './components/parent/ParentPortal';
 import { ParentPinModal } from './components/parent/ParentPinModal';
 import { Zap, BookmarkCheck, Plus } from 'lucide-react';
@@ -36,8 +42,17 @@ export const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isParentPinOpen, setIsParentPinOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  /**
+   * The row the add sheet is editing, if any. Held here rather than in each
+   * view because the sheet itself is global - the alternative is three more
+   * copies of the same form.
+   */
+  const [quickAddEditing, setQuickAddEditing] = useState<QuickAddEditing | null>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [selectedQuestId, setSelectedQuestId] = useState<string | undefined>(undefined);
+  // Shown once, on the very first launch. Read lazily so storage is touched
+  // during the initial render rather than on every one.
+  const [isTourOpen, setIsTourOpen] = useState(() => !hasSeenTour());
 
   // Bumped whenever data changes, so dashboard cards reload without a tab switch
   const [refreshKey, setRefreshKey] = useState(0);
@@ -55,6 +70,16 @@ export const App: React.FC = () => {
   const handleParentUnlockSuccess = () => {
     setCurrentRole('PARENT');
     setActiveTab('PARENT');
+  };
+
+  const openEditor = (editing: QuickAddEditing) => {
+    setQuickAddEditing(editing);
+    setIsQuickAddOpen(true);
+  };
+
+  const closeQuickAdd = () => {
+    setIsQuickAddOpen(false);
+    setQuickAddEditing(null);
   };
 
   const handleSelectQuestFromDashboard = (questId: string) => {
@@ -90,7 +115,10 @@ export const App: React.FC = () => {
             {/* 0. Anything at risk, before the scroll starts. The field test
                    found the burnout banner unread at the bottom of the page;
                    a nudge nobody scrolls to is not a nudge. */}
-            <PlanPulseBanner onOpenCheckIn={() => setIsCheckInOpen(true)} />
+            <PlanPulseBanner
+              onOpenCheckIn={() => setIsCheckInOpen(true)}
+              onOpenGoals={() => setActiveTab('GOALS')}
+            />
 
             {/* 1. What needs doing - the question the app is opened to answer */}
             <DueSoonCard
@@ -142,7 +170,11 @@ export const App: React.FC = () => {
               onOpenCheckIn={() => setIsCheckInOpen(true)}
             />
 
-            {/* 4. Today's context */}
+            {/* 5. The small reliable jobs. Renders nothing when none fall due
+                   today, so a household that keeps no chore list never sees it. */}
+            <ChoresCard />
+
+            {/* 6. Today's context */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <TodayScheduleCard
                 activeWeek={activeWeek}
@@ -152,12 +184,18 @@ export const App: React.FC = () => {
               <ActiveQuestsCard onSelectQuest={handleSelectQuestFromDashboard} />
             </div>
 
-            {/* 5. Weekly status readout, not a daily action */}
+            {/* 7. Weekly status readout, not a daily action */}
             <BurnoutAlertBanner refreshKey={refreshKey} />
           </div>
         )}
 
-        {activeTab === 'TASKS' && <TaskManagerView refreshKey={refreshKey} onAdd={() => setIsQuickAddOpen(true)} />}
+        {activeTab === 'TASKS' && (
+          <TaskManagerView
+            refreshKey={refreshKey}
+            onAdd={() => setIsQuickAddOpen(true)}
+            onEdit={(task: Task) => openEditor({ kind: 'TASK', record: task })}
+          />
+        )}
 
         {activeTab === 'PLAN' && (
           <PlanView
@@ -168,7 +206,13 @@ export const App: React.FC = () => {
 
         {/* Reachable from Plan; kept as its own view for the month grid */}
         {activeTab === 'CALENDAR' && (
-          <MilestoneCalendarView refreshKey={refreshKey} onAdd={() => setIsQuickAddOpen(true)} />
+          <MilestoneCalendarView
+            refreshKey={refreshKey}
+            onAdd={() => setIsQuickAddOpen(true)}
+            onEdit={(milestone: MilestoneReminder) =>
+              openEditor({ kind: 'REMINDER', record: milestone })
+            }
+          />
         )}
 
         {activeTab === 'PROOF' && (
@@ -185,11 +229,12 @@ export const App: React.FC = () => {
           <TimetableManager
             activeWeek={activeWeek}
             onToggleWeek={() => setActiveWeek((prev) => (prev === 'ODD' ? 'EVEN' : 'ODD'))}
+            onEdit={(entry: TimetableEntry) => openEditor({ kind: 'LESSON', record: entry })}
           />
         )}
 
         {activeTab === 'REMEDIATIONS' && (
-          <RemediationHub initialQuestId={selectedQuestId} />
+          <RemediationHub initialQuestId={selectedQuestId} currentRole={currentRole} />
         )}
 
         {activeTab === 'REWARDS' && <RewardsShop currentRole={currentRole} />}
@@ -214,7 +259,8 @@ export const App: React.FC = () => {
       {/* Global Modals */}
       <QuickAddSheet
         isOpen={isQuickAddOpen}
-        onClose={() => setIsQuickAddOpen(false)}
+        editing={quickAddEditing}
+        onClose={closeQuickAdd}
         onSuccess={refreshData}
         // Match the sheet to the screen it was opened from
         defaultMode={
@@ -238,6 +284,14 @@ export const App: React.FC = () => {
         isOpen={isReviewOpen}
         onClose={() => setIsReviewOpen(false)}
         onAddItem={() => setIsQuickAddOpen(true)}
+      />
+
+      <WelcomeTourModal
+        isOpen={isTourOpen}
+        onClose={() => {
+          markTourSeen();
+          setIsTourOpen(false);
+        }}
       />
 
       <CloudLoginDialog />
