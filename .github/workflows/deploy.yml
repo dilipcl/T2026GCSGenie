@@ -41,7 +41,27 @@ jobs:
           # public by design. Empty until one is set, which the app handles - the
           # Drive panel reports the transport as unavailable instead of offering
           # a button that cannot work.
-          VITE_DRIVE_OAUTH_CLIENT_ID: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID }}
+          # Falls back to a secret of the same name. `vars.` cannot see a secret,
+          # and a value saved in the wrong tab resolves to an empty string with
+          # no warning anywhere - which cost an afternoon once already.
+          VITE_DRIVE_OAUTH_CLIENT_ID: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID || secrets.VITE_DRIVE_OAUTH_CLIENT_ID }}
+
+      # Publishes what the build actually received, so a misconfigured value can
+      # be diagnosed by fetching a file rather than by reading Actions logs.
+      # Records presence and length only - never the value, which would defeat
+      # the masking if it ever did come from a secret.
+      - name: Record build provenance
+        run: |
+          printf '{"commit":"%s","builtAt":"%s","fromVars":%s,"fromSecret":%s,"idLength":%s}\n' \
+            "$GITHUB_SHA" "$(date -u +%FT%TZ)" \
+            "$([ -n "$FROM_VARS" ] && echo true || echo false)" \
+            "$([ -n "$FROM_SECRET" ] && echo true || echo false)" \
+            "${#RESOLVED}" > dist/build-info.json
+          cat dist/build-info.json
+        env:
+          FROM_VARS: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID }}
+          FROM_SECRET: ${{ secrets.VITE_DRIVE_OAUTH_CLIENT_ID }}
+          RESOLVED: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID || secrets.VITE_DRIVE_OAUTH_CLIENT_ID }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
