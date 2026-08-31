@@ -195,19 +195,34 @@ Either person can answer; the student is usually the one who did the thing.
 
 ### Automatic backups
 
-Two transports, because neither covers the whole family.
+**One device backs up, and that covers everyone.** A backup is a copy of the
+whole database, and `exportDatabaseToJSON` walks the live schema rather than a
+hand-written list, so it takes every table. Every table but `driveSync` - this
+panel's own device-local settings - syncs. So the machine that runs the backup is
+already backing up what everybody else did: the first real export, taken on the
+laptop, held 27 changes from three devices, 21 of them made on a phone.
+
+Set it up on **one** device, the one a parent uses.
 
 **Folder handle (desktop).** Parent Portal → Backup & Restore → *Choose the
 backup folder*. The browser hands back a directory handle that survives restarts
 and the app writes straight into it; Drive for Desktop uploads within seconds. No
 Google account, no token, nothing over the network. Chromium desktop only.
 
-**Drive API (phones).** No mobile browser has the File System Access API, so a
-phone uploads through the Drive API. Needs `VITE_DRIVE_OAUTH_CLIENT_ID`; without
-it the panel says so rather than offering a button that cannot work. Google
-Identity Services issues an access token lasting about an hour with **no refresh
-token**, so this means *automatic while a token can be obtained*, not unattended
-for weeks.
+**Drive API.** No mobile browser has the File System Access API, so a device
+without one can only upload through the Drive API. This exists for a household
+with no computer at all, and the panel now says so instead of inviting every
+phone to connect. **Not on a student's phone.** The panel lives behind the parent
+passphrase and the account it signs in is the parent's, so turning it on there
+means handing over the passphrase and leaving a parent Google session on the
+student's device - to duplicate a backup that already exists. Needs
+`VITE_DRIVE_OAUTH_CLIENT_ID`. Google Identity Services issues an access token
+lasting about an hour with **no refresh token**, so this means *automatic while a
+token can be obtained*, not unattended for weeks.
+
+The claim that one backup covers everyone holds only while a device syncs, so the
+panel checks rather than asserts it: a device that is not signed in is told its
+work is in no backup, and pointed at sign-in rather than at the upload button.
 
 Backups run **when the app is opened** and a day has passed - not on a timer. A
 backgrounded phone tab makes `setInterval` a promise the browser will not keep,
@@ -219,12 +234,12 @@ anchored filename pattern so it can never remove a file Genie did not create, an
 never deletes the backup just written - names sort chronologically, so a device
 with a fast clock could otherwise push a fresh backup out of the keep window.
 
-**Backups land in two places, deliberately.** The laptop writes into whichever folder its picker
-was pointed at - `_Genie-Backups\AutoBackups`. A phone cannot write there: Genie asks for
-`drive.file`, the narrowest Drive permission, which reaches only files the app itself created, so a
-folder made by hand in Drive is invisible to it however correct the link. The phone therefore uses
-its own `GCSE Genie Backups` folder. Both are in Drive, both are pruned to 30, and the alternative -
-widening the permission to the whole of Drive to solve a filing problem - is a poor trade.
+**If a second device ever does back up, it lands somewhere else.** The laptop writes into whichever
+folder its picker was pointed at - `_Genie-Backups\AutoBackups`. A phone cannot write there: Genie
+asks for `drive.file`, the narrowest Drive permission, which reaches only files the app itself
+created, so a folder made by hand in Drive is invisible to it however correct the link. Widening the
+permission to the whole of Drive to solve a filing problem would be a poor trade, so the second
+folder stands - which is one more reason a second backing-up device is not worth arranging.
 
 Proof photos mirror alongside each backup. This matters: the JSON export cannot
 carry a blob, so before this every restore silently lost every photo. The folder

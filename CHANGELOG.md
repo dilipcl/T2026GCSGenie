@@ -28,10 +28,15 @@ happen at dinner, detached from the thing it was about, with no record of whethe
 it was ever answered. A comment is either a remark or a question; only a question
 flags the row, and resolving asks what was actually done rather than just ticking.
 
-**Backups that happen without anyone remembering.** Two transports, because
-neither covers the whole family: a File System Access folder handle on desktop,
-which needs no Google account at all, and the Drive API for phones, which have no
-such capability. The newest 30 are kept. Pruning runs only after a successful
+**Backups that happen without anyone remembering.** Set up on one device, which
+covers the family: the export walks the live schema and every table but the
+backup panel's own settings syncs, so the laptop's file already held 27 changes
+from three devices. A File System Access folder handle does it with no Google
+account at all. The Drive API remains for a household with no computer, but is no
+longer offered as a call to action on a phone - the panel sits behind the parent
+passphrase and signs in the parent's Google account, which is not something to
+leave on a student's device to duplicate a backup that exists. The newest 30 are
+kept. Pruning runs only after a successful
 write, matches an anchored filename pattern so it can never touch a file Genie
 did not create, and never deletes the backup just written.
 

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useObservable } from 'dexie-react-hooks';
 import { DriveSyncState } from '../../types';
 import {
   DRIVE_OAUTH_CLIENT_ID,
@@ -46,6 +47,20 @@ export const DriveBackupPanel: React.FC = () => {
    */
   const [legacyPath, setLegacyPath] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  /**
+   * Kept behind a disclosure rather than removed. A household with no desktop
+   * at all has no other route, and this panel should not decide for them - it
+   * should only stop presenting the wrong answer as the obvious one.
+   */
+  const [showPhoneUpload, setShowPhoneUpload] = useState(false);
+
+  /**
+   * Whether this device's work reaches the device that does the backing up.
+   * "One backup covers everyone" holds only while a device syncs, so it is
+   * checked rather than asserted.
+   */
+  const cloudUser = useObservable(db.cloud?.currentUser);
+  const syncedHere = !!cloudUser?.userId && cloudUser.userId !== 'unauthorized';
 
   const reload = useCallback(async () => {
     setState(await readState());
@@ -170,23 +185,68 @@ export const DriveBackupPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Transport 2 - OAuth, for phones */}
+      {/* Transport 2 - OAuth, for phones.
+
+          Deliberately not a call to action. Backups are a whole-database
+          export and every table but this panel's own settings syncs, so one
+          backing-up device covers the family; a second device produces a
+          duplicate of the same rows. The reason to say so rather than offer
+          the button is that the button has a cost nobody would guess: this
+          panel sits behind the parent passphrase, and the Google account it
+          signs in is the parent's. Turning it on for a student's phone means
+          handing over the passphrase and leaving a parent Google session on
+          their device, to duplicate a backup that already exists. */}
       {!caps.folderHandleSupported && (
         <div className="mb-3">
-          <button
-            type="button"
-            disabled={busy || !DRIVE_OAUTH_CLIENT_ID}
-            onClick={() => run(connectDrive, 'Google Drive connected.')}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm disabled:opacity-40"
-          >
-            <CloudUpload className="w-4 h-4" />
-            Connect Google Drive
-          </button>
-          <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
-            {DRIVE_OAUTH_CLIENT_ID
-              ? 'This device cannot write to a folder directly, so backups upload through the Drive API. Genie only ever sees files it created itself.'
-              : 'Google sign-in has not been configured for this app yet, so a phone cannot back itself up. Backups still run on the laptop.'}
-          </p>
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs">
+            <p className="text-slate-300 font-bold mb-1">
+              This device does not need to back itself up.
+            </p>
+            <p className="text-slate-400 leading-snug">
+              A backup is a copy of the whole database, and the database syncs. Whichever
+              computer is set up above is already backing up everything done on this device.
+            </p>
+
+            {syncedHere ? (
+              <p className="text-emerald-400 leading-snug mt-1.5">
+                This device is signed in and syncing, so its work is covered.
+              </p>
+            ) : (
+              <p className="text-amber-400 leading-snug mt-1.5">
+                This device is not signed in, so its work has not reached any other device and
+                is in no backup. Fix that with <span className="font-bold">This device only</span>{' '}
+                at the top of the screen — not with the button below, which would only copy
+                this device to Drive and leave it just as isolated.
+              </p>
+            )}
+          </div>
+
+          {showPhoneUpload ? (
+            <>
+              <button
+                type="button"
+                disabled={busy || !DRIVE_OAUTH_CLIENT_ID}
+                onClick={() => run(connectDrive, 'Google Drive connected.')}
+                className="w-full flex items-center justify-center gap-2 py-2.5 mt-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold text-sm disabled:opacity-40"
+              >
+                <CloudUpload className="w-4 h-4" />
+                Connect Google Drive anyway
+              </button>
+              <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
+                {DRIVE_OAUTH_CLIENT_ID
+                  ? 'Signs a Google account in on this device and uploads to that account’s Drive. Worth doing only where this is the household’s one device and there is no computer — never on a student’s phone, where it means a parent account stays signed in on their device.'
+                  : 'Google sign-in has not been configured for this app, so this device cannot upload in any case.'}
+              </p>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowPhoneUpload(true)}
+              className="text-[10px] font-bold text-slate-500 hover:text-slate-300 mt-2"
+            >
+              Back this device up separately anyway
+            </button>
+          )}
         </div>
       )}
 
