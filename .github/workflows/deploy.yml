@@ -52,15 +52,20 @@ jobs:
       # the masking if it ever did come from a secret.
       - name: Record build provenance
         run: |
-          printf '{"commit":"%s","builtAt":"%s","fromVars":%s,"fromSecret":%s,"idLength":%s}\n' \
-            "$GITHUB_SHA" "$(date -u +%FT%TZ)" \
-            "$([ -n "$FROM_VARS" ] && echo true || echo false)" \
-            "$([ -n "$FROM_SECRET" ] && echo true || echo false)" \
-            "${#RESOLVED}" > dist/build-info.json
+          jq -n \
+            --arg commit "$GITHUB_SHA" \
+            --arg builtAt "$(date -u +%FT%TZ)" \
+            --argjson varNames "$(echo "$ALL_VARS" | jq 'keys')" \
+            --argjson secretNames "$(echo "$ALL_SECRETS" | jq 'keys')" \
+            --argjson idLength "${#RESOLVED}" \
+            '{commit:$commit, builtAt:$builtAt, idLength:$idLength, varNames:$varNames, secretNames:$secretNames}' \
+            > dist/build-info.json
           cat dist/build-info.json
         env:
-          FROM_VARS: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID }}
-          FROM_SECRET: ${{ secrets.VITE_DRIVE_OAUTH_CLIENT_ID }}
+          # Names only. Values are never written - for secrets that would defeat
+          # the masking, and for variables it is simply nobody else's business.
+          ALL_VARS: ${{ toJSON(vars) }}
+          ALL_SECRETS: ${{ toJSON(secrets) }}
           RESOLVED: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID || secrets.VITE_DRIVE_OAUTH_CLIENT_ID }}
 
       - name: Setup Pages
