@@ -52,20 +52,16 @@ jobs:
       # the masking if it ever did come from a secret.
       - name: Record build provenance
         run: |
-          jq -n \
-            --arg commit "$GITHUB_SHA" \
-            --arg builtAt "$(date -u +%FT%TZ)" \
-            --argjson varNames "$(echo "$ALL_VARS" | jq 'keys')" \
-            --argjson secretNames "$(echo "$ALL_SECRETS" | jq 'keys')" \
-            --argjson idLength "${#RESOLVED}" \
-            '{commit:$commit, builtAt:$builtAt, idLength:$idLength, varNames:$varNames, secretNames:$secretNames}' \
+          NAMES=$(echo "$ALL_VARS" | jq -c 'keys' 2>/dev/null || echo '["unreadable"]')
+          printf '{"commit":"%s","builtAt":"%s","idLength":%s,"varNames":%s}\n' \
+            "$GITHUB_SHA" "$(date -u +%FT%TZ)" "${#RESOLVED}" "$NAMES" \
             > dist/build-info.json
           cat dist/build-info.json
         env:
-          # Names only. Values are never written - for secrets that would defeat
-          # the masking, and for variables it is simply nobody else's business.
+          # Variable NAMES only, never values, and deliberately not the secrets
+          # context - dumping that is both risky and unnecessary, since a value
+          # in either tab already shows up in idLength.
           ALL_VARS: ${{ toJSON(vars) }}
-          ALL_SECRETS: ${{ toJSON(secrets) }}
           RESOLVED: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID || secrets.VITE_DRIVE_OAUTH_CLIENT_ID }}
 
       - name: Setup Pages
