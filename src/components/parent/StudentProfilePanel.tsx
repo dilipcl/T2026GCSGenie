@@ -328,15 +328,14 @@ export const StudentProfilePanel: React.FC = () => {
         </div>
 
         <div className="mt-3 space-y-2">
-          <label className="flex items-center gap-2.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={forwarding.toGroup}
-              onChange={(e) => setForwarding((p) => ({ ...p, toGroup: e.target.checked }))}
-              className="w-4 h-4 accent-emerald-500"
-            />
-            <span className="text-[11px] text-slate-200">Offer the family group</span>
-          </label>
+          {/* The family group is no longer a choice - it is where updates go,
+              and every share surface leads with it. A tickbox that cannot turn
+              it off would be a control that lies about what it does. These
+              tickboxes now choose which individuals are offered as well. */}
+          <p className="text-[10px] text-slate-500">
+            Updates always offer the family group first. Tick anyone who should also get their own
+            button.
+          </p>
 
           {numbers.map((n) => (
             <label key={n.id} className="flex items-center gap-2.5 cursor-pointer">

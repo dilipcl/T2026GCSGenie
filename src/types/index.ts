@@ -505,8 +505,11 @@ export interface ChangeLogEntry {
  * one the app should assume.
  */
 export interface UpdateForwardingSettings {
-  /** Offer the family group as a destination. */
-  toGroup: boolean;
+  /**
+   * @deprecated The family group is always offered, and is the default target
+   * on every share surface. Kept so existing rows still parse; no longer read.
+   */
+  toGroup?: boolean;
   /** Which saved numbers to offer, by their id in parentWhatsAppNumbers. */
   toNumberIds: string[];
   /**

@@ -134,7 +134,9 @@ export const UpdatesView: React.FC = () => {
     if (forwardBatch.length === 0) return;
     window.open(buildChatUrl(forwardText, e164), '_blank', 'noopener,noreferrer');
     await markReported(forwardBatch);
-    toast.success('Marked as sent', 'WhatsApp opened with the message ready.');
+    // Not "sent": opening the link is all this can observe, and every other
+    // WhatsApp surface in the app is careful about the same distinction.
+    toast.success('Opened in WhatsApp', 'Pick the chat and send it from there.');
   };
 
   const copy = async () => {
@@ -253,9 +255,7 @@ export const UpdatesView: React.FC = () => {
       )}
 
       {/* ── Forward the batch just confirmed ──────────────────────────── */}
-      {forwardBatch.length > 0 &&
-        forwarding?.promptAfterConfirm !== false &&
-        (forwarding?.toGroup || numbers.length > 0) && (
+      {forwardBatch.length > 0 && forwarding?.promptAfterConfirm !== false && (
         <div className="glass-card p-5 border-indigo-500/30">
           <h3 className="text-sm font-bold text-white mb-0.5">Send it on</h3>
           <p className="text-[11px] text-slate-400 mb-3">
@@ -264,15 +264,18 @@ export const UpdatesView: React.FC = () => {
           </p>
 
           <div className="flex flex-wrap items-center gap-2">
-            {forwarding?.toGroup && (
-              <button
-                onClick={() => forward()}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all"
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>Family group</span>
-              </button>
-            )}
+            {/* Always offered, and always first. This used to sit behind a
+                `toGroup` setting, so a parent who had unticked it saw only the
+                individual buttons - and a confirmed batch meant for everyone
+                went to whichever single person was on the left. The group is
+                where these belong; asking one person is the exception. */}
+            <button
+              onClick={() => forward()}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Family group</span>
+            </button>
 
             {numbers.map((n) => (
               <button
@@ -312,8 +315,8 @@ export const UpdatesView: React.FC = () => {
           </div>
 
           <p className="mt-2 text-[10px] text-slate-500">
-            WhatsApp cannot be posted to automatically — this opens it with the message ready and
-            you pick where it goes.
+            WhatsApp cannot be posted to automatically, and gives no way to open a group directly —
+            this opens the chat list with the message ready, and the group is what you pick.
           </p>
         </div>
         )}
