@@ -21,6 +21,8 @@ The interface is organised by **how often you actually use something**, not by h
 | :--- | :--- | :--- |
 | **Every day** | Home · My Work · Plan · Fix My Mistakes · Updates | Check what's due, log the day, tick things off, sign changes off |
 | **Weekly** | Proof Log · Rewards · Timetable · Subjects & Goals · Help & Careers · Report Bugs | Logging marked work, planning, review, spending XP, filing friction |
+
+Both tiers render the same way on either device: five daily tabs always visible, everything weekly behind one **More** menu. Desktop used to render all thirteen tabs in a single row with `overflow-x-auto` - about 1500px of tabs on a 1280px page, so the Parent Portal was reachable only by scrolling a bar that gave no sign it had more in it. The phone had already solved this; the desktop now shares the same state, so there is one menu with two presentations rather than two things to keep in step. The open weekly tab is pinned beside the menu button, because a bar that highlights nothing tells you nothing about where you are.
 | **Parent only** | Parent Portal | Audits, sanctions, backups, catalogue and profile setup |
 
 On mobile the daily sections are the bottom bar; the rest live behind **More**. On desktop they're separated by a `WEEKLY` divider.
@@ -192,6 +194,41 @@ of at dinner where nobody records the answer.
 Answering asks what was actually done - "added, and made a follow-up for Friday"
 and "not needed, it was classwork" are different answers a bare tick would lose.
 Either person can answer; the student is usually the one who did the thing.
+
+### Target vs actual
+
+Subjects & Goals opens with a burn-down: hours still owed against hours
+committed, for the whole plan and then goal by goal. The weekly card already
+said whether this week was on pace and the sparkline said which way four weeks
+were pointing; neither answers the question a parent asks in September about an
+exam in June - at this rate, does the plan still add up?
+
+A goal reserving 4 hrs/week until 15 June has committed a definite number of
+hours. Every logged hour burns one off. The dashed line falls at the promised
+rate, the solid line at the real one, and the gap between them is reported in
+hours rather than as a colour, because hours can be made up and a colour cannot
+be acted on. The headline number is `requiredHoursPerWeek` - what it now takes
+per week to still finish on time, against what was originally planned. That is
+the number that forces the actual decision: more hours, or a smaller goal.
+
+Three things it refuses to do, each of which would make it lie:
+
+- **Count unapproved goals.** A goal in `PENDING_DISCUSSION` is a proposal.
+  Burning it down reports a family as behind on hours nobody agreed to spend.
+- **Blame the week in progress.** It is partial by definition, so counting it as
+  a miss makes every Monday morning look like a collapse.
+- **Drop unattributed study.** Half an hour logged against no subject is still
+  half an hour of real work. It cannot be credited to a goal, but reporting it
+  as nothing done is a lie about the student, so it is carried separately and
+  named on screen.
+
+The chart withholds itself below two finished weeks of logged study. With one
+point, a "trend" is an accident of the start date rendered as a finding. The
+totals stay live throughout; only the lines wait.
+
+Attribution is defined once, in `minutesForGoalFromCheckIn`, and shared with the
+weekly pace card - a long-range chart and a weekly card disagreeing about the
+same hours would be worse than either being absent.
 
 ### Automatic backups
 

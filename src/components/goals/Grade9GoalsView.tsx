@@ -11,6 +11,7 @@ import { Sparkline } from '../shared/Sparkline';
 import { logAuditEvent } from '../../services/auditService';
 import { SubjectDetailModal } from './SubjectDetailModal';
 import { GoalConsultationModal } from './GoalConsultationModal';
+import { GoalBurndownPanel } from './GoalBurndownPanel';
 import { Target, Plus, ShieldCheck, Lock, Unlock, X, PencilLine, Send } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { useChangeGuard } from '../shared/ChangeGuardProvider';
@@ -198,6 +199,11 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
           <span>Propose SMART Goal</span>
         </button>
       </div>
+
+      {/* Above the subject grid on purpose. "Is the plan still adding up" is
+          the question the goals list cannot answer - it shows status per goal,
+          never the hours behind them. */}
+      <GoalBurndownPanel />
 
       {/* 6 Core/Elective Subjects Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

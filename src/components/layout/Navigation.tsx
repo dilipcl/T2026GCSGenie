@@ -104,7 +104,8 @@ export const Navigation: React.FC<NavigationProps> = ({
   const sheetItems = [...weeklyItems].sort(
     (a, b) => overflowPriority.indexOf(a.id) - overflowPriority.indexOf(b.id)
   );
-  const isOverflowActive = weeklyItems.some((item) => item.id === activeTab);
+  const activeWeeklyItem = weeklyItems.find((item) => item.id === activeTab);
+  const isOverflowActive = !!activeWeeklyItem;
 
   useEscapeToClose(isMoreOpen, () => setIsMoreOpen(false));
 
@@ -122,9 +123,16 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   return (
     <>
-      {/* Desktop Navigation Tabs - everyday sections first, then a divider and the
-          weekly planning ones */}
-      <nav className="hidden md:flex items-center gap-1.5 p-1.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-800/80 mb-6 overflow-x-auto">
+      {/* Desktop navigation.
+
+          Every tab used to render in one row with `overflow-x-auto`, which on a
+          1280px page meant roughly 1500px of tabs and a horizontal scrollbar -
+          so the weekly sections, including the Parent Portal, were reachable
+          only by scrolling a bar that gave no sign it had more in it. The
+          phone had solved this already with five daily tabs and a sheet; this
+          is the same split, and it shares `isMoreOpen` so there is one menu
+          with two presentations rather than two things to keep in step. */}
+      <nav className="hidden md:flex items-center gap-1.5 p-1.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-800/80 mb-6">
         {dailyItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -139,26 +147,75 @@ export const Navigation: React.FC<NavigationProps> = ({
           );
         })}
 
-        <div className="flex items-center gap-2 px-2 flex-shrink-0" aria-hidden="true">
-          <span className="w-px h-6 bg-slate-700" />
-          <span className="text-[10px] uppercase tracking-wider text-slate-600 font-bold">
-            Weekly
-          </span>
-        </div>
+        <div className="ml-auto flex items-center gap-1.5">
+          {/* Where you are, when where you are is behind the menu. Without this
+              the bar highlights nothing at all on the Parent Portal, and the
+              only cue that a tab is open is the page content. */}
+          {activeWeeklyItem && (
+            <>
+              <span className="w-px h-6 bg-slate-700" aria-hidden="true" />
+              <button
+                onClick={() => onSelectTab(activeWeeklyItem.id as NavTab)}
+                className={desktopTabClass(true)}
+              >
+                <activeWeeklyItem.icon className="w-4 h-4" />
+                <span>{activeWeeklyItem.shortLabel}</span>
+              </button>
+            </>
+          )}
 
-        {weeklyItems.map((item) => {
-          const Icon = item.icon;
-          return (
+          <div className="relative">
             <button
-              key={item.id}
-              onClick={() => onSelectTab(item.id as NavTab)}
-              className={desktopTabClass(activeTab === item.id)}
+              onClick={() => setIsMoreOpen((prev) => !prev)}
+              aria-expanded={isMoreOpen}
+              aria-haspopup="menu"
+              className={desktopTabClass(false)}
             >
-              <Icon className="w-4 h-4" />
-              <span>{item.label}</span>
+              <MoreHorizontal className="w-4 h-4" />
+              <span>More</span>
             </button>
-          );
-        })}
+
+            {isMoreOpen && (
+              <>
+                {/* Catches the next click anywhere. A dropdown that only closes
+                    on its own button is one a person leaves open. */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsMoreOpen(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  role="menu"
+                  aria-label="Weekly sections"
+                  className="absolute right-0 top-full mt-2 z-50 w-64 p-1.5 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl shadow-black/50"
+                >
+                  <p className="px-2.5 py-1.5 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                    About once a week
+                  </p>
+                  {sheetItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        role="menuitem"
+                        onClick={() => handleSelect(item.id as NavTab)}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-left transition-colors ${
+                          isActive
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 flex-shrink-0" />
+                        <span className="leading-tight">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </nav>
 
       {/* Mobile "More" sheet - holds every tab that does not fit in the bottom bar */}

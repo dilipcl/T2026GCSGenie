@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { Goal } from '../types';
+import { DailyCheckIn, Goal } from '../types';
 import { currentWeek, WeekWindow } from './weekWindow';
 
 /**
@@ -114,22 +114,37 @@ export async function weeklyMinutesBySubject(
  * It does mean per-goal hours must never be presented as summing to a weekly
  * total; the capacity gauge is the only total.
  */
+/**
+ * Minutes on one check-in that belong to one goal.
+ *
+ * The single definition of attribution in the app. It was inline in
+ * `weeklyMinutesForGoal` until the burn-down needed the same rule over a year
+ * rather than a week; two copies of this would eventually disagree, and a
+ * weekly card and a long-range chart contradicting each other about the same
+ * hours is worse than either being absent.
+ *
+ * Goal-level tagging wins outright. Subject-level only counts when the entry
+ * names no goal at all - otherwise an hour tagged to the Maths goal would also
+ * be credited to every other Maths goal, and a portfolio total would report
+ * more hours than the day contained.
+ */
+export function minutesForGoalFromCheckIn(entry: DailyCheckIn, goal: Goal): number {
+  const logged = entry.completedRevisionMinutes || 0;
+  if (logged <= 0) return 0;
+
+  if (entry.studyGoalId === goal.id) return logged;
+  if (goal.subjectId && entry.studySubjectId === goal.subjectId && !entry.studyGoalId) {
+    return logged;
+  }
+  return 0;
+}
+
 export async function weeklyMinutesForGoal(
   goal: Goal,
   window: WeekWindow = currentWeek()
 ): Promise<number> {
   const checkIns = await checkInsInWeek(window);
-
-  let minutes = 0;
-  for (const entry of checkIns) {
-    const logged = entry.completedRevisionMinutes || 0;
-    if (logged <= 0) continue;
-
-    if (entry.studyGoalId === goal.id) minutes += logged;
-    else if (goal.subjectId && entry.studySubjectId === goal.subjectId && !entry.studyGoalId)
-      minutes += logged;
-  }
-  return minutes;
+  return checkIns.reduce((sum, entry) => sum + minutesForGoalFromCheckIn(entry, goal), 0);
 }
 
 /** Turns hours against a budget into a pace, given how far into the week it is. */

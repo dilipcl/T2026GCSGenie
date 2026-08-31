@@ -1,5 +1,29 @@
 # Changelog
 
+## October 2026 - Does the plan still add up?
+
+**Target vs actual.** A burn-down on Subjects & Goals: hours still owed against
+hours committed, holistically first and then goal by goal. The app could say
+whether this week was on pace and which way four weeks were pointing, but
+nothing could say whether a plan running to June still worked. The output is
+`requiredHoursPerWeek` - what it now takes to finish on time against what was
+promised - because that is the number that forces a decision rather than
+describing one.
+
+It declines to count goals nobody has approved, to blame the partial week in
+progress, or to draw lines from less than two weeks of history. It carries study
+time that reached no goal out separately instead of dropping it, because
+reporting real work as nothing done is a lie about the student. Attribution is
+defined once and shared with the weekly card, so the two cannot drift apart.
+
+**Navigation.** Thirteen tabs in one row with `overflow-x-auto` came to roughly
+1500px on a 1280px page, so the weekly sections - the Parent Portal included -
+were reachable only by scrolling a bar that gave no sign it had more in it. The
+phone had solved this already with five daily tabs and a sheet. Desktop now
+takes the same split from the same state, and pins the open weekly tab beside
+the menu so the bar is never highlighting nothing.
+
+
 ## September 2026 - Every change is visible, and the backups run themselves
 
 The Updates tab reported five kinds of thing out of the twenty-odd that happen.
