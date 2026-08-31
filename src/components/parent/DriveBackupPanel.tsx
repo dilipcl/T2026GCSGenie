@@ -15,7 +15,7 @@ import {
   setUploadFolder,
   DEFAULT_KEEP_BACKUPS,
 } from '../../services/driveBackupService';
-import { WORKING_FOLDER_PATH, BACKUPS_FOLDER_URL } from '../../db/driveFolders';
+import { AUTO_BACKUPS_FOLDER_PATH, AUTO_BACKUPS_FOLDER_URL } from '../../db/driveFolders';
 import {
   MirrorStatus,
   mirrorPendingAttachments,
@@ -170,16 +170,19 @@ export const DriveBackupPanel: React.FC = () => {
             {state.folderName ? 'Choose a different folder' : 'Choose the backup folder'}
           </button>
           <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
-            Pick <span className="font-mono text-slate-400">{WORKING_FOLDER_PATH}\_Genie-Backups</span>.
-            Drive for Desktop uploads anything written there within seconds — nothing is sent over
+            Pick this exact folder:{' '}
+            <span className="font-mono text-slate-400 break-all">{AUTO_BACKUPS_FOLDER_PATH}</span>
+            {' — '}
+            paste that into the address bar of the folder picker rather than clicking down to it.
+            Drive for Desktop uploads anything written there within seconds; nothing is sent over
             the network by this app.{' '}
             <a
-              href={BACKUPS_FOLDER_URL}
+              href={AUTO_BACKUPS_FOLDER_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-indigo-400 underline"
             >
-              Open the folder in Drive
+              Open it in Drive
             </a>
           </p>
         </div>

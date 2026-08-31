@@ -38,6 +38,22 @@ export const WORKING_FOLDER_PATH =
 /** Genie's JSON exports belong here. */
 export const BACKUPS_FOLDER_URL = folder('1VtiEfWFxEoLZFH1OUycXDBSQ2LCFXbkH');
 
+/**
+ * The subfolder the automatic backup writes into, chosen 31 August 2026.
+ *
+ * Separate from its parent on purpose. `_Genie-Backups` also holds manual
+ * exports and the log folder, and retention deletes the oldest files once there
+ * are more than 30 of them - pointing the picker at the parent would put files
+ * a person saved by hand in the path of an automatic delete. The pattern match
+ * would spare them, but a folder where a human file and an automatic deleter
+ * share a directory is a worse arrangement than one more folder.
+ */
+export const AUTO_BACKUPS_FOLDER_URL = folder('1oX9XHXHkNEZVQ6y97Ym1ZYdsD9bMNynt');
+
+/** The same folder as Drive for Desktop mounts it. Read, not clicked. */
+export const AUTO_BACKUPS_FOLDER_PATH =
+  'G:\\My Drive\\Documents\\UK\\Family\\Tejas\\GCSEAppWorkingFolder\\_Genie-Backups\\AutoBackups';
+
 /** Anything spanning subjects - revision planners, timetables. */
 export const SHARED_RESOURCES_FOLDER_URL = folder('1YJvEyrvmPGnWKbi9RQiVilwwrQUNgU_C');
 
