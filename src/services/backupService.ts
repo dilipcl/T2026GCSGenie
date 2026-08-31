@@ -15,6 +15,41 @@ export const BACKUP_FORMAT_VERSION = '2.0';
 const REDACTED_PARENT_FIELDS = ['llmApiKey'] as const;
 
 /**
+ * Dexie Cloud's own tables, which a backup must neither carry nor restore.
+ *
+ * Two separate reasons, both found by opening a real backup file rather than
+ * by reading the schema:
+ *
+ *  - **`$logins` holds live credentials.** It carries an access token, a
+ *    **refresh token**, the account email and the signed claims. Exporting it
+ *    wrote a working credential in plaintext into a Google Drive folder - the
+ *    precise thing `REDACTED_PARENT_FIELDS` exists to prevent, arriving through
+ *    a table nobody had listed. A refresh token outlives the access token it
+ *    came with, so an old backup stays dangerous long after it stops being
+ *    useful.
+ *  - **The rest is sync bookkeeping.** `$baseRevs`, `$syncState` and the
+ *    `*_mutations` queues describe what this device has already exchanged with
+ *    the server. Clearing them and writing a stale copy back - which is exactly
+ *    what a restore did - tells the sync engine a false story about what it has
+ *    seen. `members`, `roles` and `realms` are server-managed access control
+ *    and are no more restorable from a local file.
+ *
+ * Identified by prefix rather than by a fixed list, so a table the addon adds
+ * in a future version is excluded by default instead of leaking until somebody
+ * notices. The family's own data has never used a `$` prefix.
+ */
+const CLOUD_ACCESS_TABLES = new Set(['members', 'roles', 'realms']);
+
+export function isInternalCloudTable(name: string): boolean {
+  return name.startsWith('$') || CLOUD_ACCESS_TABLES.has(name);
+}
+
+/** The tables a backup is actually about. */
+function backupTables() {
+  return db.tables.filter((table) => !isInternalCloudTable(table.name));
+}
+
+/**
  * Tables whose rows are pure seed content. They are still exported, but if an
  * older bundle is missing one the importer leaves the device's own copy alone
  * rather than emptying it.
@@ -66,7 +101,7 @@ export async function exportDatabaseToJSON(options: ExportOptions = {}): Promise
     attachmentsOmitted: !includeAttachments,
   };
 
-  for (const table of db.tables) {
+  for (const table of backupTables()) {
     if (table.name === 'attachments') {
       const rows = (await table.toArray()) as ProofAttachment[];
       exportData.attachments = await Promise.all(
@@ -121,7 +156,7 @@ export function describeBackup(jsonString: string): BackupSummary {
   const missingTables: string[] = [];
   let totalRows = 0;
 
-  for (const table of db.tables) {
+  for (const table of backupTables()) {
     const rows = data[table.name];
     if (Array.isArray(rows)) {
       counts[table.name] = rows.length;
@@ -144,7 +179,7 @@ export function describeBackup(jsonString: string): BackupSummary {
 /** Current row counts, for the before/after comparison shown on restore. */
 export async function summariseCurrentDatabase(): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
-  for (const table of db.tables) counts[table.name] = await table.count();
+  for (const table of backupTables()) counts[table.name] = await table.count();
   return counts;
 }
 
@@ -176,7 +211,7 @@ export async function importDatabaseFromJSON(jsonString: string): Promise<Import
   const attachmentsOmitted = data.attachmentsOmitted === true;
 
   await db.transaction('rw', db.tables, async () => {
-    for (const table of db.tables) {
+    for (const table of backupTables()) {
       const rows = data[table.name];
 
       // Attachment binaries were deliberately left out - keep what is here
