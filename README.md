@@ -283,6 +283,37 @@ carry a blob, so before this every restore silently lost every photo. The folder
 handle saves the file but never learns the id Drive assigns, so only the API
 transport produces a link - the feed shows three states, not two.
 
+### WhatsApp, and why nothing sends itself
+
+Every WhatsApp surface opens a prefilled message that a person then sends. That
+is not a missing feature - it is the only thing a web page can do. `wa.me` hands
+a URL to whichever WhatsApp is installed, with the recipient and the text filled
+in; the send button belongs to WhatsApp and to the human holding the phone. No
+website can press it, by design, or any page you visited could message your
+contacts.
+
+Genuine automatic sending needs the WhatsApp Business Cloud API or Twilio: a
+Meta Business account, a dedicated sender number, message templates approved in
+advance for anything outside a 24-hour reply window, per-conversation charges,
+and an access token held on a server. Genie is a static site with no server, and
+a token shipped in the bundle is a token anyone can read out of it. That is a
+different application, not a setting.
+
+What is worth doing instead is removing the taps that *are* removable. Saved
+family numbers turn one tap into the right chat rather than a contact picker, so
+the flow is tap, then send. Where no number is saved the picker is still the
+honest fallback, and the panel says so.
+
+Every message carries **when**. A comment forwarded without a timestamp - "have
+you added the notebook link?" - is unanswerable once there have been two physics
+sessions, and the reply is a question asking which one. So a shared comment
+carries the change, who logged it, when they logged it, when the comment was
+made, and any links already on the record.
+
+The buttons say *Open in WhatsApp*, never *Send*, and every surface has a copy
+fallback. On desktop `wa.me` lands on WhatsApp Web and can stop at a login
+screen, so the app cannot know a message arrived and never claims it did.
+
 ### Evidence - the links and the images
 
 Updates has a third pane, **Evidence**. Search any piece of work - `physics

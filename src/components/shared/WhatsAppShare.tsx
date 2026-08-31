@@ -12,6 +12,12 @@ interface WhatsAppShareProps {
   previewLabel?: string;
   compact?: boolean;
   className?: string;
+  /**
+   * Called once the link has been handed to the OS. Deliberately not named
+   * `onSent`: opening is all this component can observe, and a callback named
+   * for sending would invite callers to record something that did not happen.
+   */
+  onOpened?: () => void;
 }
 
 /**
@@ -32,6 +38,7 @@ export const WhatsAppShare: React.FC<WhatsAppShareProps> = ({
   previewLabel = 'This is what gets sent',
   compact = false,
   className = '',
+  onOpened,
 }) => {
   const { toast } = useFeedback();
   const [showPreview, setShowPreview] = useState(false);
@@ -43,6 +50,7 @@ export const WhatsAppShare: React.FC<WhatsAppShareProps> = ({
   const open = (e164?: string) => {
     // A new tab, so an unsaved check-in behind this is never navigated away.
     window.open(buildChatUrl(text, e164), '_blank', 'noopener,noreferrer');
+    onOpened?.();
   };
 
   const copy = async () => {

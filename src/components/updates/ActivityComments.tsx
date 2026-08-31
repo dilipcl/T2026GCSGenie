@@ -6,7 +6,14 @@ import {
   reopenComment,
   resolveComment,
 } from '../../services/activityCommentService';
-import { buildChatUrl, WHATSAPP_ACTION_LABEL } from '../../services/whatsappService';
+import {
+  activityCommentMessage,
+  messageContext,
+  WHATSAPP_ACTION_LABEL,
+} from '../../services/whatsappService';
+import { WhatsAppShare } from '../shared/WhatsAppShare';
+import { db } from '../../db';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { MessageSquare, Check, HelpCircle, Send, RotateCcw } from 'lucide-react';
 
@@ -33,12 +40,32 @@ function timeOf(ts: number): string {
 const CommentRow: React.FC<{
   comment: ActivityComment;
   currentRole: UserRole;
-  itemSummary: string;
+  item: ActivityItem;
   onChanged: () => void;
-}> = ({ comment, currentRole, itemSummary, onChanged }) => {
-  const { toast } = useFeedback();
+}> = ({ comment, currentRole, item, onChanged }) => {
   const [resolving, setResolving] = useState(false);
   const [note, setNote] = useState('');
+  const [sharing, setSharing] = useState(false);
+
+  const settings = useLiveQuery(() => db.parentSettings.get('active_settings'), []);
+
+  /**
+   * The message carries the change, who logged it and when - not just the
+   * comment. Forwarded on its own, "have you added the notebook link?" gives
+   * the reader nothing to work out which session it means.
+   */
+  const shareText = activityCommentMessage(messageContext(settings), {
+    summary: item.summary,
+    detail: item.detail,
+    entityType: item.entityType,
+    actor: item.actorPerson || item.actorLabel,
+    activityAt: item.timestamp,
+    comment: comment.text,
+    commentBy: comment.authorLabel || (comment.authorRole === 'PARENT' ? 'Parent' : 'Student'),
+    commentAt: comment.createdAt,
+    needsResponse: comment.needsResponse,
+    links: item.links,
+  });
 
   const isOpenQuestion = comment.needsResponse && !comment.resolvedAt;
 
@@ -136,17 +163,25 @@ const CommentRow: React.FC<{
                   surface here. */}
               <button
                 type="button"
-                onClick={async () => {
-                  const text = `🧞‍♂️ *${itemSummary}*\n\n${comment.text}`;
-                  window.open(buildChatUrl(text), '_blank', 'noopener,noreferrer');
-                  await markCommentShared(comment.id);
-                  onChanged();
-                  toast.success('Opened in WhatsApp', 'Send it from there.');
-                }}
+                onClick={() => setSharing((prev) => !prev)}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-400"
               >
-                <Send className="w-3 h-3" /> {WHATSAPP_ACTION_LABEL}
+                <Send className="w-3 h-3" /> {sharing ? 'Hide' : WHATSAPP_ACTION_LABEL}
               </button>
+            </div>
+          )}
+
+          {sharing && (
+            <div className="mt-2">
+              <WhatsAppShare
+                text={shareText}
+                compact
+                previewLabel="Show the message"
+                onOpened={async () => {
+                  await markCommentShared(comment.id);
+                  onChanged();
+                }}
+              />
             </div>
           )}
         </div>
@@ -197,7 +232,7 @@ export const ActivityComments: React.FC<{
               key={comment.id}
               comment={comment}
               currentRole={currentRole}
-              itemSummary={item.summary}
+              item={item}
               onChanged={onChanged}
             />
           ))}

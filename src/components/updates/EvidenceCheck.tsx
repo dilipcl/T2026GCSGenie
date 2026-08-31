@@ -6,7 +6,10 @@ import {
   evidenceSummary,
   matches,
 } from '../../services/evidenceService';
-import { Search, Link as LinkIcon, Paperclip, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Search, Link as LinkIcon, Paperclip, AlertTriangle, CheckCircle2, Send } from 'lucide-react';
+import { WhatsAppShare } from '../shared/WhatsAppShare';
+import { evidenceMessage, messageContext } from '../../services/whatsappService';
+import { db } from '../../db';
 
 /**
  * "Did he add the links and images for the Physics electricity session?"
@@ -21,7 +24,31 @@ import { Search, Link as LinkIcon, Paperclip, AlertTriangle, CheckCircle2 } from
  * knowing roughly what they are looking for.
  */
 
-const EvidenceRow: React.FC<{ item: EvidenceSubject }> = ({ item }) => (
+const EvidenceRow: React.FC<{ item: EvidenceSubject; studentName: string; subjectName?: string }> = ({
+  item,
+  studentName,
+  subjectName,
+}) => {
+  const [sharing, setSharing] = useState(false);
+
+  /**
+   * The message says when the work was done, not just what it was called.
+   * "Physics session" with no date is unanswerable once there have been two of
+   * them, which is the whole reason the timestamp is in here.
+   */
+  const shareText = evidenceMessage(
+    { studentName },
+    {
+      title: item.title,
+      entity: item.entity,
+      subjectName,
+      completed: item.completed,
+      completedAt: item.completedAt,
+      evidence: item.evidence,
+    }
+  );
+
+  return (
   <li className="p-2.5 bg-slate-900/70 border border-slate-800 rounded-xl">
     <div className="flex items-start gap-2">
       {item.missingEvidence ? (
@@ -90,10 +117,26 @@ const EvidenceRow: React.FC<{ item: EvidenceSubject }> = ({ item }) => (
             Marked done with nothing attached — no photo, no link.
           </p>
         )}
+
+        <button
+          type="button"
+          onClick={() => setSharing((prev) => !prev)}
+          className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-300"
+        >
+          <Send className="w-3 h-3" />
+          {sharing ? 'Hide' : item.missingEvidence ? 'Ask for it on WhatsApp' : 'Share on WhatsApp'}
+        </button>
+
+        {sharing && (
+          <div className="mt-1.5">
+            <WhatsAppShare text={shareText} compact previewLabel="Show the message" />
+          </div>
+        )}
       </div>
     </div>
   </li>
-);
+  );
+};
 
 export const EvidenceCheck: React.FC = () => {
   const [query, setQuery] = useState('');
@@ -101,6 +144,9 @@ export const EvidenceCheck: React.FC = () => {
 
   const index = useLiveQuery(() => evidenceIndex(), []);
   const summary = useLiveQuery(() => evidenceSummary(), []);
+  const settings = useLiveQuery(() => db.parentSettings.get('active_settings'), []);
+  const subjects = useLiveQuery(() => db.subjects.toArray(), []);
+  const { studentName } = messageContext(settings);
 
   const results = useMemo(() => {
     if (!index) return [];
@@ -168,7 +214,12 @@ export const EvidenceCheck: React.FC = () => {
       ) : (
         <ul className="space-y-1.5 max-h-96 overflow-y-auto">
           {results.slice(0, 40).map((item) => (
-            <EvidenceRow key={`${item.entity}-${item.entityId}`} item={item} />
+            <EvidenceRow
+              key={`${item.entity}-${item.entityId}`}
+              item={item}
+              studentName={studentName}
+              subjectName={subjects?.find((s) => s.id === item.subjectId)?.name}
+            />
           ))}
         </ul>
       )}

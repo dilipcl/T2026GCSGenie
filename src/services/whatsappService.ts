@@ -205,6 +205,143 @@ export function changeLogMessage(
   return body.filter((line): line is string => line !== undefined).join('\n');
 }
 
+/**
+ * When something happened, written for a message rather than a screen.
+ *
+ * A shared comment used to carry the change it was about and nothing else, so
+ * "Have you added the notebook link?" arrived with no date on it. Read an hour
+ * later, or after two more sessions, there is no telling which physics lesson
+ * it means. The timestamp is not decoration - it is what makes the message
+ * answerable without a reply asking which one.
+ */
+export function whenLabel(timestamp: number, now: number = Date.now()): string {
+  const when = new Date(timestamp);
+  const time = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date(now)) - startOfDay(when)) / 86_400_000);
+
+  if (days === 0) return `today at ${time}`;
+  if (days === 1) return `yesterday at ${time}`;
+  // Inside a week a weekday is the most recognisable label; beyond it, a
+  // weekday is ambiguous and the date is not.
+  if (days > 1 && days < 7) {
+    return `${when.toLocaleDateString('en-GB', { weekday: 'long' })} at ${time}`;
+  }
+  return `${when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} at ${time}`;
+}
+
+/**
+ * A comment on one change, with enough of the change attached to answer it.
+ *
+ * The comment alone is not a message. "Have you added the link?" needs what it
+ * is about, who did that thing and when - otherwise the person receiving it has
+ * to come back and ask which one, which is exactly the round trip the comment
+ * feature exists to remove.
+ */
+export function activityCommentMessage(
+  ctx: MessageContext,
+  input: {
+    summary: string;
+    detail?: string;
+    entityType: string;
+    actor: string;
+    activityAt: number;
+    comment: string;
+    commentBy: string;
+    commentAt: number;
+    needsResponse: boolean;
+    links?: { source: string; url: string }[];
+    now?: number;
+  }
+): string {
+  const now = input.now ?? Date.now();
+
+  const lines: (string | false | undefined)[] = [
+    `📌 ${bold(`${input.entityType}:`)} ${input.summary}`,
+    input.detail && `↪️ ${input.detail}`,
+    `👤 ${bold('Logged by:')} ${input.actor}, ${whenLabel(input.activityAt, now)}`,
+    '',
+    `💬 ${bold(`${input.commentBy} asked`)} (${whenLabel(input.commentAt, now)}):`,
+    `"${input.comment.trim()}"`,
+  ];
+
+  // Links already on the record, so the reply is not "it is there, look".
+  if (input.links?.length) {
+    lines.push('');
+    lines.push(`🔗 ${bold('Already attached:')}`);
+    for (const ref of input.links) lines.push(`• ${ref.source}: ${ref.url}`);
+  }
+
+  if (input.needsResponse) {
+    lines.push('');
+    lines.push('_Flagged as needing an answer in Genie._');
+  }
+
+  return block(`GCSE Genie · Question about ${ctx.studentName}'s work`, lines);
+}
+
+/**
+ * One piece of work and the proof attached to it.
+ *
+ * Built for the conversation this actually serves: a parent looking at
+ * "Physics session - electricity" and asking whether the notebook link went on.
+ * Both answers are worth sending - when the links are there they are the point
+ * of the message, and when they are not, the absence is.
+ *
+ * A file with no URL is named rather than linked. It exists - a photo on
+ * somebody's phone - but there is no address to paste, and implying otherwise
+ * sends the reader hunting for a link that was never there.
+ */
+export function evidenceMessage(
+  ctx: MessageContext,
+  input: {
+    title: string;
+    entity: string;
+    subjectName?: string;
+    completed: boolean;
+    completedAt?: number;
+    evidence: { label: string; url?: string; savedWithoutLink?: boolean }[];
+    now?: number;
+  }
+): string {
+  const now = input.now ?? Date.now();
+  const links = input.evidence.filter((e) => e.url);
+  const unlinked = input.evidence.filter((e) => !e.url);
+
+  const status = input.completed
+    ? input.completedAt
+      ? `marked done ${whenLabel(input.completedAt, now)}`
+      : 'marked done'
+    : 'not finished yet';
+
+  const lines: (string | false | undefined)[] = [
+    `👤 ${bold('For:')} ${ctx.studentName}`,
+    `📌 ${bold(`${input.entity}:`)} ${input.title}`,
+    input.subjectName && `📚 ${bold('Subject:')} ${input.subjectName}`,
+    `✅ ${bold('Status:')} ${status}`,
+    '',
+  ];
+
+  if (links.length) {
+    lines.push(`🔗 ${bold('Attached:')}`);
+    for (const ref of links) lines.push(`• ${ref.label}: ${ref.url}`);
+  }
+
+  if (unlinked.length) {
+    lines.push(
+      `📎 ${bold('Also attached, no link to share:')} ${unlinked.map((r) => r.label).join(', ')}`
+    );
+  }
+
+  if (!input.evidence.length) {
+    lines.push(`⚠️ ${bold('Nothing attached')} — no photo and no link.`);
+    lines.push('Could you add the notebook or Drive link, and a photo of the working?');
+  }
+
+  return block('GCSE Genie · Evidence check', lines);
+}
+
 export interface DigestInput {
   weekLabel: string;
   targetGrade?: number;

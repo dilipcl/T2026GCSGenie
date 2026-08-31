@@ -11,6 +11,9 @@ import {
   weeklyDigestMessage,
   exceptionMessage,
   WHATSAPP_ACTION_LABEL,
+  whenLabel,
+  activityCommentMessage,
+  evidenceMessage,
 } from './whatsappService';
 import { Goal } from '../types';
 
@@ -285,5 +288,127 @@ describe('the weekly digest', () => {
     const url = buildChatUrl(text, '07700900123');
     const decoded = decodeURIComponent(url.split('?text=')[1]);
     expect(decoded).toBe(text);
+  });
+});
+
+describe('context on a shared message', () => {
+  const ctx = { studentName: 'Tejas' };
+  // A Wednesday, so the weekday branch is unambiguous.
+  const NOW = new Date('2026-09-30T20:00:00').getTime();
+  const hoursAgo = (n: number) => NOW - n * 3_600_000;
+
+  describe('whenLabel', () => {
+    it('says today with the time', () => {
+      expect(whenLabel(hoursAgo(3), NOW)).toMatch(/^today at \d{2}:\d{2}$/);
+    });
+
+    it('says yesterday rather than a weekday', () => {
+      expect(whenLabel(hoursAgo(26), NOW)).toMatch(/^yesterday at/);
+    });
+
+    it('uses a weekday inside the last week', () => {
+      expect(whenLabel(hoursAgo(24 * 3), NOW)).toMatch(/^Sunday at/);
+    });
+
+    it('falls back to a date once a weekday would be ambiguous', () => {
+      // "Wednesday" eight days ago and today are both Wednesday.
+      // Sep/Sept both appear depending on the ICU build; the point of the
+      // assertion is the day and month, not the abbreviation length.
+      expect(whenLabel(hoursAgo(24 * 8), NOW)).toMatch(/^22 Sept? at/);
+    });
+  });
+
+  describe('a comment forwarded to the family', () => {
+    const base = {
+      summary: 'Completed "Physics Session" (+50 XP)',
+      entityType: 'Task',
+      actor: 'Tejas',
+      activityAt: hoursAgo(26),
+      comment: 'Have you added the link to the Notebook, and a follow-up task?',
+      commentBy: 'Dad',
+      commentAt: hoursAgo(2),
+      needsResponse: true,
+      now: NOW,
+    };
+
+    it('carries what the comment is about, and when it happened', () => {
+      const text = activityCommentMessage(ctx, base);
+
+      // Without these the message is a question with no subject - the reader
+      // has to come back and ask which session, which is the round trip the
+      // whole feature exists to remove.
+      expect(text).toContain('Physics Session');
+      expect(text).toContain('yesterday at');
+      expect(text).toContain('Tejas');
+    });
+
+    it('dates the comment separately from the change', () => {
+      const text = activityCommentMessage(ctx, base);
+
+      expect(text).toContain('today at');
+      expect(text).toContain('yesterday at');
+    });
+
+    it('says when an answer is expected', () => {
+      expect(activityCommentMessage(ctx, base)).toContain('needing an answer');
+      expect(
+        activityCommentMessage(ctx, { ...base, needsResponse: false })
+      ).not.toContain('needing an answer');
+    });
+
+    it('includes links already on the record', () => {
+      const text = activityCommentMessage(ctx, {
+        ...base,
+        links: [{ source: 'Drive proof link', url: 'https://drive.google.com/x' }],
+      });
+
+      expect(text).toContain('Already attached');
+      expect(text).toContain('https://drive.google.com/x');
+    });
+  });
+
+  describe('an evidence check forwarded to the family', () => {
+    it('lists the links when they are there', () => {
+      const text = evidenceMessage(ctx, {
+        title: 'Physics session — Electricity and Circuits',
+        entity: 'Task',
+        subjectName: 'Physics',
+        completed: true,
+        completedAt: NOW - 86_400_000,
+        evidence: [{ label: 'Notebook', url: 'https://notebooklm.google.com/abc' }],
+        now: NOW,
+      });
+
+      expect(text).toContain('https://notebooklm.google.com/abc');
+      expect(text).toContain('marked done yesterday at');
+    });
+
+    it('asks for them when they are not, rather than reporting a blank', () => {
+      const text = evidenceMessage(ctx, {
+        title: 'Physics session — Electricity and Circuits',
+        entity: 'Task',
+        completed: true,
+        completedAt: NOW,
+        evidence: [],
+        now: NOW,
+      });
+
+      expect(text).toContain('Nothing attached');
+      expect(text).toContain('Could you add');
+    });
+
+    it('names a file that has no link instead of pretending it has one', () => {
+      const text = evidenceMessage(ctx, {
+        title: 'Physics working',
+        entity: 'Task',
+        completed: true,
+        evidence: [{ label: 'circuit.jpg', savedWithoutLink: true }],
+        now: NOW,
+      });
+
+      expect(text).toContain('circuit.jpg');
+      expect(text).toContain('no link to share');
+      expect(text).not.toContain('http');
+    });
   });
 });
