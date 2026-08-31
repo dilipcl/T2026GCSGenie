@@ -1,5 +1,27 @@
 # Changelog
 
+## October 2026 - Can you actually see the work?
+
+**Evidence.** A third pane on Updates that searches any piece of work and shows
+the photos and links attached to it. The question that prompted it - did the
+links and images for the Physics electricity session get added? - could not be
+answered from inside the app at all: photos sit in one table keyed by owner,
+links sit on the records under five different field names, and answering meant
+exporting the database and reading the JSON.
+
+Evidence is now defined once, in `evidenceService`, and the activity feed and the
+validation check both read it from there. Links appear inline in the feed ahead
+of the photo chips, because a link always opens and a photo held only on one
+device does not.
+
+**The validation check** reports finished work with nothing attached. Never
+auto-fixable, because there is no fix an app can apply. Homework and fix-ups are
+held to it; self-set revision is not, or it becomes noise.
+
+It reports that a link exists, not that it works. Genie cannot follow a Drive
+URL and does not pretend to have.
+
+
 ## October 2026 - Does the plan still add up?
 
 **Target vs actual.** A burn-down on Subjects & Goals: hours still owed against

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { UserRole } from '../../types';
 import { UpdatesView } from './UpdatesView';
 import { ActivityView } from './ActivityView';
+import { EvidenceCheck } from './EvidenceCheck';
 import { buildActivityFeed, needingReview, outstanding } from '../../services/activityService';
 
 /**
@@ -24,7 +25,7 @@ import { buildActivityFeed, needingReview, outstanding } from '../../services/ac
  * problem by filtering the feed down to signable things.
  */
 export const UpdatesSection: React.FC<{ currentRole: UserRole }> = ({ currentRole }) => {
-  const [pane, setPane] = useState<'SIGN_OFF' | 'ACTIVITY'>('SIGN_OFF');
+  const [pane, setPane] = useState<'SIGN_OFF' | 'ACTIVITY' | 'EVIDENCE'>('SIGN_OFF');
   const [waitingCount, setWaitingCount] = useState(0);
 
   // A count on the tab, so an unapproved goal is visible without opening it.
@@ -62,9 +63,23 @@ export const UpdatesSection: React.FC<{ currentRole: UserRole }> = ({ currentRol
             </span>
           )}
         </button>
+        <button
+          type="button"
+          onClick={() => setPane('EVIDENCE')}
+          className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${
+            pane === 'EVIDENCE' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          Evidence
+        </button>
       </div>
 
-      {pane === 'SIGN_OFF' ? <UpdatesView /> : <ActivityView currentRole={currentRole} />}
+      {/* Three panes, because reviewing an update raises three different
+          questions: what changed, is it signed off, and can I actually see the
+          work. The third used to require exporting the database. */}
+      {pane === 'SIGN_OFF' && <UpdatesView />}
+      {pane === 'ACTIVITY' && <ActivityView currentRole={currentRole} />}
+      {pane === 'EVIDENCE' && <EvidenceCheck />}
     </div>
   );
 };

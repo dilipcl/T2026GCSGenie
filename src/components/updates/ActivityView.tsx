@@ -32,6 +32,7 @@ import {
   X,
   Laptop,
   HelpCircle,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 /**
@@ -93,11 +94,27 @@ const Chip: React.FC<{
 );
 
 const AttachmentLinks: React.FC<{ item: ActivityItem }> = ({ item }) => {
-  if (!item.attachments?.length) return null;
+  if (!item.attachments?.length && !item.links?.length) return null;
 
   return (
     <div className="flex flex-wrap gap-1.5 mt-1.5">
-      {item.attachments.map((file) => {
+      {/* Links first. They always open, so putting them after a row of
+          unopenable photo chips buries the one thing a reviewer can act on. */}
+      {item.links?.map((ref) => (
+        <a
+          key={ref.url}
+          href={ref.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={ref.url}
+          className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-[10px] text-indigo-300 hover:bg-indigo-500/20"
+        >
+          <LinkIcon className="w-3 h-3 flex-shrink-0" />
+          <span className="truncate max-w-[10rem]">{ref.source}</span>
+        </a>
+      ))}
+
+      {item.attachments?.map((file) => {
         const href = file.driveViewUrl;
         const shared = (
           <>

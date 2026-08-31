@@ -1,4 +1,5 @@
 import { db } from '../db';
+import { EvidenceSubject, workMissingEvidence } from './evidenceService';
 import { DailyCheckIn, Goal, SubjectId, Task, isNonExamSubject } from '../types';
 
 /**
@@ -333,17 +334,44 @@ export interface QualityReport {
   rowsExamined: number;
 }
 
+/**
+ * Finished work that shows no working.
+ *
+ * Not a tidiness problem. A homework marked done with no photo of it and no
+ * link to where it lives cannot be reviewed, cannot be revised from, and
+ * cannot be shown to anybody - and the record still counts it as done, so
+ * every total that includes it is describing work nobody can see.
+ *
+ * Never auto-fixable. There is no fix an app can apply: somebody has to go and
+ * attach the thing, or admit it does not exist.
+ */
+function evidenceIssues(missing: EvidenceSubject[]): DataIssue[] {
+  return missing.map((item) => ({
+    id: `evidence-${item.entityId}`,
+    severity: 'DEGRADES_ANALYSIS' as const,
+    entity: item.entity,
+    entityId: item.entityId,
+    problem: `“${item.title}” is marked done with no photo and no link.`,
+    consequence:
+      'Counted as complete in every total, with nothing anyone can open to check or revise from.',
+    remedy: 'Attach a photo of the work, or paste the Drive or Notebook link onto the record.',
+    autoFixable: false,
+  }));
+}
+
 export async function inspectData(now: number = Date.now()): Promise<QualityReport> {
-  const [tasks, goals, checkIns] = await Promise.all([
+  const [tasks, goals, checkIns, missingEvidence] = await Promise.all([
     db.tasks.toArray(),
     db.goals.toArray(),
     db.checkIns.toArray(),
+    workMissingEvidence(),
   ]);
 
   const issues = [
     ...taskIssues(tasks, goals),
     ...checkInIssues(checkIns),
     ...goalIssues(goals, now),
+    ...evidenceIssues(missingEvidence),
   ];
 
   const order: Record<IssueSeverity, number> = {

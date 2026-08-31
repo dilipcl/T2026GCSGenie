@@ -1,4 +1,5 @@
 import { db } from '../db';
+import { evidenceIndex } from './evidenceService';
 import {
   ActivityAttachmentLink,
   ActivityItem,
@@ -10,6 +11,7 @@ import {
   PendingStep,
   SubjectId,
   UserRole,
+  ActivityEvidenceLink,
 } from '../types';
 import { toLocalISODate } from '../utils/date';
 import { describeActor, deviceLabelMap } from './deviceRegistryService';
@@ -389,6 +391,25 @@ async function attachmentsFor(entityId: string): Promise<ActivityAttachmentLink[
 }
 
 /**
+ * Drive links held on the record itself.
+ *
+ * Read through `evidenceService` rather than reaching for the fields here: the
+ * same five field names are needed by the validation check, and two lists of
+ * "which field counts as proof" would drift the moment a sixth was added.
+ */
+async function linkMap(): Promise<Map<string, ActivityEvidenceLink[]>> {
+  const map = new Map<string, ActivityEvidenceLink[]>();
+
+  for (const item of await evidenceIndex()) {
+    const links = item.evidence
+      .filter((ref) => ref.kind === 'LINK' && ref.url)
+      .map((ref) => ({ url: ref.url!, source: ref.source }));
+    if (links.length) map.set(item.entityId, links);
+  }
+  return map;
+}
+
+/**
  * Works out which subject a row concerns, for the subject filter.
  *
  * Looked up from the live record rather than parsed out of the audit text,
@@ -461,11 +482,14 @@ export async function buildActivityFeed(
   viewerRole: UserRole,
   filter: ActivityFilter = {}
 ): Promise<ActivityFeed> {
-  const [audits, changes, devices, comments] = await Promise.all([
+  const [audits, changes, devices, comments, links] = await Promise.all([
     db.auditLogs.toArray(),
     db.changeLog.toArray(),
     deviceLabelMap(),
     commentsByActivity(),
+    // Built once for the whole feed. Resolved per row it was a full scan of
+    // six tables per activity item.
+    linkMap(),
   ]);
 
   const correlated = correlate(changes, audits);
@@ -504,6 +528,7 @@ export async function buildActivityFeed(
       visibility: classifyVisibility(entry),
       pending,
       attachments,
+      links: links.get(entry.entityId),
       comments: comments.get(entry.id),
       commentSummary: summarise(comments.get(entry.id)),
       confirmedAt: change?.confirmedAt,

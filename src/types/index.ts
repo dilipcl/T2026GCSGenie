@@ -833,6 +833,13 @@ export interface PendingStep {
  * from one silently loses every photo. A Drive copy is the fix: the blob stays
  * local for offline viewing, and `driveFileId` points at the copy that survives.
  */
+/** A link stored on the record an activity row is about. */
+export interface ActivityEvidenceLink {
+  url: string;
+  /** Where it came from - "Drive proof link", "Notes link". */
+  source: string;
+}
+
 export interface ActivityAttachmentLink {
   attachmentId: string;
   fileName: string;
@@ -891,6 +898,14 @@ export interface ActivityItem {
   visibility: ActivityVisibility;
   pending?: PendingStep;
   attachments?: ActivityAttachmentLink[];
+  /**
+   * Drive links carried by the record itself - a task's proof URL, a topic's
+   * notes URL. Separate from `attachments`, which are photos held as blobs:
+   * a link always opens and never needs mirroring, so conflating the two would
+   * mean explaining "saved but not linkable" about something that is just a
+   * URL.
+   */
+  links?: ActivityEvidenceLink[];
   /** Comments on this change, oldest first. */
   comments?: ActivityComment[];
   /** Set when at least one clarification is still unanswered. */

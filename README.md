@@ -283,6 +283,42 @@ carry a blob, so before this every restore silently lost every photo. The folder
 handle saves the file but never learns the id Drive assigns, so only the API
 transport produces a link - the feed shows three states, not two.
 
+### Evidence - the links and the images
+
+Updates has a third pane, **Evidence**. Search any piece of work - `physics
+electricity` - and see what is actually attached to it.
+
+It exists because an ordinary question could not be answered from inside the
+app: did the links and images for the Physics electricity session get added?
+Every ingredient was there and none of them were together. Photos live in
+`attachments` keyed by `ownerId`; links live on the records themselves under
+five different field names - `driveProofUrl` on a task, `driveNotesUrl` on a
+topic and on a goal, `driveNotebookUrl` on a fix-up, `driveResourceUrl` on an
+assessment. Answering meant exporting the database and reading the JSON.
+
+`evidenceService` defines evidence once, for every kind of record that can carry
+it, and the activity feed and the validation check both read it from there
+rather than each deciding for itself which field counts. The feed now shows
+those links inline, ahead of the photo chips, because a link always opens and a
+photo may not.
+
+Search requires **every** word rather than any of them. "Physics electricity"
+matching anything mentioning either returns most of the database and answers
+nothing.
+
+**The validation check** reports finished work with no photo and no link. It
+appears in Data quality as *Weakens analysis* and is never auto-fixable - there
+is no fix an app can apply, since somebody has to attach the thing or admit it
+does not exist. Not everything is held to it: homework and fix-ups are marked by
+someone else or exist because something went wrong, and both are worth being
+able to show; revision a student set themselves is not, or the report becomes
+noise nobody reads.
+
+One limit, stated plainly in the code: this reports whether a link *exists*, not
+whether it opens or points at the right thing. Genie has no permission to follow
+a Drive URL, and claiming to have checked one would be a stronger promise than
+it can keep.
+
 ### Data quality
 
 Parent Portal → Data quality reports what would weaken an analysis, with the
