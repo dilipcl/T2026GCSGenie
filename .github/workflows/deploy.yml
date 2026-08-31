@@ -34,6 +34,14 @@ jobs:
 
       - name: Build Application
         run: npm run build
+        env:
+          # Vite inlines VITE_* at build time, so the deployed bundle needs this
+          # here rather than at runtime. A repository *variable*, not a secret:
+          # an OAuth client id for a public client ships inside the bundle and is
+          # public by design. Empty until one is set, which the app handles - the
+          # Drive panel reports the transport as unavailable instead of offering
+          # a button that cannot work.
+          VITE_DRIVE_OAUTH_CLIENT_ID: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
