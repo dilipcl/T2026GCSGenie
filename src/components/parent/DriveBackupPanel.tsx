@@ -11,6 +11,7 @@ import {
   readState,
   setAutoBackup,
   setRetention,
+  setUploadFolder,
   DEFAULT_KEEP_BACKUPS,
 } from '../../services/driveBackupService';
 import { WORKING_FOLDER_PATH, BACKUPS_FOLDER_URL } from '../../db/driveFolders';
@@ -238,6 +239,42 @@ export const DriveBackupPanel: React.FC = () => {
         Older ones are deleted after each successful backup. Set to 0 to keep everything. Only files
         Genie wrote are ever removed.
       </p>
+
+      {/* Where uploads land, over the API transport only. The folder handle
+          writes wherever the user pointed the picker, so this would be
+          meaningless there. */}
+      {caps.oauthConfigured && !caps.folderHandleSupported && (
+        <div className="mt-3 pt-3 border-t border-slate-800">
+          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">
+            Upload into this Drive folder
+          </label>
+          <input
+            defaultValue={state.preferredFolderId ?? ''}
+            placeholder="Paste a Drive folder link, or leave blank"
+            onBlur={(e) => {
+              if (e.target.value !== (state.preferredFolderId ?? '')) {
+                run(() => setUploadFolder(e.target.value), 'Folder saved.');
+              }
+            }}
+            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600 font-mono"
+          />
+
+          {state.preferredFolderUnreachable ? (
+            <p className="text-[10px] text-amber-400 mt-1.5 leading-snug">
+              Genie cannot see that folder, so backups are going to its own
+              <span className="font-mono"> GCSE Genie Backups </span>
+              folder instead. Google only grants this app access to files it created itself, so a
+              folder you made by hand is invisible to it however correct the link. This is a
+              limit of the narrow permission Genie asks for, not a mistake in the link.
+            </p>
+          ) : (
+            <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
+              Leave blank and Genie uses its own folder. A folder you created by hand will usually
+              be unreachable — see the note that appears after the first upload.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Proof photos, reported separately because the JSON export cannot carry
           them - an unmirrored photo does not survive a restore. */}

@@ -374,8 +374,74 @@ const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
  * here - it cannot be pointed at the existing `_Genie-Backups`, which Genie did
  * not create and therefore cannot see.
  */
+export function parseDriveFolderId(input: string): string | undefined {
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+  // Accept a full share URL or a bare id.
+  const fromUrl = trimmed.match(/\/folders\/([A-Za-z0-9_-]{10,})/);
+  if (fromUrl) return fromUrl[1];
+  return /^[A-Za-z0-9_-]{10,}$/.test(trimmed) ? trimmed : undefined;
+}
+
+/**
+ * Whether the app can actually write into a folder somebody nominated.
+ *
+ * The `drive.file` scope grants access only to files this app created or the
+ * user explicitly opened through Google's own picker. A folder made by hand in
+ * Drive is therefore invisible to Genie however correct its id is, and the API
+ * answers 404 rather than 403 - it is not "forbidden", it does not exist as far
+ * as this app is concerned.
+ *
+ * Checked before every upload rather than assumed, so a nominated folder that
+ * cannot be used degrades to the app's own folder with an explanation, instead
+ * of failing every backup with a confusing not-found.
+ */
+export async function canWriteToFolder(
+  folderId: string,
+  accessToken: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${DRIVE_FILES_URL}/${folderId}?fields=id,capabilities/canAddChildren`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!response.ok) return false;
+    const folder = (await response.json()) as {
+      capabilities?: { canAddChildren?: boolean };
+    };
+    return folder.capabilities?.canAddChildren !== false;
+  } catch {
+    return false;
+  }
+}
+
+/** Nominates a Drive folder for uploads. Accepts a share URL or a bare id. */
+export async function setUploadFolder(input: string): Promise<DriveSyncState> {
+  const id = parseDriveFolderId(input);
+  return writeState({ preferredFolderId: id, preferredFolderUnreachable: false });
+}
+
 async function ensureUploadFolder(accessToken: string): Promise<string | undefined> {
   const state = await readState();
+
+  /**
+   * A folder the family nominated wins, when it is reachable. When it is not -
+   * the usual reason being that they created it by hand and `drive.file` cannot
+   * see it - the flag is recorded so the panel can explain rather than leaving
+   * them wondering why backups appear somewhere else.
+   */
+  if (state.preferredFolderId) {
+    if (await canWriteToFolder(state.preferredFolderId, accessToken)) {
+      if (state.preferredFolderUnreachable) {
+        await writeState({ preferredFolderUnreachable: false });
+      }
+      return state.preferredFolderId;
+    }
+    if (!state.preferredFolderUnreachable) {
+      await writeState({ preferredFolderUnreachable: true });
+    }
+  }
+
   if (state.oauthFolderId) return state.oauthFolderId;
 
   const response = await fetch(DRIVE_FILES_URL, {

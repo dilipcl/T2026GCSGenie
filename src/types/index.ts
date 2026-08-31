@@ -971,6 +971,18 @@ export interface DriveSyncState {
   oauthExpiresAt?: number;
   /** The Drive folder id backups are uploaded into, over the API transport. */
   oauthFolderId?: string;
+  /**
+   * A folder the family nominated, by URL or id.
+   *
+   * Preferred over the app's own folder when it is reachable. It often is not:
+   * `drive.file` grants access only to files this app created or the user opened
+   * through Google's picker, so a folder made by hand in Drive is invisible to
+   * Genie no matter how correct the id. `preferredFolderUnreachable` records
+   * that, so the panel can say what happened instead of silently writing
+   * somewhere else.
+   */
+  preferredFolderId?: string;
+  preferredFolderUnreachable?: boolean;
   lastBackupAt?: number;
   lastBackupFileName?: string;
   lastBackupBytes?: number;

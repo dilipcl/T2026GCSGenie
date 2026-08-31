@@ -12,6 +12,9 @@ import {
   disconnectDrive,
   backupsToDelete,
   BACKUP_FILE_PATTERN,
+  parseDriveFolderId,
+  setUploadFolder,
+  canWriteToFolder,
 } from './driveBackupService';
 import { __setFolderHandleInMemory } from './folderHandleStore';
 
@@ -423,5 +426,66 @@ describe('pruning against the folder', () => {
     // The backup still succeeded; only the tidy-up failed.
     expect(outcome.ok).toBe(true);
     expect(outcome.pruned).toBe(0);
+  });
+});
+
+describe('nominating a Drive folder', () => {
+  it('accepts a share URL or a bare id', () => {
+    const id = '1oX9XHXHkNEZVQ6y97Ym1ZYdsD9bMNynt';
+    expect(
+      parseDriveFolderId(`https://drive.google.com/drive/folders/${id}?usp=drive_link`)
+    ).toBe(id);
+    expect(parseDriveFolderId(id)).toBe(id);
+  });
+
+  it('rejects something that is not a folder reference', () => {
+    expect(parseDriveFolderId('')).toBeUndefined();
+    expect(parseDriveFolderId('my backups')).toBeUndefined();
+    expect(parseDriveFolderId('https://example.com/nope')).toBeUndefined();
+  });
+
+  it('stores the id from a pasted link', async () => {
+    await setUploadFolder(
+      'https://drive.google.com/drive/folders/1oX9XHXHkNEZVQ6y97Ym1ZYdsD9bMNynt?usp=drive_link'
+    );
+    expect((await readState()).preferredFolderId).toBe('1oX9XHXHkNEZVQ6y97Ym1ZYdsD9bMNynt');
+  });
+
+  it('treats a folder the app cannot see as unreachable', async () => {
+    // What drive.file actually does with a hand-made folder: 404, not 403.
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 404 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    expect(await canWriteToFolder('someFolderId', 'token')).toBe(false);
+
+    vi.unstubAllGlobals();
+  });
+
+  it('accepts a folder the app created', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ id: 'f1', capabilities: { canAddChildren: true } }),
+      }))
+    );
+
+    expect(await canWriteToFolder('f1', 'token')).toBe(true);
+
+    vi.unstubAllGlobals();
+  });
+
+  it('treats a read-only folder as unwritable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ id: 'f1', capabilities: { canAddChildren: false } }),
+      }))
+    );
+
+    expect(await canWriteToFolder('f1', 'token')).toBe(false);
+
+    vi.unstubAllGlobals();
   });
 });
