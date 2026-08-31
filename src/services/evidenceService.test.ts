@@ -2,11 +2,14 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../db';
 import { emptyDatabase } from '../test/harness';
 import { Task, SyllabusTopic } from '../types';
+import { requestEvidence, resolveComment } from './activityCommentService';
+import { logAuditEvent } from './auditService';
 import {
   evidenceIndex,
   evidenceSummary,
   findEvidence,
   workMissingEvidence,
+  awaitingEvidenceReply,
 } from './evidenceService';
 
 /**
@@ -189,6 +192,7 @@ describe('the summary', () => {
       withEvidence: 1,
       missing: 1,
       savedWithoutLink: 0,
+      awaitingReply: 0,
     });
   });
 
@@ -198,6 +202,7 @@ describe('the summary', () => {
       withEvidence: 0,
       missing: 0,
       savedWithoutLink: 0,
+      awaitingReply: 0,
     });
   });
 });
@@ -211,5 +216,105 @@ describe('the index', () => {
 
     expect(kinds.has('Task')).toBe(true);
     expect(kinds.has('Syllabus topic')).toBe(true);
+  });
+});
+
+describe('asking for evidence, and tracking the ask', () => {
+  it('flags the work as chased, so nobody asks twice', async () => {
+    await db.tasks.add(task());
+
+    await requestEvidence({
+      entityId: 'task_phys',
+      entityLabel: 'Task',
+      title: 'Physics session — Electricity and Circuits',
+      authorRole: 'PARENT',
+    });
+
+    const [found] = await findEvidence('electricity');
+    expect(found.openRequests).toHaveLength(1);
+    expect(found.missingEvidence).toBe(true);
+  });
+
+  it('separates chased from merely missing', async () => {
+    await db.tasks.bulkAdd([
+      task({ id: 'asked', title: 'Physics asked about' }),
+      task({ id: 'quiet', title: 'Physics not asked about' }),
+    ]);
+    await requestEvidence({
+      entityId: 'asked',
+      entityLabel: 'Task',
+      title: 'Physics asked about',
+      authorRole: 'PARENT',
+    });
+
+    const waiting = await awaitingEvidenceReply();
+
+    expect(waiting.map((w) => w.entityId)).toEqual(['asked']);
+    expect((await workMissingEvidence()).length).toBe(2);
+  });
+
+  it('drops out of the waiting list once answered', async () => {
+    await db.tasks.add(task());
+    const ask = await requestEvidence({
+      entityId: 'task_phys',
+      entityLabel: 'Task',
+      title: 'Physics session',
+      authorRole: 'PARENT',
+    });
+
+    expect(await awaitingEvidenceReply()).toHaveLength(1);
+    await resolveComment(ask.id, 'STUDENT', 'Added the notebook link');
+    expect(await awaitingEvidenceReply()).toHaveLength(0);
+  });
+
+  it('counts outstanding asks in the summary', async () => {
+    await db.tasks.add(task());
+    await requestEvidence({
+      entityId: 'task_phys',
+      entityLabel: 'Task',
+      title: 'Physics session',
+      authorRole: 'PARENT',
+    });
+
+    expect((await evidenceSummary()).awaitingReply).toBe(1);
+  });
+
+  it('hangs the ask off the record’s latest activity row, so the feed shows it', async () => {
+    await db.tasks.add(task());
+    const entry = await logAuditEvent({
+      user: 'STUDENT',
+      action: 'UPDATE',
+      entity: 'Task',
+      entityId: 'task_phys',
+      newValue: 'Completed "Physics Session"',
+    });
+
+    const ask = await requestEvidence({
+      entityId: 'task_phys',
+      entityLabel: 'Task',
+      title: 'Physics session',
+      authorRole: 'PARENT',
+    });
+
+    // The same flag the comment feature already uses, so it lands in the feed's
+    // review list without a second mechanism.
+    expect(ask.activityId).toBe(entry.id);
+    expect(ask.needsResponse).toBe(true);
+    expect(ask.kind).toBe('EVIDENCE_REQUEST');
+  });
+
+  it('still tracks an ask about a record with no activity history', async () => {
+    await db.tasks.add(task());
+
+    const ask = await requestEvidence({
+      entityId: 'task_phys',
+      entityLabel: 'Task',
+      title: 'Physics session',
+      authorRole: 'PARENT',
+    });
+
+    // No feed row to hang from, but the request is not lost.
+    expect(ask.activityId).toBe('task_phys');
+    expect(await awaitingEvidenceReply()).toHaveLength(1);
   });
 });

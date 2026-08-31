@@ -337,6 +337,21 @@ Search requires **every** word rather than any of them. "Physics electricity"
 matching anything mentioning either returns most of the database and answers
 nothing.
 
+**Asking for it, and knowing you asked.** Sharing a missing-evidence row to
+WhatsApp records the ask. Without that, a chase left no trace and a week later
+nobody could tell which things had been followed up and which had merely been
+noticed - and the obvious failure is asking twice, which is how a parent stops
+being taken seriously. The row then reads **Asked and not answered**, with who
+asked and when, and an *Awaiting reply* filter collects them. Answering it asks
+what was actually done, the same as any clarification.
+
+It is recorded as a comment rather than in a table of its own, because that is
+exactly what it is: a question expecting an answer. So it inherits the flag, the
+review list and the resolve-with-a-note behaviour, appears in the activity feed
+against the record it concerns, and there is no second mechanism to drift from
+the first. Only work that is genuinely missing its evidence records an ask -
+forwarding a row that already has its links is sharing, not chasing.
+
 **The validation check** reports finished work with no photo and no link. It
 appears in Data quality as *Weakens analysis* and is never auto-fixable - there
 is no fix an app can apply, since somebody has to attach the thing or admit it

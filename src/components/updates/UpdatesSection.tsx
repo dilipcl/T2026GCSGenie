@@ -79,7 +79,7 @@ export const UpdatesSection: React.FC<{ currentRole: UserRole }> = ({ currentRol
           work. The third used to require exporting the database. */}
       {pane === 'SIGN_OFF' && <UpdatesView />}
       {pane === 'ACTIVITY' && <ActivityView currentRole={currentRole} />}
-      {pane === 'EVIDENCE' && <EvidenceCheck />}
+      {pane === 'EVIDENCE' && <EvidenceCheck currentRole={currentRole} />}
     </div>
   );
 };

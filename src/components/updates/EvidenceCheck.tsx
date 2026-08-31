@@ -6,9 +6,19 @@ import {
   evidenceSummary,
   matches,
 } from '../../services/evidenceService';
-import { Search, Link as LinkIcon, Paperclip, AlertTriangle, CheckCircle2, Send } from 'lucide-react';
+import {
+  Search,
+  Link as LinkIcon,
+  Paperclip,
+  AlertTriangle,
+  CheckCircle2,
+  Send,
+  Check,
+} from 'lucide-react';
+import { UserRole } from '../../types';
+import { requestEvidence, resolveComment } from '../../services/activityCommentService';
 import { WhatsAppShare } from '../shared/WhatsAppShare';
-import { evidenceMessage, messageContext } from '../../services/whatsappService';
+import { evidenceMessage, messageContext, whenLabel } from '../../services/whatsappService';
 import { db } from '../../db';
 
 /**
@@ -24,12 +34,17 @@ import { db } from '../../db';
  * knowing roughly what they are looking for.
  */
 
-const EvidenceRow: React.FC<{ item: EvidenceSubject; studentName: string; subjectName?: string }> = ({
-  item,
-  studentName,
-  subjectName,
-}) => {
+const EvidenceRow: React.FC<{
+  item: EvidenceSubject;
+  studentName: string;
+  subjectName?: string;
+  currentRole: UserRole;
+}> = ({ item, studentName, subjectName, currentRole }) => {
   const [sharing, setSharing] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [note, setNote] = useState('');
+
+  const openAsk = item.openRequests?.[0];
 
   /**
    * The message says when the work was done, not just what it was called.
@@ -118,6 +133,49 @@ const EvidenceRow: React.FC<{ item: EvidenceSubject; studentName: string; subjec
           </p>
         )}
 
+        {/* Chased, and still nothing back. A different situation from simply
+            missing, and the one that actually needs following up. */}
+        {openAsk && (
+          <div className="mt-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 p-2">
+            <p className="text-[10px] text-rose-200 leading-snug">
+              <span className="font-bold">Asked and not answered</span> —{' '}
+              {openAsk.authorLabel || (openAsk.authorRole === 'PARENT' ? 'a parent' : 'the student')}
+              , {whenLabel(openAsk.createdAt)}.
+            </p>
+
+            {resolving ? (
+              <div className="flex gap-1.5 mt-1.5">
+                <input
+                  autoFocus
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="What happened?"
+                  className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white placeholder:text-slate-600"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await resolveComment(openAsk.id, currentRole, note);
+                    setResolving(false);
+                    setNote('');
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setResolving(true)}
+                className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-400"
+              >
+                <Check className="w-3 h-3" /> Mark it answered
+              </button>
+            )}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={() => setSharing((prev) => !prev)}
@@ -129,7 +187,27 @@ const EvidenceRow: React.FC<{ item: EvidenceSubject; studentName: string; subjec
 
         {sharing && (
           <div className="mt-1.5">
-            <WhatsAppShare text={shareText} compact previewLabel="Show the message" />
+            <WhatsAppShare
+              text={shareText}
+              compact
+              previewLabel="Show the message"
+              /* Recorded on open, so an ask that went out is visible here and in
+                 the activity feed rather than disappearing into WhatsApp. Only
+                 for work that is actually missing its evidence - forwarding a
+                 row that already has its links is sharing, not chasing. */
+              onOpened={
+                item.missingEvidence && !openAsk
+                  ? () => {
+                      void requestEvidence({
+                        entityId: item.entityId,
+                        entityLabel: item.entity,
+                        title: item.title,
+                        authorRole: currentRole,
+                      });
+                    }
+                  : undefined
+              }
+            />
           </div>
         )}
       </div>
@@ -138,9 +216,10 @@ const EvidenceRow: React.FC<{ item: EvidenceSubject; studentName: string; subjec
   );
 };
 
-export const EvidenceCheck: React.FC = () => {
+export const EvidenceCheck: React.FC<{ currentRole: UserRole }> = ({ currentRole }) => {
   const [query, setQuery] = useState('');
   const [missingOnly, setMissingOnly] = useState(false);
+  const [askedOnly, setAskedOnly] = useState(false);
 
   const index = useLiveQuery(() => evidenceIndex(), []);
   const summary = useLiveQuery(() => evidenceSummary(), []);
@@ -152,9 +231,17 @@ export const EvidenceCheck: React.FC = () => {
     if (!index) return [];
     return index
       .filter((item) => (missingOnly ? item.missingEvidence : true))
+      .filter((item) => (askedOnly ? (item.openRequests?.length ?? 0) > 0 : true))
       .filter((item) => matches(item, query))
-      .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
-  }, [index, query, missingOnly]);
+      /* Chased-and-unanswered first. It is the only state here that is waiting
+         on a person, so burying it under everything finished recently would
+         defeat the point of recording the ask at all. */
+      .sort((a, b) => {
+        const asked = (item: typeof a) => ((item.openRequests?.length ?? 0) > 0 ? 1 : 0);
+        if (asked(a) !== asked(b)) return asked(b) - asked(a);
+        return (b.completedAt ?? 0) - (a.completedAt ?? 0);
+      });
+  }, [index, query, missingOnly, askedOnly]);
 
   if (!index || !summary) return null;
 
@@ -180,7 +267,10 @@ export const EvidenceCheck: React.FC = () => {
         </div>
         <button
           type="button"
-          onClick={() => setMissingOnly((prev) => !prev)}
+          onClick={() => {
+            setMissingOnly((prev) => !prev);
+            setAskedOnly(false);
+          }}
           className={`px-2.5 py-2 rounded-xl border text-[10px] font-bold whitespace-nowrap ${
             missingOnly
               ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
@@ -189,6 +279,21 @@ export const EvidenceCheck: React.FC = () => {
         >
           Missing only ({summary.missing})
         </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setAskedOnly((prev) => !prev);
+            setMissingOnly(false);
+          }}
+          className={`px-2.5 py-2 rounded-xl border text-[10px] font-bold whitespace-nowrap ${
+            askedOnly
+              ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
+              : 'bg-slate-800 border-slate-700 text-slate-400'
+          }`}
+        >
+          Awaiting reply ({summary.awaitingReply})
+        </button>
       </div>
 
       <p className="text-[11px] text-slate-400">
@@ -196,6 +301,14 @@ export const EvidenceCheck: React.FC = () => {
           {summary.withEvidence} of {summary.expected}
         </span>{' '}
         finished pieces of work have something attached.
+        {summary.awaitingReply > 0 && (
+          <>
+            {' '}
+            <span className="text-rose-300 font-bold">
+              {summary.awaitingReply} asked about and not answered.
+            </span>
+          </>
+        )}
         {summary.savedWithoutLink > 0 && (
           <>
             {' '}
@@ -219,6 +332,7 @@ export const EvidenceCheck: React.FC = () => {
               item={item}
               studentName={studentName}
               subjectName={subjects?.find((s) => s.id === item.subjectId)?.name}
+              currentRole={currentRole}
             />
           ))}
         </ul>

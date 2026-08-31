@@ -1,5 +1,6 @@
 import { db } from '../db';
-import { ProofAttachment, SubjectId } from '../types';
+import { ActivityComment, ProofAttachment, SubjectId } from '../types';
+import { openEvidenceRequests } from './activityCommentService';
 
 /**
  * Where the proof for a piece of work actually is - and whether there is any.
@@ -66,6 +67,14 @@ export interface EvidenceSubject {
    * attached. The one actionable state.
    */
   missingEvidence: boolean;
+  /**
+   * Requests for this evidence that nobody has answered yet.
+   *
+   * Carried so the tab can separate "nothing attached" from "nothing attached
+   * and already chased" - which are different situations for whoever is
+   * reading, and asking twice is how a parent stops being taken seriously.
+   */
+  openRequests?: ActivityComment[];
 }
 
 const link = (url: string | undefined, source: string, label: string): EvidenceRef[] =>
@@ -93,7 +102,7 @@ function filesFor(
  * whole database and a per-row lookup would be hundreds of round trips.
  */
 export async function evidenceIndex(): Promise<EvidenceSubject[]> {
-  const [tasks, topics, goals, assessments, remediations, milestones, attachments] =
+  const [tasks, topics, goals, assessments, remediations, milestones, attachments, requests] =
     await Promise.all([
       db.tasks.toArray(),
       db.syllabusTopics.toArray(),
@@ -102,6 +111,7 @@ export async function evidenceIndex(): Promise<EvidenceSubject[]> {
       db.remediations.toArray(),
       db.milestones.toArray(),
       db.attachments.toArray(),
+      openEvidenceRequests(),
     ]);
 
   const subjects: EvidenceSubject[] = [];
@@ -124,6 +134,7 @@ export async function evidenceIndex(): Promise<EvidenceSubject[]> {
       evidence,
       hasEvidence: evidence.length > 0,
       missingEvidence: completed && options.proofExpected && evidence.length === 0,
+      openRequests: requests.get(entityId),
     });
   };
 
@@ -277,6 +288,8 @@ export interface EvidenceSummary {
   missing: number;
   /** Files saved to Drive that have no openable link. */
   savedWithoutLink: number;
+  /** Requests for evidence that nobody has answered. */
+  awaitingReply: number;
 }
 
 export async function evidenceSummary(): Promise<EvidenceSummary> {
@@ -291,5 +304,16 @@ export async function evidenceSummary(): Promise<EvidenceSummary> {
       (count, item) => count + item.evidence.filter((e) => e.savedWithoutLink).length,
       0
     ),
+    awaitingReply: all.filter((i) => (i.openRequests?.length ?? 0) > 0).length,
   };
+}
+
+/** Work somebody has asked about and nobody has answered, oldest ask first. */
+export async function awaitingEvidenceReply(): Promise<EvidenceSubject[]> {
+  const all = await evidenceIndex();
+  return all
+    .filter((item) => (item.openRequests?.length ?? 0) > 0)
+    .sort(
+      (a, b) => (a.openRequests![0].createdAt ?? 0) - (b.openRequests![0].createdAt ?? 0)
+    );
 }

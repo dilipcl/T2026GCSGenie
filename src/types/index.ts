@@ -1054,6 +1054,18 @@ export interface ActivityComment {
    * answers.
    */
   needsResponse: boolean;
+  /**
+   * What kind of question this is.
+   *
+   * `EVIDENCE_REQUEST` is a specific ask - "send the notebook link for this" -
+   * raised from the Evidence tab. Distinguished from an ordinary clarification
+   * so the Evidence tab can show which pieces of work have already been chased,
+   * rather than chasing them twice. Absent on rows written before this existed,
+   * which are ordinary comments.
+   */
+  kind?: 'COMMENT' | 'EVIDENCE_REQUEST';
+  /** The record the request is about, when it is an evidence request. */
+  subjectEntityId?: string;
   resolvedAt?: number;
   resolvedByRole?: UserRole;
   /** What was done about it. Shown beside the resolution. */
