@@ -582,7 +582,7 @@ export const ParentPortal: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                Backups folder (on this computer)
+                Where to file downloads
               </label>
               <input
                 type="text"
@@ -592,6 +592,15 @@ export const ParentPortal: React.FC = () => {
                 }
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono text-[11px]"
               />
+              {/* Renamed from "Backups folder (on this computer)". Automatic
+                  backup arrived later with its own folder picker, and two
+                  controls saying "backups folder" - only one of which grants
+                  access - is how somebody ends up believing they are covered
+                  when nothing is being written. */}
+              <p className="text-[10px] text-slate-500 mt-1 leading-snug">
+                A reminder of where to save a manual export. It grants no access — automatic
+                backup is set up under Backup &amp; Restore.
+              </p>
             </div>
 
             <button

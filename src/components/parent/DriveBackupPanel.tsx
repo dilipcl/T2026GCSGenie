@@ -20,6 +20,7 @@ import {
   mirrorStatus,
 } from '../../services/attachmentMirrorService';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { db } from '../../db';
 import { formatLogTimestamp } from '../../utils/date';
 import { FolderOpen, CloudUpload, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 
@@ -37,12 +38,19 @@ export const DriveBackupPanel: React.FC = () => {
   const [state, setState] = useState<DriveSyncState | null>(null);
   const [caps, setCaps] = useState<DriveCapability | null>(null);
   const [photos, setPhotos] = useState<MirrorStatus | null>(null);
+  /**
+   * The older "Backups folder (on this computer)" setting, which is a label and
+   * nothing more. Someone who fills it in has every reason to think backups are
+   * configured, so this panel has to say plainly that they are not.
+   */
+  const [legacyPath, setLegacyPath] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
 
   const reload = useCallback(async () => {
     setState(await readState());
     setCaps(await capability());
     setPhotos(await mirrorStatus());
+    setLegacyPath((await db.parentSettings.get('active_settings'))?.googleDriveBackupPath);
   }, []);
 
   useEffect(() => {
@@ -112,6 +120,18 @@ export const DriveBackupPanel: React.FC = () => {
 
         {!connected && caps.reason && (
           <p className="text-amber-400 leading-snug">{caps.reason}</p>
+        )}
+
+        {/* Two controls have said "backup folder" since this panel was added,
+            and only one of them grants write access. Naming the difference is
+            cheaper than letting someone believe they are covered. */}
+        {!connected && !!legacyPath?.trim() && (
+          <p className="text-amber-400 leading-snug border-t border-slate-800 pt-1.5 mt-1.5">
+            You have a folder <em>path</em> saved further up this page
+            (<span className="font-mono text-slate-400">{legacyPath}</span>), but that field is
+            only a label — it tells you where to file a download and gives Genie no access. Use
+            the button below to grant access to the same folder.
+          </p>
         )}
 
         {connected && caps.active === 'FOLDER_HANDLE' && state.folderName && (
