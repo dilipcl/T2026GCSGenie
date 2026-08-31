@@ -1,3 +1,4 @@
+import { formatPastDate, formatFriendlyDate, addDaysISO, todayISO } from '../utils/date';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   currentWeek,
@@ -134,5 +135,29 @@ describe('currentWeek', () => {
     expect(week.start).toBe(MONDAY);
     expect(week.end).toBe(SUNDAY);
     expect(week.weekday).toBe(5);
+  });
+});
+
+describe('formatPastDate', () => {
+  it('never phrases a past date as a deadline', () => {
+    // Seen live: an activity day heading read "OVERDUE BY 1 DAY - 21 CHANGES",
+    // which says something alarming and untrue about work done on Sunday.
+    const yesterday = addDaysISO(-1);
+    expect(formatFriendlyDate(yesterday)).toBe('Overdue by 1 day');
+    expect(formatPastDate(yesterday)).toBe('Yesterday');
+  });
+
+  it('says Today for today', () => {
+    expect(formatPastDate(todayISO())).toBe('Today');
+  });
+
+  it('uses the weekday within the last week', () => {
+    expect(formatPastDate(addDaysISO(-3))).toMatch(
+      /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/
+    );
+  });
+
+  it('falls back to an absolute date further back', () => {
+    expect(formatPastDate(addDaysISO(-30))).toMatch(/\d{1,2} \w{3}$/);
   });
 });

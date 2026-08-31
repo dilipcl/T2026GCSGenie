@@ -114,8 +114,39 @@ export async function logFieldChanges<T extends Record<string, unknown>>(params:
   /** Human labels for the field names, where the key is not self-explanatory. */
   labels?: Partial<Record<keyof T, string>>;
 }): Promise<number> {
-  const asText = (value: unknown) =>
-    value === undefined || value === null || value === '' ? '(blank)' : String(value);
+  /**
+   * Turns a field value into something a person can read.
+   *
+   * `String(value)` is fine for a number or a string and useless for anything
+   * else: a list of WhatsApp contacts came out as
+   * "[object Object],[object Object]", which told a parent reading the activity
+   * feed precisely nothing about what had changed. Arrays and objects are
+   * summarised instead - a count for a list, a name or a JSON form for an
+   * object - so the row at least says how many and of what.
+   */
+  const asText = (value: unknown): string => {
+    if (value === undefined || value === null || value === '') return '(blank)';
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '(none)';
+      const readable = value.every((v) => typeof v !== 'object' || v === null);
+      if (readable) return value.join(', ');
+      return `${value.length} item${value.length === 1 ? '' : 's'}`;
+    }
+
+    if (typeof value === 'object') {
+      const named = value as { name?: string; title?: string; label?: string };
+      const label = named.name || named.title || named.label;
+      if (label) return String(label);
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return '(unreadable)';
+      }
+    }
+
+    return String(value);
+  };
 
   let written = 0;
   for (const key of Object.keys(params.after) as (keyof T)[]) {

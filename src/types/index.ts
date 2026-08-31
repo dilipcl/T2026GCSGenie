@@ -809,7 +809,18 @@ export interface PendingStep {
   label: string;
   /** Who has to act. */
   waitingOn: UserRole;
-  /** Set once it happened, so history reads correctly after the fact. */
+  /**
+   * Whether the outstanding step has happened.
+   *
+   * Separate from `resolvedAt` on purpose. Resolution was originally inferred
+   * from the presence of a timestamp, which silently equated "we do not know
+   * when this was approved" with "this is not approved yet" - so a goal locked
+   * without a `lockedAt` value rendered as "Approved and locked" while still
+   * being counted under "things still waiting". Knowing that something happened
+   * and knowing when are different facts, and the feed needs the first one.
+   */
+  resolved: boolean;
+  /** When it happened, where that is known. */
   resolvedAt?: number;
   resolvedNote?: string;
 }

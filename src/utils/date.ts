@@ -130,3 +130,31 @@ export function formatLogTimestamp(epochMs: number): string {
   });
   return `${date}, ${time}`;
 }
+
+/**
+ * A past date, phrased as history rather than as a deadline.
+ *
+ * `formatFriendlyDate` exists for due dates, where "Overdue by 1 day" is
+ * exactly right. Pointed at an activity feed it produced day headings reading
+ * "OVERDUE BY 1 DAY - 21 CHANGES", which says something alarming and untrue
+ * about work that simply happened on Sunday.
+ *
+ * Anything in the future falls through to the same absolute format; a feed
+ * should not contain future entries, and if one appears it is better shown as a
+ * date than dressed up as a deadline.
+ */
+export function formatPastDate(iso: string): string {
+  const diff = daysUntil(iso);
+
+  if (diff === 0) return 'Today';
+  if (diff === -1) return 'Yesterday';
+  if (diff < 0 && diff >= -6) {
+    return parseISODate(iso).toLocaleDateString('en-GB', { weekday: 'long' });
+  }
+
+  return parseISODate(iso).toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}

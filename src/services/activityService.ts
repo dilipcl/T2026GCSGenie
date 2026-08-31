@@ -320,12 +320,14 @@ async function derivePending(
           kind: 'GOAL_APPROVAL',
           label: 'Waiting for a parent to approve',
           waitingOn: 'PARENT',
+          resolved: false,
         };
       }
       return {
         kind: 'GOAL_APPROVAL',
         label: 'Approved and locked',
         waitingOn: 'PARENT',
+        resolved: true,
         resolvedAt: goal.lockedAt,
         resolvedNote:
           goal.status === 'APPROVED_LOCKED'
@@ -342,6 +344,7 @@ async function derivePending(
         kind: 'REWARD_APPROVAL',
         label: 'Waiting for a parent to approve',
         waitingOn: 'PARENT',
+        resolved: false,
       };
     }
   }
@@ -356,6 +359,7 @@ async function derivePending(
       kind: 'CONFIRMATION',
       label: 'Not signed off yet',
       waitingOn: change.actor,
+      resolved: false,
     };
   }
 
@@ -527,7 +531,12 @@ export async function buildActivityFeed(
       visibility: 'EVERYONE',
       pending: change.confirmedAt
         ? undefined
-        : { kind: 'CONFIRMATION', label: 'Not signed off yet', waitingOn: change.actor },
+        : {
+            kind: 'CONFIRMATION',
+            label: 'Not signed off yet',
+            waitingOn: change.actor,
+            resolved: false,
+          },
       confirmedAt: change.confirmedAt,
       reportedAt: change.reportedAt,
       source: 'CHANGE_LOG',
@@ -574,7 +583,7 @@ export function applyFilter(items: ActivityItem[], filter: ActivityFilter): Acti
       (!item.subjectId || !filter.subjectIds.includes(item.subjectId))
     )
       return false;
-    if (filter.pendingOnly && (!item.pending || item.pending.resolvedAt)) return false;
+    if (filter.pendingOnly && (!item.pending || item.pending.resolved)) return false;
     if (search) {
       const haystack = `${item.summary} ${item.detail ?? ''} ${item.actorLabel}`.toLowerCase();
       if (!haystack.includes(search)) return false;
@@ -608,5 +617,5 @@ export function activeDates(items: ActivityItem[]): string[] {
 
 /** Rows still waiting on somebody, for the "needs attention" strip. */
 export function outstanding(items: ActivityItem[]): ActivityItem[] {
-  return items.filter((i) => i.pending && !i.pending.resolvedAt);
+  return items.filter((i) => i.pending && !i.pending.resolved);
 }

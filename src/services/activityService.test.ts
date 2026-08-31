@@ -6,6 +6,7 @@ import { recordChange } from './changeLogService';
 import { nameDevice, people } from './deviceRegistryService';
 import { buildActivityFeed, groupByDay, outstanding } from './activityService';
 import { getDeviceId } from '../utils/device';
+import { Goal } from '../types';
 
 /**
  * These tests are written against the session that exposed the gap.
@@ -499,5 +500,60 @@ describe('one person, several devices', () => {
     const feed = await buildActivityFeed('PARENT');
     expect(feed.items[0].actorPerson).toBeUndefined();
     expect(feed.items[0].actorLabel).toContain('Student device');
+  });
+});
+
+describe('what counts as still waiting', () => {
+  async function goalWith(status: Goal['status'], lockedAt?: number) {
+    await db.goals.add({
+      id: 'goal_maths',
+      title: 'Achieve Grade 9 in Edexcel Mathematics',
+      category: 'ACADEMIC_GRADE_9',
+      smartSpecific: '', smartMeasurable: '', smartAchievable: '',
+      smartRealistic: '', smartTimeBound: '',
+      status,
+      ragStatus: 'GREEN',
+      weeklyHoursRequired: 4,
+      lockedAt,
+      createdAt: Date.now(),
+    });
+
+    await logAuditEvent({
+      user: 'STUDENT',
+      action: 'UPDATE',
+      entity: 'Goal',
+      entityId: 'goal_maths',
+      fieldChanged: 'status',
+      oldValue: 'DRAFT',
+      newValue: 'PENDING_DISCUSSION',
+    });
+  }
+
+  it('does not count an approved goal as waiting when lockedAt is missing', async () => {
+    // Seen live: the row read "Approved and locked" and was still listed under
+    // "things still waiting", because resolution was inferred from a timestamp
+    // that had never been set.
+    await goalWith('APPROVED_LOCKED', undefined);
+
+    const feed = await buildActivityFeed('PARENT');
+
+    expect(feed.items[0].pending?.resolved).toBe(true);
+    expect(outstanding(feed.items)).toHaveLength(0);
+  });
+
+  it('still counts a goal genuinely awaiting approval', async () => {
+    await goalWith('PENDING_DISCUSSION');
+
+    const feed = await buildActivityFeed('PARENT');
+
+    expect(feed.items[0].pending?.resolved).toBe(false);
+    expect(outstanding(feed.items)).toHaveLength(1);
+  });
+
+  it('excludes resolved rows from the pendingOnly filter', async () => {
+    await goalWith('APPROVED_LOCKED', undefined);
+
+    const onlyPending = await buildActivityFeed('PARENT', { pendingOnly: true });
+    expect(onlyPending.items).toHaveLength(0);
   });
 });

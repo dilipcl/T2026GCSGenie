@@ -15,7 +15,7 @@ import {
 import { CATEGORY_ICON, CATEGORY_LABEL } from '../../services/changeLogService';
 import { nameDevice, needsNaming, people, Person } from '../../services/deviceRegistryService';
 import { getDeviceId } from '../../utils/device';
-import { formatFriendlyDate } from '../../utils/date';
+import { formatPastDate } from '../../utils/date';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import {
   Search,
@@ -157,7 +157,7 @@ const AttachmentLinks: React.FC<{ item: ActivityItem }> = ({ item }) => {
 const PendingBadge: React.FC<{ item: ActivityItem }> = ({ item }) => {
   if (!item.pending) return null;
 
-  if (item.pending.resolvedAt) {
+  if (item.pending.resolved) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-bold text-emerald-400">
         <ShieldCheck className="w-3 h-3" />
@@ -440,7 +440,7 @@ export const ActivityView: React.FC<{ currentRole: UserRole }> = ({ currentRole 
               setFilter((f) => ({ ...f, onDate: f.onDate === day ? undefined : day }))
             }
           >
-            {formatFriendlyDate(day)}
+            {formatPastDate(day)}
           </Chip>
         ))}
       </div>
@@ -546,7 +546,7 @@ export const ActivityView: React.FC<{ currentRole: UserRole }> = ({ currentRole 
         days.map((day) => (
           <section key={day.date} className="mb-5">
             <h2 className="text-xs font-black text-slate-400 uppercase tracking-wide mb-1 sticky top-0 bg-slate-950/90 backdrop-blur py-1.5">
-              {formatFriendlyDate(day.date)}
+              {formatPastDate(day.date)}
               <span className="text-slate-600 font-bold ml-2">
                 {day.items.length} change{day.items.length === 1 ? '' : 's'}
               </span>
