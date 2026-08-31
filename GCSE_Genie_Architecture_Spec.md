@@ -5,6 +5,50 @@
 
 ---
 
+
+## Activity, comments and automatic backup (v12-v14, September 2026)
+
+**Two logs, merged at read time.** `auditLogs` is complete and hash-chained;
+`changeLog` is human-readable but only covers what passed a confirmation sheet.
+`activityService.buildActivityFeed` merges them - audit as the backbone, changeLog
+supplying wording and sign-off state. Correlation is by `changeLog.entityId`
+where present, falling back to a tight time-and-category window for rows written
+before that field existed. **Nothing writes to `auditLogs`**; rewriting a chained
+log to read more nicely destroys the only property it has.
+
+**Identity is a device, grouped by a person.** `deviceRegistry` (v12) maps the
+`deviceId` already on every audit row to a label and an optional `ownerName`.
+Names therefore apply retroactively. `toJSON(vars)`-style enumeration caveat
+aside, the model is deliberately honest: it identifies a device, never a human.
+
+**Drive access is device-local.** `driveSync` (v13) is in `unsyncedTables` - a
+folder handle is a capability granted to one browser profile and an OAuth token
+is a credential, neither of which means anything on another device. The handle
+itself lives outside Dexie entirely, in `folderHandleStore`, because it is a live
+object that structured-clone rejects everywhere except the browsers that
+implement the API.
+
+**Backups run at app open**, never on a timer: a backgrounded phone tab makes
+`setInterval` a promise the browser will not keep. Retention keeps the newest 30,
+prunes only after a successful write, matches an anchored filename pattern, and
+excludes the file just written - clock skew across devices makes name-sorting
+alone unsafe.
+
+**OAuth is Google Identity Services, not an authorization-code flow.** Google's
+token endpoint requires `client_secret` for a Web application client, and the
+client types permitting PKCE without one cannot legitimately be driven from a web
+page. The consequence is architectural: **no refresh token**, so mobile backup is
+automatic only while a token can be obtained.
+
+**Comments attach to the ActivityItem id** (v14), not to the record. A task may be
+deleted; the question asked about the moment it completed is still fair and still
+has an answer.
+
+**Non-exam subjects.** `general` and `revision` keep `subjectId` non-null so no
+analysis has to interpret a blank. They are excluded from RAG health - with no
+topics the weighted score would default to a meaningful-looking number that moves
+only with homework - and included in workload, because the time is real.
+
 ## 1. Executive Summary & System Philosophy
 
 **GCSE Genie** is a private, offline-first, zero-administrative-overhead academic organiser and performance acceleration platform. It is engineered specifically for Tejas Dilip as he embarks on his two-year GCSE journey (Years 10–11) at Guildford County School (GCS), targeting **Grade 9s** across all six core and elective subjects.

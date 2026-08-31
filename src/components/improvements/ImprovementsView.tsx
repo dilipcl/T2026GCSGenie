@@ -62,7 +62,7 @@ const FileIdeaForm: React.FC<{ role: UserRole; onFiled: () => void }> = ({ role,
         className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-indigo-600 text-white font-bold text-sm mb-4"
       >
         <Plus className="w-4 h-4" />
-        Suggest an improvement
+        Report a bug or suggest an improvement
       </button>
     );
   }
@@ -291,7 +291,7 @@ export const ImprovementsView: React.FC<{ currentRole: UserRole }> = ({ currentR
   return (
     <div className="pb-8">
       <header className="mb-4">
-        <h1 className="text-2xl font-black text-white">Improvements</h1>
+        <h1 className="text-2xl font-black text-white">Report Bugs / Suggest Improvements</h1>
         <p className="text-sm text-slate-400 mt-0.5">
           Anything about this app that is broken, confusing or missing.
         </p>

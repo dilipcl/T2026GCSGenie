@@ -75,7 +75,7 @@ export const Navigation: React.FC<NavigationProps> = ({
      * has to be reachable from anywhere or it only ever gets used when somebody
      * remembers to go looking - which is never.
      */
-    { id: 'IMPROVEMENTS', label: 'Improvements', shortLabel: 'Ideas', icon: Lightbulb, tier: 'weekly' },
+    { id: 'IMPROVEMENTS', label: 'Report Bugs / Suggest Improvements', shortLabel: 'Report', icon: Lightbulb, tier: 'weekly' },
     ...(currentRole === 'PARENT'
       ? [
           {

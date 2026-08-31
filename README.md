@@ -20,7 +20,7 @@ The interface is organised by **how often you actually use something**, not by h
 | Tier | Sections | Typical use |
 | :--- | :--- | :--- |
 | **Every day** | Home · My Work · Plan · Fix My Mistakes · Updates | Check what's due, log the day, tick things off, sign changes off |
-| **Weekly** | Proof Log · Rewards · Timetable · Subjects & Goals · Help & Careers | Logging marked work, planning, review, spending XP |
+| **Weekly** | Proof Log · Rewards · Timetable · Subjects & Goals · Help & Careers · Report Bugs | Logging marked work, planning, review, spending XP, filing friction |
 | **Parent only** | Parent Portal | Audits, sanctions, backups, catalogue and profile setup |
 
 On mobile the daily sections are the bottom bar; the rest live behind **More**. On desktop they're separated by a `WEEKLY` divider.
@@ -158,6 +158,86 @@ That sheet is a reflex guard, not a review. The review lives on the **Updates** 
 3. offers to forward the batch, if the family has switched that on.
 
 Each entry keeps both the time it happened and the time it was confirmed. Nothing reaches the family until it has been re-confirmed.
+
+### All activity - every change, by whom
+
+The Updates tab has two panes. **Sign off & send** is the original screen: read
+back what you did, put it on the record, forward it to the family. **All
+activity** is the complete record - every insert, update and delete.
+
+The two exist because they answer different questions. `changeLog` is written
+only by the confirmation sheet, so it covers the eight things a person
+deliberately says yes to; the audit log covers everything. `activityService`
+merges them at read time, preferring the human sentence where one exists. Neither
+log is rewritten - the audit log is hash-chained, and editing it to read more
+nicely would destroy the property it exists for.
+
+Rows say **who**, by person rather than role. Naming a device applies to every
+entry it has ever written, and giving two devices the same person groups them, so
+"what has Tejas changed this week" has an answer even though he uses a phone and
+a laptop. The honest limit is stated in the UI: this names a device, not a human.
+
+Filters: day, person, action, area, subject, free text, only-unfinished, and
+needs-review. Sanctions and passphrase changes are parent-only; every content
+change is shared, and the student is told how many rows are hidden rather than
+being shown a quietly shorter list.
+
+### Comments, and what still needs an answer
+
+Any row takes a comment. A **remark** flags nothing. A **question** flags the row
+until somebody answers it, so "Physics session completed" can carry "did you add
+the Notebook link and a follow-up task?" against the thing it is about, instead
+of at dinner where nobody records the answer.
+
+Answering asks what was actually done - "added, and made a follow-up for Friday"
+and "not needed, it was classwork" are different answers a bare tick would lose.
+Either person can answer; the student is usually the one who did the thing.
+
+### Automatic backups
+
+Two transports, because neither covers the whole family.
+
+**Folder handle (desktop).** Parent Portal → Backup & Restore → *Choose the
+backup folder*. The browser hands back a directory handle that survives restarts
+and the app writes straight into it; Drive for Desktop uploads within seconds. No
+Google account, no token, nothing over the network. Chromium desktop only.
+
+**Drive API (phones).** No mobile browser has the File System Access API, so a
+phone uploads through the Drive API. Needs `VITE_DRIVE_OAUTH_CLIENT_ID`; without
+it the panel says so rather than offering a button that cannot work. Google
+Identity Services issues an access token lasting about an hour with **no refresh
+token**, so this means *automatic while a token can be obtained*, not unattended
+for weeks.
+
+Backups run **when the app is opened** and a day has passed - not on a timer. A
+backgrounded phone tab makes `setInterval` a promise the browser will not keep,
+and the moment the app is definitely alive is the moment somebody opens it. **If
+nobody opens the app, no backup is taken.** There is no server.
+
+The newest 30 are kept. Pruning runs only after a successful write, matches an
+anchored filename pattern so it can never remove a file Genie did not create, and
+never deletes the backup just written - names sort chronologically, so a device
+with a fast clock could otherwise push a fresh backup out of the keep window.
+
+Proof photos mirror alongside each backup. This matters: the JSON export cannot
+carry a blob, so before this every restore silently lost every photo. The folder
+handle saves the file but never learns the id Drive assigns, so only the API
+transport produces a link - the feed shows three states, not two.
+
+### Data quality
+
+Parent Portal → Data quality reports what would weaken an analysis, with the
+consequence beside it so a person can decide whether to care. Auto-fix covers
+only what cannot be wrong - bucket defaults and title formatting. Estimates, goal
+links and subject attribution are left alone on purpose: a plausible guess is
+indistinguishable from a real value the moment it is saved.
+
+### Report Bugs / Suggest Improvements
+
+Somewhere to file friction while it is still specific. Anyone files; only a
+parent sets a status, so *Done* means a decision was made. Filed items appear in
+the activity feed like anything else, because an idea nobody can see is the same
+as no idea.
 
 ### The Drive log
 
@@ -481,8 +561,12 @@ which rows were rejected and why.
 
 ## Backups
 
-**Parent Portal → Export everything** writes a JSON bundle covering every table, including the proof
-log and its photos. *Export without photos* produces a much smaller file for quick copies.
+**Automatic backup** is set up under Parent Portal → Backup & Restore and is the path to prefer -
+see *Automatic backups* above. **Export everything** remains for a manual copy: it writes a JSON
+bundle covering every table. *Export without photos* produces a much smaller file.
+
+> The JSON cannot carry photos - that is what `attachmentsOmitted` means. Mirror them to Drive from
+> the same panel, or a restore will bring back every record and none of the evidence.
 
 The export walks the live schema rather than a hand-written table list, so a newly added table cannot
 be silently omitted — which is exactly how every key date and exam milestone used to be destroyed on

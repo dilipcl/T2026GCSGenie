@@ -1,5 +1,82 @@
 # Changelog
 
+## September 2026 - Every change is visible, and the backups run themselves
+
+The Updates tab reported five kinds of thing out of the twenty-odd that happen.
+It read `changeLog`, which is only written by the confirmation sheet, so Tejas's
+first real session - four tasks and three syllabus topics deleted, two grade
+targets revised downwards - produced five log lines that mentioned none of it.
+The tab was not wrong; it was reporting on a smaller thing than anyone believed.
+
+**All activity.** `activityService` merges the two logs at read time. The
+hash-chained audit log is the backbone because it is the complete one;
+`changeLog` supplies human wording and sign-off state where it has them. Neither
+log is rewritten - editing the chain to read more nicely would destroy the
+property it exists for. Filters by day, person, action, area, subject and free
+text. Sanctions and passphrase changes stay parent-only; every content change is
+shared.
+
+**Who did it, not which role.** A device can be named, and several devices group
+under one person - a person routinely uses more than one, and this family's data
+already had one human spread across two device ids and two roles. Names apply
+retroactively, because `deviceId` was already on every historic row.
+
+**Comments, and what still needs an answer.** The feed says what happened; the
+next question is usually a follow-up. "Physics session completed" prompts "did
+you add the Notebook link, and a follow-up task?" - and that conversation used to
+happen at dinner, detached from the thing it was about, with no record of whether
+it was ever answered. A comment is either a remark or a question; only a question
+flags the row, and resolving asks what was actually done rather than just ticking.
+
+**Backups that happen without anyone remembering.** Two transports, because
+neither covers the whole family: a File System Access folder handle on desktop,
+which needs no Google account at all, and the Drive API for phones, which have no
+such capability. The newest 30 are kept. Pruning runs only after a successful
+write, matches an anchored filename pattern so it can never touch a file Genie
+did not create, and never deletes the backup just written.
+
+**Proof photos survive a restore.** `exportDatabaseToJSON` cannot serialise a
+blob, so every backup ever taken set `attachmentsOmitted` and every restore would
+have dropped the photos silently. They now mirror to Drive alongside each backup.
+The transports are not equivalent and the UI says so: the folder handle saves the
+file but never learns the id Drive assigns, so only the API produces a link.
+
+**Data quality, measured against real defects.** Not hypotheticals - 7 of 8 tasks
+had no `bucket`, 6 had no estimate, and a check-in logged 30 minutes against no
+subject at all. Quick Add now always sets a bucket and normalises titles; study
+minutes fall back to General. Auto-fix covers only what cannot be wrong;
+estimates and goal links need a person, because a plausible guess is
+indistinguishable from a real value once it is saved.
+
+**Work on days when school does not run.** `general` and `revision` are real
+subjects, excluded from RAG health but counted in workload, so `subjectId` is
+never null and no analysis has to decide what a blank means. The suggestion
+ladder falls through the current lesson, the last task, then General - and checks
+that school actually ran first, because a bank holiday still has a Monday
+timetable.
+
+**Report Bugs / Suggest Improvements.** Somewhere to file friction at the moment
+it happens. Anyone files; only a parent sets a status.
+
+### Bugs this found
+
+Walking the deployed app against real data found six defects that the tests, as
+written, could not have caught:
+
+- A goal approved without a `lockedAt` value rendered as "Approved and locked"
+  while still counted under "things still waiting". Resolution was inferred from
+  a timestamp, which equated "we do not know when" with "it has not happened".
+- Day headings read "OVERDUE BY 1 DAY - 21 CHANGES". `formatFriendlyDate` is for
+  due dates; pointed at history it says something alarming and untrue.
+- A WhatsApp contact list logged as `[object Object],[object Object]`.
+- Quick Add pre-filled a subject from the timetable on a bank holiday, and
+  claimed the lesson was "happening now" six hours after the last one ended.
+- `suggestedSubjectId` called `orderBy('createdAt')`, which is not indexed -
+  a `SchemaError` on every Quick Add open.
+- Two controls both called "the backup folder", only one of which grants access,
+  so filling in the older one looked like being set up while nothing was written.
+
+
 ## August 2026 - Updates get signed off, logged to Drive, and sent to the family
 
 Three related changes, and the bug that made the first one look broken.
