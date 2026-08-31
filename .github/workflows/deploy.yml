@@ -44,25 +44,14 @@ jobs:
           # Falls back to a secret of the same name. `vars.` cannot see a secret,
           # and a value saved in the wrong tab resolves to an empty string with
           # no warning anywhere - which cost an afternoon once already.
+          #
+          # This one lives under Settings -> Environments -> github-pages rather
+          # than as a repository variable, which works because this job declares
+          # that environment. Worth knowing if it ever looks missing again:
+          # `toJSON(vars)` does NOT enumerate environment-scoped variables, so a
+          # dump of the context comes back empty while `vars.NAME` reads fine.
+          # Enumeration and direct access disagree; trust the direct read.
           VITE_DRIVE_OAUTH_CLIENT_ID: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID || secrets.VITE_DRIVE_OAUTH_CLIENT_ID }}
-
-      # Publishes what the build actually received, so a misconfigured value can
-      # be diagnosed by fetching a file rather than by reading Actions logs.
-      # Records presence and length only - never the value, which would defeat
-      # the masking if it ever did come from a secret.
-      - name: Record build provenance
-        run: |
-          NAMES=$(echo "$ALL_VARS" | jq -c 'keys' 2>/dev/null || echo '["unreadable"]')
-          printf '{"commit":"%s","builtAt":"%s","idLength":%s,"varNames":%s}\n' \
-            "$GITHUB_SHA" "$(date -u +%FT%TZ)" "${#RESOLVED}" "$NAMES" \
-            > dist/build-info.json
-          cat dist/build-info.json
-        env:
-          # Variable NAMES only, never values, and deliberately not the secrets
-          # context - dumping that is both risky and unnecessary, since a value
-          # in either tab already shows up in idLength.
-          ALL_VARS: ${{ toJSON(vars) }}
-          RESOLVED: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID || secrets.VITE_DRIVE_OAUTH_CLIENT_ID }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
