@@ -219,6 +219,13 @@ anchored filename pattern so it can never remove a file Genie did not create, an
 never deletes the backup just written - names sort chronologically, so a device
 with a fast clock could otherwise push a fresh backup out of the keep window.
 
+**Backups land in two places, deliberately.** The laptop writes into whichever folder its picker
+was pointed at - `_Genie-Backups\AutoBackups`. A phone cannot write there: Genie asks for
+`drive.file`, the narrowest Drive permission, which reaches only files the app itself created, so a
+folder made by hand in Drive is invisible to it however correct the link. The phone therefore uses
+its own `GCSE Genie Backups` folder. Both are in Drive, both are pruned to 30, and the alternative -
+widening the permission to the whole of Drive to solve a filing problem - is a poor trade.
+
 Proof photos mirror alongside each backup. This matters: the JSON export cannot
 carry a blob, so before this every restore silently lost every photo. The folder
 handle saves the file but never learns the id Drive assigns, so only the API

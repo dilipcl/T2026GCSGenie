@@ -246,8 +246,13 @@ export const DriveBackupPanel: React.FC = () => {
       {caps.oauthConfigured && !caps.folderHandleSupported && (
         <div className="mt-3 pt-3 border-t border-slate-800">
           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">
-            Upload into this Drive folder
+            Where this device uploads
           </label>
+          <p className="text-[10px] text-slate-500 mb-1.5 leading-snug">
+            This device backs up to Genie&rsquo;s own <span className="font-mono">GCSE Genie
+            Backups</span> folder, which is normal and nothing to fix — a phone cannot write into
+            the laptop&rsquo;s folder. Leave the box empty unless you have a folder Genie created.
+          </p>
           <input
             defaultValue={state.preferredFolderId ?? ''}
             placeholder="Paste a Drive folder link, or leave blank"
@@ -269,8 +274,8 @@ export const DriveBackupPanel: React.FC = () => {
             </p>
           ) : (
             <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
-              Leave blank and Genie uses its own folder. A folder you created by hand will usually
-              be unreachable — see the note that appears after the first upload.
+              Optional. A folder you made by hand in Drive will not work — Genie can only reach
+              folders it created itself.
             </p>
           )}
         </div>
