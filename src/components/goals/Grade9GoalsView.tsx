@@ -144,6 +144,8 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
       subject: goal.title,
       effect: `${goal.weeklyHoursRequired} hrs/week once a parent locks it`,
       category: 'GOAL',
+      entity: 'Goal',
+      entityId: goal.id,
       confirmLabel: 'Send it',
       summary: `Sent goal "${goal.title}" for approval (${goal.weeklyHoursRequired} hrs/week)`,
       run: async () => {

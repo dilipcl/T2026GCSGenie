@@ -8,6 +8,7 @@ import {
   Wrench,
   Gift,
   HelpCircle,
+  Lightbulb,
   Shield,
   ListTodo,
   CalendarDays,
@@ -29,6 +30,7 @@ export type NavTab =
   | 'REMEDIATIONS'
   | 'REWARDS'
   | 'GUIDANCE'
+  | 'IMPROVEMENTS'
   | 'PARENT';
 
 interface NavigationProps {
@@ -68,6 +70,12 @@ export const Navigation: React.FC<NavigationProps> = ({
     // Named for help first: the tab holds the only explanation of how the app
     // works, and "Careers" gave no reason to open it looking for that.
     { id: 'GUIDANCE', label: 'Help & Careers', shortLabel: 'Help', icon: HelpCircle, tier: 'weekly' },
+    /**
+     * Weekly, not daily. Filing an idea is not part of the daily loop, but it
+     * has to be reachable from anywhere or it only ever gets used when somebody
+     * remembers to go looking - which is never.
+     */
+    { id: 'IMPROVEMENTS', label: 'Improvements', shortLabel: 'Ideas', icon: Lightbulb, tier: 'weekly' },
     ...(currentRole === 'PARENT'
       ? [
           {

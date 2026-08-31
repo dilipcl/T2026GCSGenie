@@ -68,6 +68,8 @@ export const DueSoonCard: React.FC<DueSoonCardProps> = ({
       subject: task.title,
       effect: `+${task.xpValue} XP`,
       category: 'HOMEWORK',
+      entity: 'Task',
+      entityId: task.id,
       confirmLabel: 'Yes, done',
       summary: `Finished "${task.title}" (+${task.xpValue} XP)`,
       run: async () => {

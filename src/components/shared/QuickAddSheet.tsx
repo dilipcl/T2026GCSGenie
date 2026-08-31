@@ -10,13 +10,15 @@ import {
   SubjectId,
   WeekType,
   DayOfWeek,
+  isNonExamSubject,
 } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent, logFieldChanges } from '../../services/auditService';
 import { todayISO, addDaysISO, formatFriendlyDate } from '../../utils/date';
-import { currentSubjectId } from '../../services/timetableContext';
+import { suggestedSubjectId, isSchoolInSession } from '../../services/timetableContext';
 import { X, ListTodo, CalendarDays, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { newId } from '../../utils/id';
+import { normaliseTitle, withTaskDefaults } from '../../services/dataQualityService';
 import { useFeedback } from './FeedbackProvider';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 
@@ -88,6 +90,8 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState(addDaysISO(1));
   const [subjectId, setSubjectId] = useState<SubjectId | ''>('');
+  /** Drives the wording under the picker: a lesson-based guess vs a fallback. */
+  const [schoolInSession, setSchoolInSession] = useState(false);
   const [priority, setPriority] = useState<PriorityLevel>('MEDIUM');
   const [category, setCategory] = useState<MilestoneReminder['category']>('EXAM_MOCK');
   const [notes, setNotes] = useState('');
@@ -158,9 +162,14 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
        * Only ever a default: it fills the field and is one tap to change, and
        * it deliberately does nothing outside school hours rather than guessing.
        */
-      currentSubjectId(defaultWeek).then((subject) => {
-        if (subject) setSubjectId(subject);
-      });
+      /**
+       * Always resolves to something now. Before this, the ladder stopped at
+       * "the lesson happening now", so every weekend and every holiday opened
+       * a blank required field - which is how a bank-holiday task ends up
+       * filed under whichever subject was easiest to tap.
+       */
+      suggestedSubjectId(defaultWeek).then(setSubjectId);
+      isSchoolInSession(defaultWeek).then(setSchoolInSession);
       setPriority('MEDIUM');
       setCategory('EXAM_MOCK');
       setNotes('');
@@ -204,6 +213,8 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   if (!isOpen) return null;
 
   const subject = INITIAL_SUBJECTS.find((s) => s.id === subjectId);
+  const examSubjects = INITIAL_SUBJECTS.filter((s) => !isNonExamSubject(s.id));
+  const nonExamSubjects = INITIAL_SUBJECTS.filter((s) => isNonExamSubject(s.id));
   const dateChips = [
     { label: 'Today', value: todayISO() },
     { label: 'Tomorrow', value: addDaysISO(1) },
@@ -245,7 +256,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
     if (editing.kind === 'TASK') {
       const hours = estimatedHours.trim() === '' ? undefined : Number(estimatedHours);
       const fields = {
-        title: title.trim(),
+        title: normaliseTitle(title),
         subjectId: subjectId as SubjectId,
         description: notes.trim() || undefined,
         dueDate,
@@ -273,7 +284,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
 
     if (editing.kind === 'REMINDER') {
       const fields = {
-        title: title.trim(),
+        title: normaliseTitle(title),
         date: dueDate,
         category,
         subjectId: subjectId ? (subjectId as SubjectId) : undefined,
@@ -337,7 +348,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
         const task: Task = {
           id: newId('task'),
           subjectId: subjectId as SubjectId,
-          title: title.trim(),
+          title: normaliseTitle(title),
           description: notes.trim() || undefined,
           dueDate,
           priority,
@@ -351,6 +362,14 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
           xpValue: priority === 'HIGH' ? 60 : 50,
           completed: false,
           createdAt: Date.now(),
+          /**
+           * Always a real bucket, never undefined. The type has always said an
+           * unplanned task is "treated as LATER"; treating and being are not
+           * the same, and an undefined bucket cannot be grouped, counted or
+           * filtered - which is how seven of eight tasks became invisible to
+           * every question about planning.
+           */
+          ...withTaskDefaults({ bucket: undefined }),
         };
 
         await db.tasks.add(task);
@@ -364,7 +383,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
       } else if (mode === 'REMINDER') {
         const milestone: MilestoneReminder = {
           id: newId('mile'),
-          title: title.trim(),
+          title: normaliseTitle(title),
           date: dueDate,
           category,
           subjectId: subjectId ? (subjectId as SubjectId) : undefined,
@@ -499,7 +518,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
               )}
             </label>
             <div className="grid grid-cols-3 gap-1.5">
-              {INITIAL_SUBJECTS.map((sub) => (
+              {examSubjects.map((sub) => (
                 <button
                   type="button"
                   key={sub.id}
@@ -515,6 +534,36 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                 </button>
               ))}
             </div>
+
+            {/* The non-exam subjects sit apart so they read as a deliberate
+                choice rather than a tenth subject somebody forgot to grade. */}
+            {nonExamSubjects.length > 0 && (
+              <div className="grid grid-cols-2 gap-1.5 mt-1.5 pt-1.5 border-t border-slate-800">
+                {nonExamSubjects.map((sub) => (
+                  <button
+                    type="button"
+                    key={sub.id}
+                    onClick={() => setSubjectId(subjectId === sub.id ? '' : sub.id)}
+                    className={`flex items-center gap-1.5 px-2 py-2 rounded-xl border text-left transition-all ${
+                      subjectId === sub.id
+                        ? 'bg-indigo-600 border-indigo-400 text-white'
+                        : 'bg-slate-800/60 border-slate-700/70 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    <span className="text-base leading-none">{sub.icon}</span>
+                    <span className="text-[10px] font-bold leading-tight">{sub.shortName}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {mode === 'TASK' && (
+              <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
+                {schoolInSession
+                  ? 'Pre-filled from the lesson happening now — tap to change.'
+                  : 'No lesson running, so this is a guess from your last task. Use General or Revision for work that is not aimed at one subject.'}
+              </p>
+            )}
           </div>
 
           <div>

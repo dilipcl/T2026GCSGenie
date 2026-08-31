@@ -51,6 +51,14 @@ export const SUBJECT_DRIVE_FOLDERS: Record<SubjectId, string> = {
   history: folder('1EBjHahVGZe2TodVSmk7dIOsE72MaGYGB'),
   computer_science: folder('1YoaO1QRaNlGMV2TPNNx_D405ukv5ZRq9'),
   art: folder('1tLTzoBVJO58d9MKjstN_RRYhPxJtUP2x'),
+
+  /**
+   * The two non-exam subjects share the cross-subject folder. They have no
+   * syllabus of their own, so a Notes/Papers/Practice trio would be three empty
+   * folders per subject forever.
+   */
+  general: SHARED_RESOURCES_FOLDER_URL,
+  revision: SHARED_RESOURCES_FOLDER_URL,
 };
 
 /**

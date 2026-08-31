@@ -54,6 +54,13 @@ export interface ChangeRequest {
   summary: string;
   detail?: string;
   actor?: UserRole;
+  /**
+   * What the change is about. Supplying these lets the activity feed pair this
+   * entry with the audit row for the same write instead of guessing from the
+   * clock.
+   */
+  entity?: string;
+  entityId?: string;
   confirmLabel?: string;
   tone?: 'normal' | 'danger';
   /** Performs the change. Only ever called after a confirmation. */
@@ -143,6 +150,8 @@ export const ChangeGuardProvider: React.FC<{ children: React.ReactNode }> = ({ c
         summary: request.summary,
         detail: request.detail,
         actor: request.actor,
+        entity: request.entity,
+        entityId: request.entityId,
       });
 
       close(true);

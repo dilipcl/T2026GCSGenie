@@ -125,6 +125,9 @@ export const CommitmentExceptionModal: React.FC<CommitmentExceptionModalProps> =
           : 'No change to this week',
         detail: `${STATUS_LABEL[status]} · ${REASON_LABEL[reason]}`,
         category: 'ATTENDANCE',
+        entity: 'CommitmentException',
+        // Known before the write: an exception is one row per commitment per day.
+        entityId: existing?.id ?? `${occasion.commitment.id}:${occasion.date}`,
         confirmLabel: existing ? 'Update it' : 'Log it',
         actor: currentRole === 'PARENT' ? 'PARENT' : 'STUDENT',
         summary:

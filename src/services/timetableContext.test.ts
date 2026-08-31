@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { db } from '../db';
 import { emptyDatabase } from '../test/harness';
-import { currentSubjectId } from './timetableContext';
+import { currentSubjectId, suggestedSubjectId, isSchoolInSession } from './timetableContext';
 import { TimetableEntry } from '../types';
 
 function freezeAt(iso: string) {
@@ -109,5 +109,44 @@ describe('currentSubjectId', () => {
   it('returns nothing on a day with no lessons', async () => {
     await db.timetableEntries.clear();
     expect(await currentSubjectId('ODD', at(10, 0))).toBeUndefined();
+  });
+});
+
+describe('suggestedSubjectId - the non-school ladder', () => {
+  it('uses the lesson in progress when school is running', async () => {
+    expect(await suggestedSubjectId('ODD', at(9, 20))).toBe('maths');
+  });
+
+  it('falls back to the most recent task outside school hours', async () => {
+    await db.tasks.add({
+      id: 'task_recent',
+      subjectId: 'history',
+      title: 'WW2 flashcards',
+      dueDate: '2026-09-01',
+      priority: 'MEDIUM',
+      isHomework: true,
+      isRemediation: false,
+      xpValue: 50,
+      completed: false,
+      createdAt: Date.now(),
+    });
+
+    expect(await suggestedSubjectId('ODD', at(7, 0))).toBe('history');
+  });
+
+  it('falls back to General when there is no lesson and no history', async () => {
+    // The bank-holiday case: 31 August 2026, nothing running, empty task table.
+    expect(await suggestedSubjectId('ODD', at(7, 0))).toBe('general');
+  });
+
+  it('never returns undefined, so the required field is never blank', async () => {
+    for (const hour of [6, 9, 13, 18, 23]) {
+      expect(await suggestedSubjectId('ODD', at(hour, 0))).toBeTruthy();
+    }
+  });
+
+  it('reports school as out of session outside lesson hours', async () => {
+    expect(await isSchoolInSession('ODD', at(9, 20))).toBe(true);
+    expect(await isSchoolInSession('ODD', at(7, 0))).toBe(false);
   });
 });

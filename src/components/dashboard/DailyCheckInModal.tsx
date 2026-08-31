@@ -208,11 +208,21 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       subject: parts.join(' · '),
       effect: `+${xp.total} XP`,
       category: 'CHECK_IN',
+      entity: 'DailyCheckIn',
+      entityId: pendingCheckInId,
       confirmLabel: 'Save it',
       summary: `Checked in (${parts.join(', ')}) — +${xp.total} XP`,
       run: () => applyCheckIn(),
     });
   };
+
+  /**
+   * Minted before the confirmation sheet opens rather than inside the write, so
+   * the change-log row can name the record it is about. Without that the
+   * activity feed has to pair the two logs by timestamp, which is guesswork the
+   * moment two things happen in the same second.
+   */
+  const pendingCheckInId = React.useMemo(() => newId('checkin'), [isOpen]);
 
   const applyCheckIn = async () => {
     setIsSubmitting(true);
@@ -224,7 +234,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       const isDailyBase = !hasCheckedInToday;
 
       // 1. Record Structured Check-in
-      const checkInId = newId('checkin');
+      const checkInId = pendingCheckInId;
       await db.checkIns.add({
         id: checkInId,
         date: todayStr,
@@ -234,7 +244,15 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
         focusRating: focus,
         completedHomeworkIds: completedTaskIds,
         completedRevisionMinutes: revisionMinutes,
-        studySubjectId: revisionMinutes > 0 ? studySubject || undefined : undefined,
+        /**
+         * Minutes without a subject are minutes that count towards nothing -
+         * on 30 August thirty of them went into the database attributed to no
+         * subject and no goal. `General` is a real subject that means "not
+         * aimed at one thing yet", so the field is never blank while there is
+         * time to attribute.
+         */
+        studySubjectId:
+          revisionMinutes > 0 ? ((studySubject || 'general') as SubjectId) : undefined,
         studyGoalId: revisionMinutes > 0 ? studyGoal || undefined : undefined,
         structuredNotes: {
           blockersAndQuestions: blockersAndQuestions.trim() || undefined,

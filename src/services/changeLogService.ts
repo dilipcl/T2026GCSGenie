@@ -45,6 +45,9 @@ export interface RecordChangeInput {
   summary: string;
   detail?: string;
   actor?: UserRole;
+  /** The record this is about, so the activity feed can pair it with its audit row. */
+  entity?: string;
+  entityId?: string;
 }
 
 /** Writes one confirmed change. Never throws into the caller's happy path. */
@@ -57,6 +60,8 @@ export async function recordChange(input: RecordChangeInput): Promise<ChangeLogE
     category: input.category,
     summary: input.summary.trim(),
     detail: input.detail?.trim() || undefined,
+    entity: input.entity,
+    entityId: input.entityId,
     reported: false,
   };
 

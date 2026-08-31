@@ -179,6 +179,36 @@ export const INITIAL_SUBJECTS: SubjectConfig[] = [
     examStructure: '60% Coursework Portfolio + 40% Externally Set Assignment (10-hour practical).',
     driveFolderUrl: SUBJECT_DRIVE_FOLDERS.art,
   },
+  {
+    id: 'general',
+    name: 'General / Independent study',
+    shortName: 'General',
+    examBoard: 'None',
+    targetGrade: 0,
+    currentEstimatedGrade: 0,
+    color: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+    icon: '\u{1F9E9}',
+    teacherName: 'Self-directed',
+    teacherNotes:
+      'Work that is real but belongs to no exam subject - reading, admin, catch-up, a weekend session that has not been aimed yet.',
+    examStructure: 'Not examined. Excluded from subject health and syllabus coverage; hours still count towards workload.',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.general,
+  },
+  {
+    id: 'revision',
+    name: 'Revision (mixed subjects)',
+    shortName: 'Revision',
+    examBoard: 'None',
+    targetGrade: 0,
+    currentEstimatedGrade: 0,
+    color: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
+    icon: '\u{1F501}',
+    teacherName: 'Self-directed',
+    teacherNotes:
+      'A session spanning several subjects at once, where forcing a single subject would misattribute the time.',
+    examStructure: 'Not examined. Excluded from subject health and syllabus coverage; hours still count towards workload.',
+    driveFolderUrl: SUBJECT_DRIVE_FOLDERS.revision,
+  },
 ];
 
 export const INITIAL_SYLLABUS_TOPICS: SyllabusTopic[] = [

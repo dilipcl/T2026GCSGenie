@@ -24,6 +24,8 @@ import { RewardManagerPanel } from './RewardManagerPanel';
 import { StudentProfilePanel } from './StudentProfilePanel';
 import { GuidanceLinksPanel } from './GuidanceLinksPanel';
 import { HandoverResetPanel } from './HandoverResetPanel';
+import { DriveBackupPanel } from './DriveBackupPanel';
+import { DataQualityPanel } from './DataQualityPanel';
 import { PortalSection } from './PortalSection';
 import { UserCog, ListChecks, Link as LinkIcon } from 'lucide-react';
 import { logAuditEvent } from '../../services/auditService';
@@ -841,6 +843,12 @@ export const ParentPortal: React.FC = () => {
           All data is stored on this device only. The export covers every table, including key
           dates and the proof log. The API key is deliberately left out of the file.
         </p>
+
+        {/* Automatic first, manual below. The manual button is the fallback for
+            a device that cannot connect, not the primary path any more. */}
+        <DriveBackupPanel />
+
+        <DataQualityPanel />
 
         <div className="mb-4 p-3 bg-amber-950/30 border border-amber-500/40 rounded-xl text-xs text-amber-100 flex items-start gap-2">
           <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />

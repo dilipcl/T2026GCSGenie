@@ -34,6 +34,8 @@ export const ChoresCard: React.FC = () => {
       subject: item.chore.title,
       effect: item.done ? `−${item.chore.xpValue} XP` : `+${item.chore.xpValue} XP`,
       category: 'CHORE',
+      entity: 'Chore',
+      entityId: item.chore.id,
       tone: item.done ? 'danger' : 'normal',
       confirmLabel: item.done ? 'Undo it' : 'Yes, done',
       summary: item.done

@@ -15,7 +15,31 @@ export type SubjectId =
   | 'physics'
   | 'history'
   | 'computer_science'
-  | 'art';
+  | 'art'
+  | 'general'
+  | 'revision';
+
+/**
+ * Subjects that exist so a task always has somewhere to go, not because they
+ * are examined.
+ *
+ * Work happens on weekends, in half term and on bank holidays, and before these
+ * existed the only way to log it was to attribute it to a real subject or not
+ * log it at all - so Tejas picked something arbitrary on 30 August and the data
+ * inherited a lie. Making `subjectId` optional would have been the smaller
+ * change and the worse one: every analysis over the task table would then have
+ * to decide what a null means, and they would not all decide the same way.
+ *
+ * These carry no exam board and no target grade, so they are excluded from RAG
+ * health and syllabus coverage - a subject with nothing to master would sit at
+ * a permanent RED and drag the dashboard down. They still count towards
+ * workload and goal hours, because the time is real either way.
+ */
+export const NON_EXAM_SUBJECTS: readonly SubjectId[] = ['general', 'revision'] as const;
+
+export function isNonExamSubject(id: SubjectId | undefined | null): boolean {
+  return !!id && NON_EXAM_SUBJECTS.includes(id);
+}
 
 export type UserRole = 'STUDENT' | 'PARENT' | 'SYSTEM_AGENT';
 export type RAGStatus = 'RED' | 'AMBER' | 'GREEN';
@@ -285,6 +309,32 @@ export interface ProofAttachment {
   blob: Blob;
   caption?: string;
   createdAt: number;
+  /**
+   * Where a copy of this file lives outside the database.
+   *
+   * The blob is the original and stays local so the app works offline. The
+   * mirror exists because a JSON backup cannot carry a blob - every export sets
+   * `attachmentsOmitted`, so restoring from one has always silently lost every
+   * photo in the proof log.
+   *
+   * Which fields get filled depends on the transport, and they are not
+   * equivalent:
+   *
+   *  - The desktop folder writes a real file into `_Genie-Backups/Attachments`,
+   *    which Drive for Desktop uploads. That preserves the file, but the app
+   *    never learns the id Drive assigns it, so there is no URL to link to -
+   *    only `driveMirroredAt` and `mirrorFileName` are set.
+   *  - The Drive API returns an id and a link, so `driveFileId` and
+   *    `driveViewUrl` are both available and the activity feed can hyperlink it.
+   *
+   * The UI must not imply a link exists when only the first ran.
+   */
+  driveMirroredAt?: number;
+  mirrorFileName?: string;
+  driveFileId?: string;
+  driveViewUrl?: string;
+  /** Why the last mirror attempt failed, so it is not retried silently forever. */
+  mirrorError?: string;
 }
 
 /**
@@ -412,6 +462,21 @@ export interface ChangeLogEntry {
   summary: string;
   /** Optional extra context shown under the summary in the digest. */
   detail?: string;
+  /**
+   * Which record this change was about.
+   *
+   * Added in September 2026 so the activity feed can pair a human sentence with
+   * the audit row describing the same write. The first version of that pairing
+   * matched on timestamp proximity alone, which is fine until two goals are
+   * submitted three seconds apart - at which point the two rows can swap
+   * wording and the log quietly attributes an action to the wrong record.
+   *
+   * Optional because rows written before this existed do not have it; those
+   * fall back to the time-and-category match, which is why that path still
+   * exists rather than being deleted as dead code.
+   */
+  entity?: string;
+  entityId?: string;
   /**
    * When it was re-confirmed on the Updates tab.
    *
@@ -669,4 +734,244 @@ export interface FreeRevisionLink {
   description: string;
   url: string;
   type: 'PAST_PAPERS' | 'VIDEO_TUTORIALS' | 'INTERACTIVE' | 'SUMMARY_NOTES';
+}
+
+// ============================================================================
+// ACTIVITY, DEVICES AND IMPROVEMENTS (v3 - September 2026)
+// ============================================================================
+
+/**
+ * A friendly name for one browser profile.
+ *
+ * The audit log has always recorded a `deviceId` and a `UserRole`, and neither
+ * one names a person. Role gets you as far as "a parent did this", which stops
+ * being enough the moment two parents use the app; deviceId is a uuid nobody
+ * can read. Naming the device closes the gap without asking the family to keep
+ * separate cloud logins, and - because deviceId is already on every historic
+ * row - it backfills onto the entries that already exist.
+ *
+ * The honest limitation, stated here so the UI can state it too: this labels a
+ * device, not a human. Two people sharing a laptop are indistinguishable, and
+ * the activity feed says "Dad's laptop", never "Dad".
+ */
+export interface DeviceRegistration {
+  /** Matches AuditLogEntry.deviceId. */
+  id: string;
+  /** "Tejas's phone", "Dad's laptop". */
+  label: string;
+  /**
+   * Which person normally uses this device.
+   *
+   * The layer above `label`, and the reason it exists: one person routinely uses
+   * several devices. Tejas on a phone and a laptop is two device ids and two
+   * labels, and without a name to group them "what has Tejas changed this week"
+   * has no answer - you would have to know which devices are his and tick them
+   * individually.
+   *
+   * It is also already true of the parent side. In this family's own data one
+   * person has written under two device ids *and* two roles, because the laptop
+   * was used in student mode for testing and parent mode afterwards.
+   *
+   * Optional: a device nobody has claimed still works, it just groups under its
+   * own label instead of a person.
+   */
+  ownerName?: string;
+  /** Who normally uses it. Used only to pick an icon and to sort. */
+  usualRole: UserRole;
+  firstSeenAt: number;
+  lastSeenAt: number;
+  /** Set when the label was inferred rather than typed, so the UI can prompt. */
+  isProvisional?: boolean;
+}
+
+/**
+ * How widely one activity row may be shown.
+ *
+ * Everything about schoolwork is visible to the whole family - that is the
+ * point of the feed. Security and discipline actions are not: a sanction that
+ * appears on Tejas's phone before anyone has spoken to him turns a conversation
+ * into an ambush, and a passphrase change is nobody's business but the parent
+ * who made it.
+ */
+export type ActivityVisibility = 'EVERYONE' | 'PARENT_ONLY';
+
+/**
+ * What still has to happen before a change is finished.
+ *
+ * A goal sent for approval is not a completed action, it is a request sitting
+ * in somebody's queue - and the old Updates tab rendered it identically to a
+ * ticked-off homework. Carrying the outstanding step on the row is what lets
+ * the feed say "waiting on a parent" instead of implying the thing is done.
+ */
+export interface PendingStep {
+  kind: 'GOAL_APPROVAL' | 'REWARD_APPROVAL' | 'CONFIRMATION' | 'PROOF_REQUIRED';
+  /** "Waiting for a parent to approve" */
+  label: string;
+  /** Who has to act. */
+  waitingOn: UserRole;
+  /** Set once it happened, so history reads correctly after the fact. */
+  resolvedAt?: number;
+  resolvedNote?: string;
+}
+
+/**
+ * A file attached to a record, and where it can be opened.
+ *
+ * Proof photos live in IndexedDB as blobs, which is why backups have always
+ * carried `attachmentsOmitted` - a JSON export cannot hold them, so restoring
+ * from one silently loses every photo. A Drive copy is the fix: the blob stays
+ * local for offline viewing, and `driveFileId` points at the copy that survives.
+ */
+export interface ActivityAttachmentLink {
+  attachmentId: string;
+  fileName: string;
+  mimeType: string;
+  byteSize: number;
+  /** Opens the local blob. Revoked when the view unmounts. */
+  objectUrl?: string;
+  /** Present once the file has been mirrored to Drive. */
+  driveFileId?: string;
+  driveViewUrl?: string;
+  /**
+   * Saved to Drive, but with no URL to open. True when the desktop folder
+   * transport wrote the file - it is safe from a restore, but the app never
+   * learns the id Drive gives it, so there is nothing to link to.
+   */
+  mirroredWithoutLink?: boolean;
+}
+
+/**
+ * One row in the activity feed.
+ *
+ * Assembled at read time from `auditLogs` (which is complete but written for
+ * machines) and `changeLog` (which is human-readable but only covers the eight
+ * things that went through a confirmation sheet). Neither is edited to produce
+ * this - the audit log is hash-chained and rewriting it to make it prettier
+ * would destroy the one property it exists for.
+ */
+export interface ActivityItem {
+  id: string;
+  timestamp: number;
+  /** Local YYYY-MM-DD, for day grouping and the day filter. */
+  date: string;
+  actorRole: UserRole;
+  deviceId?: string;
+  /** Resolved from DeviceRegistration; falls back to a role name. */
+  actorLabel: string;
+  /**
+   * The person, where the device has been claimed by one. This is what the feed
+   * groups and filters by; `actorLabel` is the device, shown as the smaller
+   * detail beside it.
+   */
+  actorPerson?: string;
+  action: 'CREATED' | 'UPDATED' | 'DELETED' | 'COMPLETED' | 'CONFIRMED' | 'SYSTEM';
+  /** "Task", "Goal", "Syllabus topic" - already in words. */
+  entityType: string;
+  entityId: string;
+  /** The headline, written for a person. */
+  summary: string;
+  /** "Grade 9 → Grade 8" */
+  detail?: string;
+  fieldChanged?: string;
+  oldValue?: string;
+  newValue?: string;
+  subjectId?: SubjectId;
+  category?: ChangeCategory;
+  visibility: ActivityVisibility;
+  pending?: PendingStep;
+  attachments?: ActivityAttachmentLink[];
+  /** True when this came from changeLog and was signed off on the Updates tab. */
+  confirmedAt?: number;
+  /** True when it has been forwarded to the family. */
+  reportedAt?: number;
+  /** Which log it came from, so the UI can explain provenance honestly. */
+  source: 'AUDIT' | 'CHANGE_LOG';
+}
+
+export type ImprovementStatus =
+  | 'OPEN'
+  | 'UNDER_REVIEW'
+  | 'PLANNED'
+  | 'DONE'
+  | 'DECLINED';
+
+export type ImprovementKind = 'BUG' | 'IDEA' | 'CONFUSING' | 'MISSING';
+
+/**
+ * Something a user thinks the app should do better.
+ *
+ * Kept inside the app rather than in a chat message because the useful ones
+ * arrive at the moment of friction and are forgotten by the evening. Anyone can
+ * file one; only a parent can change its status, so "DONE" means something.
+ */
+export interface ImprovementIdea {
+  id: string;
+  createdAt: number;
+  createdByRole: UserRole;
+  createdOnDeviceId?: string;
+  kind: ImprovementKind;
+  title: string;
+  detail?: string;
+  /** Which part of the app it is about, e.g. "Plan", "Quick Add". */
+  area?: string;
+  status: ImprovementStatus;
+  /** Parent's response, shown to whoever filed it. */
+  response?: string;
+  statusChangedAt?: number;
+  /** Upvotes from other family members, by device id. */
+  supportedBy?: string[];
+}
+
+/**
+ * How this device reaches Google Drive, and what it has managed so far.
+ *
+ * One row, id `active`, never synced. Two transports, because no single one
+ * covers the family:
+ *
+ *  - `folderHandle` is a File System Access directory handle pointing at
+ *    `_Genie-Backups` inside Drive for Desktop. Granted once, it lets the app
+ *    write a real file with no Google account, no token and no network call -
+ *    which keeps the offline-first promise exactly intact. Chromium desktop
+ *    only; Safari and every mobile browser have no such API.
+ *  - `oauthToken` is a Drive API access token obtained by PKCE. It works on
+ *    Tejas's phone, which the handle never will, at the cost of the app now
+ *    holding a Google credential.
+ *
+ * Both are optional and independent. A device with neither still works; it just
+ * cannot back itself up automatically, and the UI has to say so rather than
+ * implying a backup happened.
+ */
+export interface DriveSyncState {
+  id: 'active';
+  /**
+   * The folder's name, for display. The handle itself lives in its own object
+   * store - see folderHandleStore.ts - because it is a live capability rather
+   * than data and does not belong in a synced database's table.
+   */
+  folderName?: string;
+  /** Set when the handle was granted but permission has since been revoked. */
+  folderPermissionLost?: boolean;
+  oauthToken?: string;
+  oauthRefreshToken?: string;
+  oauthExpiresAt?: number;
+  /** The Drive folder id backups are uploaded into, over the API transport. */
+  oauthFolderId?: string;
+  lastBackupAt?: number;
+  lastBackupFileName?: string;
+  lastBackupBytes?: number;
+  /** Populated when the most recent attempt failed, so the UI can be honest. */
+  lastErrorAt?: number;
+  lastError?: string;
+  /** Hours between automatic attempts. 0 disables them. */
+  intervalHours?: number;
+  autoEnabled?: boolean;
+  /**
+   * How many backup files to keep. Older ones are deleted after a successful
+   * backup. 0 keeps everything.
+   *
+   * Daily backups accumulate at 365 files a year, and the folder becomes
+   * unreadable long before the storage matters - the point of a backup folder
+   * is that you can find the right file in it.
+   */
+  keepBackups?: number;
 }

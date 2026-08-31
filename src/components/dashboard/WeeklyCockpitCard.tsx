@@ -112,6 +112,8 @@ export const WeeklyCockpitCard: React.FC<WeeklyCockpitCardProps> = ({
       subject: task.title,
       effect: `+${task.xpValue} XP`,
       category: 'HOMEWORK',
+      entity: 'Task',
+      entityId: task.id,
       confirmLabel: 'Yes, done',
       summary: `Finished "${task.title}" (+${task.xpValue} XP)`,
       run: async () => {
@@ -138,6 +140,8 @@ export const WeeklyCockpitCard: React.FC<WeeklyCockpitCardProps> = ({
       subject: item.chore.title,
       effect: item.done ? `−${item.chore.xpValue} XP` : `+${item.chore.xpValue} XP`,
       category: 'CHORE',
+      entity: 'Chore',
+      entityId: item.chore.id,
       tone: item.done ? 'danger' : 'normal',
       confirmLabel: item.done ? 'Undo it' : 'Yes, done',
       summary: item.done

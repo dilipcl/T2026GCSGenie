@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserRole, WeekType, Task, MilestoneReminder, TimetableEntry } from './types';
 import { Header } from './components/layout/Header';
 import { Navigation, NavTab } from './components/layout/Navigation';
@@ -15,7 +15,10 @@ import { QuickAddSheet, QuickAddEditing } from './components/shared/QuickAddShee
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { ChangeGuardProvider } from './components/shared/ChangeGuardProvider';
 import { ChangeLogCard } from './components/shared/ChangeLogCard';
-import { UpdatesView } from './components/updates/UpdatesView';
+import { UpdatesSection } from './components/updates/UpdatesSection';
+import { touchThisDevice } from './services/deviceRegistryService';
+import { backupIfDue } from './services/driveBackupService';
+import { ImprovementsView } from './components/improvements/ImprovementsView';
 import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
 import { DatabaseGate } from './components/layout/DatabaseGate';
 import { TaskManagerView } from './components/tasks/TaskManagerView';
@@ -60,6 +63,40 @@ export const App: React.FC = () => {
   // Bumped whenever data changes, so dashboard cards reload without a tab switch
   const [refreshKey, setRefreshKey] = useState(0);
   const refreshData = () => setRefreshKey((prev) => prev + 1);
+
+  /**
+   * Startup housekeeping, in the order it has to happen.
+   *
+   * The device registers itself first so the activity feed can name it. Then the
+   * OAuth redirect is redeemed, if we have just come back from Google. Then a
+   * backup runs if one is due.
+   *
+   * Backup runs at open rather than on a timer: a phone tab is suspended in the
+   * background, so `setInterval` is a promise the browser does not keep, and the
+   * moment the app is definitely alive is the moment it is opened. Every step
+   * swallows its own failure - none of this is worth blocking the app for, and
+   * `backupIfDue` records its own errors where the Parent Portal can show them.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await touchThisDevice(currentRole);
+        if (cancelled) return;
+        await backupIfDue();
+      } catch (err) {
+        console.error('Startup housekeeping did not complete:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Deliberately once per mount. Re-running on every role toggle would attempt
+    // a backup each time somebody entered parent mode.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRoleToggle = (targetRole: UserRole) => {
     if (targetRole === 'PARENT') {
@@ -249,7 +286,9 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'UPDATES' && <UpdatesView />}
+        {activeTab === 'UPDATES' && <UpdatesSection currentRole={currentRole} />}
+
+        {activeTab === 'IMPROVEMENTS' && <ImprovementsView currentRole={currentRole} />}
 
         {activeTab === 'PROOF' && (
           <AssessmentLogView

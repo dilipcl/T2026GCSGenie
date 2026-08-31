@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { RAGStatus, SubjectId } from '../types';
+import { RAGStatus, SubjectId, isNonExamSubject } from '../types';
 
 export interface SubjectRAGResult {
   subjectId: SubjectId;
@@ -19,10 +19,47 @@ export interface SubjectRAGResult {
   assessmentAveragePercent: number;
   assessmentCount: number;
   details: string;
+  /**
+   * True for General and Revision. These have no syllabus and no target grade,
+   * so a health score for them would be an arithmetic result with no meaning -
+   * and, because the topic term defaults to 80 when there are no topics, a
+   * consistently misleading one. Callers should hide the RAG chip entirely
+   * rather than render a grey one.
+   */
+  isNonExam: boolean;
 }
 
 export async function calculateSubjectRAG(subjectId: SubjectId): Promise<SubjectRAGResult> {
   const subjectConfig = await db.subjects.get(subjectId);
+
+  /**
+   * General and Revision exit before any scoring happens.
+   *
+   * They carry no topics and no remediations, so the weighted score would be
+   * 40% homework + 35% (default 100) + 25% (default 80) - a number that moves
+   * only with homework and reads as a real health figure to anyone looking at
+   * the dashboard. Returning a neutral 100 with the flag set keeps them out of
+   * the RED count without inventing a judgement about them.
+   */
+  if (isNonExamSubject(subjectId)) {
+    const tasks = await db.tasks.where('subjectId').equals(subjectId).toArray();
+    return {
+      subjectId,
+      healthScore: 100,
+      ragStatus: 'GREEN',
+      isManualOverride: false,
+      homeworkCompletionRate: 100,
+      remediationCompletionRate: 100,
+      topicsMastered: 0,
+      totalTopics: 0,
+      assessmentAveragePercent: 0,
+      assessmentCount: 0,
+      details: `Not an exam subject - ${tasks.length} item${
+        tasks.length === 1 ? '' : 's'
+      } logged. Time counts towards workload; no grade is tracked.`,
+      isNonExam: true,
+    };
+  }
 
   // 1. Homework tasks for this subject
   const allTasks = await db.tasks.where('subjectId').equals(subjectId).toArray();
@@ -89,6 +126,7 @@ export async function calculateSubjectRAG(subjectId: SubjectId): Promise<Subject
     assessmentAveragePercent,
     assessmentCount: assessments.length,
     details,
+    isNonExam: false,
   };
 }
 

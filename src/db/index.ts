@@ -25,6 +25,9 @@ import {
   FixedCommitment,
   CommitmentException,
   ChangeLogEntry,
+  DeviceRegistration,
+  ImprovementIdea,
+  DriveSyncState,
 } from '../types';
 import {
   INITIAL_SUBJECTS,
@@ -99,6 +102,9 @@ export class GCSEGenieDatabase extends Dexie {
   commitments!: Table<FixedCommitment, string>;
   commitmentExceptions!: Table<CommitmentException, string>;
   changeLog!: Table<ChangeLogEntry, string>;
+  deviceRegistry!: Table<DeviceRegistration, string>;
+  improvements!: Table<ImprovementIdea, string>;
+  driveSync!: Table<DriveSyncState, string>;
 
   constructor() {
     super('GCSEGenieDB', IS_BROWSER ? { addons: [dexieCloud] } : {});
@@ -252,6 +258,37 @@ export class GCSEGenieDatabase extends Dexie {
       changeLog: 'id, timestamp, date, category, actor',
     });
 
+    /**
+     * v12 gives devices a name and users somewhere to file an idea.
+     *
+     * `deviceRegistry` is what turns the activity feed from "a parent did this"
+     * into "Dad's laptop did this". It is keyed by the same `deviceId` the audit
+     * log has recorded since v5, so every historic row gains a name the moment a
+     * device is labelled - no backfill pass over the log itself, which matters
+     * because that log is hash-chained and must not be rewritten.
+     *
+     * `status` on improvements is a short string set and never indexed as a
+     * boolean - see the note at the top of this file.
+     */
+    this.version(12).stores({
+      deviceRegistry: 'id, usualRole, lastSeenAt',
+      improvements: 'id, createdAt, status, kind, createdByRole',
+    });
+
+    /**
+     * v13 stores how this device reaches Google Drive.
+     *
+     * A single row, and it must never sync. It holds a
+     * `FileSystemDirectoryHandle`, which is a live capability granted to one
+     * browser profile - copied to another device it is meaningless at best, and
+     * dexie-cloud cannot serialise it at all. The OAuth token beside it is a
+     * credential and belongs to the device that obtained it, for the same
+     * reason `llmApiKey` has always been unsynced.
+     */
+    this.version(13).stores({
+      driveSync: 'id',
+    });
+
     this.on('ready', async () => {
       await this.seedMissingRows();
     });
@@ -293,6 +330,11 @@ export class GCSEGenieDatabase extends Dexie {
        * syncing the moment a user authenticates.
        */
       requireAuth: false,
+      /**
+       * Device-local by nature: a folder handle and an OAuth token describe
+       * this browser profile's access to Drive, not anything about the family.
+       */
+      unsyncedTables: ['driveSync'],
       unsyncedProperties: {
         /**
          * The API key must never leave the device.

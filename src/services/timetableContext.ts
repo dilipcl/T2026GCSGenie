@@ -55,3 +55,61 @@ export async function currentSubjectId(
   const finished = entries.filter((e) => toMinutes(e.endTime) <= minutesNow);
   return finished.at(-1)?.subjectId;
 }
+
+/**
+ * The subject to pre-select in Quick Add, including when school is not running.
+ *
+ * `currentSubjectId` deliberately returns nothing outside school hours, which is
+ * correct for its own job and turned out to be the wrong behaviour for the
+ * picker that consumes it. Adding a task requires a subject, so on a Saturday -
+ * or on a bank holiday, as on 31 August 2026 - the field arrived blank and the
+ * student had to choose one before anything could be saved. Faced with that,
+ * the fastest option is to pick whichever subject is nearest the thumb, and the
+ * data inherits a choice nobody meant.
+ *
+ * So the ladder, most specific first:
+ *
+ *  1. The lesson happening now, or the one that just finished.
+ *  2. The subject of the most recent task, which on a weekend is almost always
+ *     what the next one is about too.
+ *  3. General - a real subject that means "not aimed at an exam yet", so the
+ *     field is never empty and never a lie.
+ *
+ * Step 3 is why `general` exists. Leaving `subjectId` blank would have been the
+ * smaller change, but it puts nulls into the table every later analysis has to
+ * interpret, and the app would still have had to decide what an unattributed
+ * task does to a subject's health.
+ */
+export async function suggestedSubjectId(
+  weekType: WeekType,
+  now: Date = new Date()
+): Promise<SubjectId> {
+  const inLesson = await currentSubjectId(weekType, now);
+  if (inLesson) return inLesson;
+
+  /**
+   * Sorted in memory, not by `orderBy`. `createdAt` is not in the tasks index
+   * - see the note at the top of db/index.ts about which keys actually exist -
+   * and asking Dexie to order by it throws SchemaError rather than falling back,
+   * which would have crashed Quick Add on open for every user.
+   */
+  const tasks = await db.tasks.toArray();
+  const recent = tasks.sort((a, b) => b.createdAt - a.createdAt)[0];
+  if (recent?.subjectId) return recent.subjectId;
+
+  return 'general';
+}
+
+/**
+ * Whether school is actually running right now.
+ *
+ * Used to word the picker honestly: during a lesson the pre-filled subject is a
+ * confident guess and says so; on a Sunday it is a fallback and should not
+ * pretend otherwise.
+ */
+export async function isSchoolInSession(
+  weekType: WeekType,
+  now: Date = new Date()
+): Promise<boolean> {
+  return (await currentSubjectId(weekType, now)) !== undefined;
+}
