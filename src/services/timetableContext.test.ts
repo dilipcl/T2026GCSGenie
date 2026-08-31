@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { db } from '../db';
+import { todayISO } from '../utils/date';
 import { emptyDatabase } from '../test/harness';
-import { currentSubjectId, suggestedSubjectId, isSchoolInSession } from './timetableContext';
+import {
+  currentSubjectId,
+  suggestedSubjectId,
+  isSchoolInSession,
+  schoolRanToday,
+} from './timetableContext';
 import { TimetableEntry } from '../types';
 
 function freezeAt(iso: string) {
@@ -148,5 +154,54 @@ describe('suggestedSubjectId - the non-school ladder', () => {
   it('reports school as out of session outside lesson hours', async () => {
     expect(await isSchoolInSession('ODD', at(9, 20))).toBe(true);
     expect(await isSchoolInSession('ODD', at(7, 0))).toBe(false);
+  });
+});
+
+describe('a day when school did not run', () => {
+  /** 31 August 2026: a bank holiday Monday, logged as cancelled. */
+  async function cancelSchoolToday() {
+    await db.commitmentExceptions.add({
+      id: 'exc_school_today',
+      commitmentId: 'c-school',
+      date: todayISO(),
+      title: 'School',
+      scheduledHours: 6.5,
+      status: 'CANCELLED_BY_ORGANISER',
+      reasonCategory: 'STAND_DOWN',
+      deductsFromCapacity: true,
+      loggedBy: 'STUDENT',
+      createdAt: Date.now(),
+    });
+  }
+
+  it('ignores the timetable once school is logged as cancelled', async () => {
+    // Without the exception, 09:20 on a Monday resolves to Maths.
+    expect(await suggestedSubjectId('ODD', at(9, 20))).toBe('maths');
+
+    await cancelSchoolToday();
+
+    // The timetable still says Monday, but Monday did not happen.
+    expect(await suggestedSubjectId('ODD', at(9, 20))).toBe('general');
+  });
+
+  it('never claims a lesson is in progress on a cancelled day', async () => {
+    expect(await isSchoolInSession('ODD', at(9, 20))).toBe(true);
+
+    await cancelSchoolToday();
+
+    expect(await isSchoolInSession('ODD', at(9, 20))).toBe(false);
+  });
+
+  it('does not claim a lesson is in progress hours after the last one ended', async () => {
+    // The live defect: at 20:10 the picker said "the lesson happening now"
+    // about a lesson that had finished six hours earlier.
+    expect(await isSchoolInSession('ODD', at(20, 10))).toBe(false);
+    // The guess itself is still useful - it just is not a live lesson.
+    expect(await suggestedSubjectId('ODD', at(20, 10))).toBeTruthy();
+  });
+
+  it('leaves an ordinary school day alone', async () => {
+    expect(await schoolRanToday()).toBe(true);
+    expect(await isSchoolInSession('ODD', at(9, 20))).toBe(true);
   });
 });

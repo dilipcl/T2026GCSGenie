@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { UserRole } from '../../types';
 import { UpdatesView } from './UpdatesView';
 import { ActivityView } from './ActivityView';
-import { buildActivityFeed, outstanding } from '../../services/activityService';
+import { buildActivityFeed, needingReview, outstanding } from '../../services/activityService';
 
 /**
  * The Updates tab, which now does two different jobs.
@@ -29,7 +29,11 @@ export const UpdatesSection: React.FC<{ currentRole: UserRole }> = ({ currentRol
 
   // A count on the tab, so an unapproved goal is visible without opening it.
   useEffect(() => {
-    buildActivityFeed(currentRole).then((feed) => setWaitingCount(outstanding(feed.items).length));
+    buildActivityFeed(currentRole).then((feed) =>
+      // Both kinds of "somebody has to do something": a step the app is waiting
+      // on, and a question a person is waiting on.
+      setWaitingCount(outstanding(feed.items).length + needingReview(feed.items).length)
+    );
   }, [currentRole, pane]);
 
   return (

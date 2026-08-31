@@ -4,6 +4,7 @@ import {
   activeDates,
   buildActivityFeed,
   groupByDay,
+  needingReview,
   outstanding,
 } from '../../services/activityService';
 import {
@@ -17,6 +18,7 @@ import { nameDevice, needsNaming, people, Person } from '../../services/deviceRe
 import { getDeviceId } from '../../utils/device';
 import { formatPastDate } from '../../utils/date';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
+import { ActivityComments } from './ActivityComments';
 import {
   Search,
   Filter,
@@ -29,6 +31,7 @@ import {
   AlertCircle,
   X,
   Laptop,
+  HelpCircle,
 } from 'lucide-react';
 
 /**
@@ -175,7 +178,11 @@ const PendingBadge: React.FC<{ item: ActivityItem }> = ({ item }) => {
   );
 };
 
-const ActivityRow: React.FC<{ item: ActivityItem }> = ({ item }) => {
+const ActivityRow: React.FC<{
+  item: ActivityItem;
+  currentRole: UserRole;
+  onChanged: () => void;
+}> = ({ item, currentRole, onChanged }) => {
   const style = ACTION_STYLE[item.action];
   const Icon = style.icon;
   const subject = INITIAL_SUBJECTS.find((s) => s.id === item.subjectId);
@@ -223,13 +230,25 @@ const ActivityRow: React.FC<{ item: ActivityItem }> = ({ item }) => {
           )}
         </div>
 
-        {item.pending && (
-          <div className="mt-1.5">
+        {(item.pending || item.commentSummary?.openClarifications) && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
             <PendingBadge item={item} />
+            {!!item.commentSummary?.openClarifications && (
+              <span
+                title={item.commentSummary.latestOpenText}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/40 text-[10px] font-bold text-amber-300"
+              >
+                <HelpCircle className="w-3 h-3" />
+                {item.commentSummary.openClarifications} question
+                {item.commentSummary.openClarifications === 1 ? '' : 's'} to answer
+              </span>
+            )}
           </div>
         )}
 
         <AttachmentLinks item={item} />
+
+        <ActivityComments item={item} currentRole={currentRole} onChanged={onChanged} />
       </div>
     </li>
   );
@@ -344,6 +363,7 @@ export const ActivityView: React.FC<{ currentRole: UserRole }> = ({ currentRole 
 
   const days = useMemo(() => groupByDay(items), [items]);
   const waiting = useMemo(() => outstanding(items), [items]);
+  const review = useMemo(() => needingReview(items), [items]);
 
   const toggle = <K extends keyof ActivityFilter>(key: K, value: string) => {
     setFilter((prev) => {
@@ -362,6 +382,7 @@ export const ActivityView: React.FC<{ currentRole: UserRole }> = ({ currentRole 
     (filter.categories?.length ? 1 : 0) +
     (filter.onDate ? 1 : 0) +
     (filter.pendingOnly ? 1 : 0) +
+    (filter.needsReviewOnly ? 1 : 0) +
     (filter.search ? 1 : 0);
 
   return (
@@ -374,6 +395,33 @@ export const ActivityView: React.FC<{ currentRole: UserRole }> = ({ currentRole 
       </header>
 
       {askName && <NameThisDevice onNamed={() => { setAskName(false); reload(); }} />}
+
+      {review.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl p-4 mb-4">
+          <h2 className="text-sm font-bold text-amber-300 mb-2 flex items-center gap-1.5">
+            <HelpCircle className="w-4 h-4" />
+            {review.length} change{review.length === 1 ? '' : 's'} with a question to answer
+          </h2>
+          <ul className="space-y-1.5">
+            {review.slice(0, 4).map((item) => (
+              <li key={item.id} className="text-xs text-slate-300 leading-snug">
+                <span className="text-slate-100">{item.summary}</span>
+                <br />
+                <span className="text-amber-300">“{item.commentSummary?.latestOpenText}”</span>
+              </li>
+            ))}
+          </ul>
+          {review.length > 4 && (
+            <button
+              type="button"
+              onClick={() => setFilter((f) => ({ ...f, needsReviewOnly: true }))}
+              className="text-[11px] font-bold text-amber-300 underline mt-2"
+            >
+              See all {review.length}
+            </button>
+          )}
+        </div>
+      )}
 
       {waiting.length > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-4">
@@ -517,12 +565,24 @@ export const ActivityView: React.FC<{ currentRole: UserRole }> = ({ currentRole 
           </div>
 
           <div className="flex items-center justify-between pt-1">
-            <Chip
-              active={!!filter.pendingOnly}
-              onClick={() => setFilter((f) => ({ ...f, pendingOnly: !f.pendingOnly || undefined }))}
-            >
-              Only unfinished
-            </Chip>
+            <div className="flex flex-wrap gap-1.5">
+              <Chip
+                active={!!filter.pendingOnly}
+                onClick={() =>
+                  setFilter((f) => ({ ...f, pendingOnly: !f.pendingOnly || undefined }))
+                }
+              >
+                Only unfinished
+              </Chip>
+              <Chip
+                active={!!filter.needsReviewOnly}
+                onClick={() =>
+                  setFilter((f) => ({ ...f, needsReviewOnly: !f.needsReviewOnly || undefined }))
+                }
+              >
+                Needs review
+              </Chip>
+            </div>
             {activeFilterCount > 0 && (
               <button
                 type="button"
@@ -553,7 +613,12 @@ export const ActivityView: React.FC<{ currentRole: UserRole }> = ({ currentRole 
             </h2>
             <ul>
               {day.items.map((item) => (
-                <ActivityRow key={item.id} item={item} />
+                <ActivityRow
+                  key={item.id}
+                  item={item}
+                  currentRole={currentRole}
+                  onChanged={reload}
+                />
               ))}
             </ul>
           </section>

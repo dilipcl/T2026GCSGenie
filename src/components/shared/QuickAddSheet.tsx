@@ -562,6 +562,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                 {schoolInSession
                   ? 'Pre-filled from the lesson happening now — tap to change.'
                   : 'No lesson running, so this is a guess from your last task. Use General or Revision for work that is not aimed at one subject.'}
+
               </p>
             )}
           </div>

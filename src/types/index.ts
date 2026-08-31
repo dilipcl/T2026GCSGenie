@@ -891,6 +891,10 @@ export interface ActivityItem {
   visibility: ActivityVisibility;
   pending?: PendingStep;
   attachments?: ActivityAttachmentLink[];
+  /** Comments on this change, oldest first. */
+  comments?: ActivityComment[];
+  /** Set when at least one clarification is still unanswered. */
+  commentSummary?: CommentSummary;
   /** True when this came from changeLog and was signed off on the Updates tab. */
   confirmedAt?: number;
   /** True when it has been forwarded to the family. */
@@ -985,4 +989,54 @@ export interface DriveSyncState {
    * is that you can find the right file in it.
    */
   keepBackups?: number;
+}
+
+/**
+ * A remark attached to something that happened.
+ *
+ * The activity feed answers "what changed". It could not answer the question a
+ * parent actually has next, which is usually a follow-up rather than an
+ * objection: "Physics session completed" prompts "did you add the Notebook
+ * link, and is there a follow-up task?" - and before this, that conversation
+ * happened verbally, at dinner, unattached to the thing it was about.
+ *
+ * Comments hang off an ActivityItem id, so they attach to the audit row rather
+ * than to the record. That matters: the task may later be deleted, and the
+ * question asked about the moment it was completed is still a fair question
+ * with a real answer.
+ */
+export interface ActivityComment {
+  id: string;
+  /** ActivityItem.id - an audit row id, or a changeLog id. */
+  activityId: string;
+  createdAt: number;
+  authorRole: UserRole;
+  authorDeviceId?: string;
+  /** Resolved from the device registry at read time. */
+  authorLabel?: string;
+  text: string;
+  /**
+   * Whether an answer is expected.
+   *
+   * A plain remark ("nice one") needs nothing. A clarification is a question
+   * that leaves the item flagged until somebody deals with it - that flag is
+   * the whole point, because a question nobody can see is a question nobody
+   * answers.
+   */
+  needsResponse: boolean;
+  resolvedAt?: number;
+  resolvedByRole?: UserRole;
+  /** What was done about it. Shown beside the resolution. */
+  resolutionNote?: string;
+  /** Set once the comment has been handed to WhatsApp. */
+  sharedAt?: number;
+}
+
+/** A comment thread's state, summarised for one activity row. */
+export interface CommentSummary {
+  total: number;
+  /** Clarifications still awaiting an answer. */
+  openClarifications: number;
+  /** The most recent unanswered question, for the flag's tooltip. */
+  latestOpenText?: string;
 }

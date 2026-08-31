@@ -28,6 +28,7 @@ import {
   DeviceRegistration,
   ImprovementIdea,
   DriveSyncState,
+  ActivityComment,
 } from '../types';
 import {
   INITIAL_SUBJECTS,
@@ -105,6 +106,7 @@ export class GCSEGenieDatabase extends Dexie {
   deviceRegistry!: Table<DeviceRegistration, string>;
   improvements!: Table<ImprovementIdea, string>;
   driveSync!: Table<DriveSyncState, string>;
+  activityComments!: Table<ActivityComment, string>;
 
   constructor() {
     super('GCSEGenieDB', IS_BROWSER ? { addons: [dexieCloud] } : {});
@@ -287,6 +289,21 @@ export class GCSEGenieDatabase extends Dexie {
      */
     this.version(13).stores({
       driveSync: 'id',
+    });
+
+    /**
+     * v14 lets people talk about what happened, against the thing that happened.
+     *
+     * Keyed by `activityId` - the audit row, not the record it describes. A task
+     * can be deleted; the question asked about the moment it was completed is
+     * still a fair question, and losing it with the task would be the same
+     * mistake the activity feed exists to correct.
+     *
+     * `needsResponse` is a boolean and so never actually indexed - see the note
+     * at the top of this file. Open clarifications are filtered in memory.
+     */
+    this.version(14).stores({
+      activityComments: 'id, activityId, createdAt, authorRole',
     });
 
     this.on('ready', async () => {

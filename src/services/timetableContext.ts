@@ -84,8 +84,15 @@ export async function suggestedSubjectId(
   weekType: WeekType,
   now: Date = new Date()
 ): Promise<SubjectId> {
-  const inLesson = await currentSubjectId(weekType, now);
-  if (inLesson) return inLesson;
+  /**
+   * The timetable is only evidence when today's lessons actually ran. A bank
+   * holiday still has a Monday timetable, so without this check the ladder
+   * never reaches its fallbacks on precisely the days it was built for.
+   */
+  if (await schoolRanToday()) {
+    const inLesson = await currentSubjectId(weekType, now);
+    if (inLesson) return inLesson;
+  }
 
   /**
    * Sorted in memory, not by `orderBy`. `createdAt` is not in the tasks index
@@ -101,15 +108,59 @@ export async function suggestedSubjectId(
 }
 
 /**
- * Whether school is actually running right now.
+ * Whether today's lessons actually happened.
  *
- * Used to word the picker honestly: during a lesson the pre-filled subject is a
- * confident guess and says so; on a Sunday it is a fallback and should not
- * pretend otherwise.
+ * The timetable says what Monday normally looks like; it does not know that
+ * this particular Monday was a bank holiday. On 31 August 2026 Tejas logged
+ * School as cancelled and the picker still pre-filled a subject from the
+ * timetable - the exact case that prompted this work, arriving through a door
+ * the first fix did not cover.
+ *
+ * Matched on the exception's own title rather than by resolving the commitment,
+ * because the exception row records the title it was logged against and that is
+ * the fact we actually need.
+ */
+export async function schoolRanToday(date: string = todayISO()): Promise<boolean> {
+  const exceptions = await db.commitmentExceptions.where('date').equals(date).toArray();
+  return !exceptions.some(
+    (e) => e.status !== 'ATTENDED' && /school/i.test(e.title || '')
+  );
+}
+
+/**
+ * A lesson spanning this exact moment.
+ *
+ * Distinct from `currentSubjectId`, which deliberately falls back to the lesson
+ * that most recently finished. That fallback is right for guessing a subject
+ * and wrong for claiming one is in progress: at eight in the evening it made
+ * the picker say "pre-filled from the lesson happening now" about a lesson that
+ * ended six hours earlier.
+ */
+export async function lessonInProgress(
+  weekType: WeekType,
+  now: Date = new Date()
+): Promise<boolean> {
+  if (!(await schoolRanToday())) return false;
+
+  const day = dayOfWeekFor(todayISO());
+  const entries = (await db.timetableEntries.where('dayOfWeek').equals(day).toArray())
+    .filter((e) => e.weekType === 'BOTH' || e.weekType === weekType)
+    .filter((e) => !!e.subjectId);
+
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  return entries.some(
+    (e) => toMinutes(e.startTime) <= minutesNow && minutesNow < toMinutes(e.endTime)
+  );
+}
+
+/**
+ * Whether the picker may describe its guess as coming from a live lesson.
+ *
+ * Only true when school ran today AND a lesson is happening right now.
  */
 export async function isSchoolInSession(
   weekType: WeekType,
   now: Date = new Date()
 ): Promise<boolean> {
-  return (await currentSubjectId(weekType, now)) !== undefined;
+  return lessonInProgress(weekType, now);
 }

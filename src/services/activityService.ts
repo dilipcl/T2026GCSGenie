@@ -13,6 +13,7 @@ import {
 } from '../types';
 import { toLocalISODate } from '../utils/date';
 import { describeActor, deviceLabelMap } from './deviceRegistryService';
+import { commentsByActivity, summarise } from './activityCommentService';
 
 /**
  * One feed of everything that has happened, assembled from the two logs that
@@ -433,6 +434,8 @@ export interface ActivityFilter {
   subjectIds?: SubjectId[];
   /** Only rows still waiting on somebody. */
   pendingOnly?: boolean;
+  /** Only rows carrying an unanswered clarification. */
+  needsReviewOnly?: boolean;
   /** Free-text over summary and detail. */
   search?: string;
 }
@@ -458,10 +461,11 @@ export async function buildActivityFeed(
   viewerRole: UserRole,
   filter: ActivityFilter = {}
 ): Promise<ActivityFeed> {
-  const [audits, changes, devices] = await Promise.all([
+  const [audits, changes, devices, comments] = await Promise.all([
     db.auditLogs.toArray(),
     db.changeLog.toArray(),
     deviceLabelMap(),
+    commentsByActivity(),
   ]);
 
   const correlated = correlate(changes, audits);
@@ -500,6 +504,8 @@ export async function buildActivityFeed(
       visibility: classifyVisibility(entry),
       pending,
       attachments,
+      comments: comments.get(entry.id),
+      commentSummary: summarise(comments.get(entry.id)),
       confirmedAt: change?.confirmedAt,
       reportedAt: change?.reportedAt,
       source: 'AUDIT',
@@ -537,6 +543,8 @@ export async function buildActivityFeed(
             waitingOn: change.actor,
             resolved: false,
           },
+      comments: comments.get(change.id),
+      commentSummary: summarise(comments.get(change.id)),
       confirmedAt: change.confirmedAt,
       reportedAt: change.reportedAt,
       source: 'CHANGE_LOG',
@@ -584,6 +592,7 @@ export function applyFilter(items: ActivityItem[], filter: ActivityFilter): Acti
     )
       return false;
     if (filter.pendingOnly && (!item.pending || item.pending.resolved)) return false;
+    if (filter.needsReviewOnly && !item.commentSummary?.openClarifications) return false;
     if (search) {
       const haystack = `${item.summary} ${item.detail ?? ''} ${item.actorLabel}`.toLowerCase();
       if (!haystack.includes(search)) return false;
@@ -618,4 +627,15 @@ export function activeDates(items: ActivityItem[]): string[] {
 /** Rows still waiting on somebody, for the "needs attention" strip. */
 export function outstanding(items: ActivityItem[]): ActivityItem[] {
   return items.filter((i) => i.pending && !i.pending.resolved);
+}
+
+/**
+ * Rows carrying a question nobody has answered.
+ *
+ * Kept separate from `outstanding`. A pending step is the app waiting on a
+ * person; an open clarification is a person waiting on a person. Merging them
+ * would produce one count that means two different things.
+ */
+export function needingReview(items: ActivityItem[]): ActivityItem[] {
+  return items.filter((i) => (i.commentSummary?.openClarifications ?? 0) > 0);
 }

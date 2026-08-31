@@ -172,7 +172,17 @@ export async function reconcileDevicesFromAuditLog(): Promise<DeviceRegistration
     created.push(row);
   }
 
-  if (created.length) await db.deviceRegistry.bulkAdd(created);
+  /**
+   * `bulkPut`, not `bulkAdd`, because this runs concurrently.
+   *
+   * The activity feed resolves device labels and loads comments in the same
+   * `Promise.all`, and both paths reconcile. With `bulkAdd` the second one hit
+   * a ConstraintError on a row the first had just written, which surfaced as the
+   * whole feed failing to load - triggered by nothing more exotic than someone
+   * leaving a comment. Writing the same synthesised row twice is harmless;
+   * refusing to is not.
+   */
+  if (created.length) await db.deviceRegistry.bulkPut(created);
   return [...registered, ...created].sort((a, b) => b.lastSeenAt - a.lastSeenAt);
 }
 
