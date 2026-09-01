@@ -14,6 +14,7 @@ import { PlanPulseBanner } from './components/dashboard/PlanPulseBanner';
 import { QuickAddSheet, QuickAddEditing } from './components/shared/QuickAddSheet';
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { ChangeGuardProvider } from './components/shared/ChangeGuardProvider';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { ChangeLogCard } from './components/shared/ChangeLogCard';
 import { UpdatesSection } from './components/updates/UpdatesSection';
 import { touchThisDevice } from './services/deviceRegistryService';
@@ -152,7 +153,13 @@ export const App: React.FC = () => {
           currentRole={currentRole}
         />
 
-        {/* Dynamic Content Views */}
+        {/* Dynamic Content Views.
+
+            Wrapped so a view that throws costs the view and nothing else: the
+            header and the tabs above it keep working, which is what makes the
+            failure recoverable without a reload. Keyed on the tab, so moving
+            to another screen and back is a fresh attempt. */}
+        <ErrorBoundary label="this screen" resetKeys={[activeTab]}>
         {activeTab === 'DASHBOARD' && (
           <div className="space-y-5">
             {/* 0. Anything at risk, before the scroll starts. The field test
@@ -317,6 +324,7 @@ export const App: React.FC = () => {
         {activeTab === 'GUIDANCE' && <HelpAndCareersHub />}
 
         {activeTab === 'PARENT' && <ParentPortal />}
+        </ErrorBoundary>
       </main>
 
       {/* Quick Add - reachable from every screen, since adding homework and key
@@ -331,7 +339,18 @@ export const App: React.FC = () => {
         </button>
       )}
 
-      {/* Global Modals */}
+      {/* Global Modals.
+
+          One boundary each, because a dialog that throws has no working close
+          button left - the button is inside the thing that stopped rendering.
+          `onReset` is what shuts it, so the way out does not depend on the
+          broken component. */}
+      <ErrorBoundary
+        label="the add sheet"
+        variant="overlay"
+        resetKeys={[isQuickAddOpen]}
+        onReset={closeQuickAdd}
+      >
       <QuickAddSheet
         isOpen={isQuickAddOpen}
         editing={quickAddEditing}
@@ -343,24 +362,55 @@ export const App: React.FC = () => {
         }
         defaultWeek={activeWeek}
       />
+      </ErrorBoundary>
 
+      <ErrorBoundary
+        label="the check-in"
+        variant="overlay"
+        resetKeys={[isCheckInOpen]}
+        onReset={() => setIsCheckInOpen(false)}
+      >
       <DailyCheckInModal
         isOpen={isCheckInOpen}
         onClose={() => setIsCheckInOpen(false)}
         onSuccess={refreshData}
       />
+      </ErrorBoundary>
 
+      <ErrorBoundary
+        label="the check-in history"
+        variant="overlay"
+        resetKeys={[isHistoryOpen]}
+        onReset={() => setIsHistoryOpen(false)}
+      >
       <CheckInHistoryModal
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
       />
+      </ErrorBoundary>
 
+      <ErrorBoundary
+        label="the weekly review"
+        variant="overlay"
+        resetKeys={[isReviewOpen]}
+        onReset={() => setIsReviewOpen(false)}
+      >
       <WeeklyReviewModal
         isOpen={isReviewOpen}
         onClose={() => setIsReviewOpen(false)}
         onAddItem={() => setIsQuickAddOpen(true)}
       />
+      </ErrorBoundary>
 
+      <ErrorBoundary
+        label="the welcome tour"
+        variant="overlay"
+        resetKeys={[isTourOpen]}
+        onReset={() => {
+          markTourSeen();
+          setIsTourOpen(false);
+        }}
+      >
       <WelcomeTourModal
         isOpen={isTourOpen}
         onClose={() => {
@@ -368,16 +418,24 @@ export const App: React.FC = () => {
           setIsTourOpen(false);
         }}
       />
+      </ErrorBoundary>
 
       <DatabaseGate />
 
       <CloudLoginDialog />
 
+      <ErrorBoundary
+        label="the parent PIN"
+        variant="overlay"
+        resetKeys={[isParentPinOpen]}
+        onReset={() => setIsParentPinOpen(false)}
+      >
       <ParentPinModal
         isOpen={isParentPinOpen}
         onClose={() => setIsParentPinOpen(false)}
         onSuccess={handleParentUnlockSuccess}
       />
+      </ErrorBoundary>
     </div>
     </ChangeGuardProvider>
     </FeedbackProvider>
