@@ -27,6 +27,7 @@ export const CATEGORY_LABEL: Record<ChangeCategory, string> = {
   REWARD: 'Rewards',
   PLAN: 'Plan',
   PROOF: 'Marked work',
+  SANCTION: 'Sanctions',
 };
 
 export const CATEGORY_ICON: Record<ChangeCategory, string> = {
@@ -38,6 +39,7 @@ export const CATEGORY_ICON: Record<ChangeCategory, string> = {
   REWARD: '🎁',
   PLAN: '📋',
   PROOF: '📄',
+  SANCTION: '⚠️',
 };
 
 export interface RecordChangeInput {
@@ -171,6 +173,8 @@ export function groupByCategory(
     'GOAL',
     'REWARD',
     'PLAN',
+    // Last in the digest deliberately: a week is not led with its worst moment.
+    'SANCTION',
   ];
 
   const byCategory = new Map<ChangeCategory, ChangeLogEntry[]>();

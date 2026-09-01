@@ -2,6 +2,7 @@ import { db } from '../db';
 import { CommitmentException, FixedCommitment, RAGStatus } from '../types';
 import { todayISO } from '../utils/date';
 import { currentWeek, isInWeek, WeekWindow } from './weekWindow';
+import { readActivityLoad } from './activityPlanService';
 
 /** One commitment's contribution to the week, after any absences. */
 export interface CommitmentLoad {
@@ -29,6 +30,16 @@ export interface BurnoutCapacityResult {
   /** This week's exceptions, so a caller can show what was excused and why. */
   exceptions: CommitmentException[];
   customGoalsHours: number;
+  /**
+   * One-off things planned for this week that are not recurring commitments -
+   * the party, the film, the afternoon with friends. Real hours the week does
+   * not have for study, and until now completely invisible to this gauge.
+   *
+   * Only bespoke rows count. Activities standing in for a fixed commitment
+   * carry `fromCommitmentId` and are already inside `netBaselineHours`;
+   * counting them here would charge the week twice for the same Tuesday.
+   */
+  plannedActivityHours: number;
   loggedRevisionHours: number;
   overdueTaskCount: number;
   highPriorityTaskCount: number;
@@ -154,7 +165,11 @@ export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult>
   const overdueTasks = pendingTasks.filter((t) => t.dueDate < todayStr);
   const highPriorityTasks = pendingTasks.filter((t) => t.priority === 'HIGH');
 
-  const totalScheduled = round1(netBaselineHours + customGoalsHours + loggedRevisionHours);
+  const { bespokeExpectedHours: plannedActivityHours } = await readActivityLoad(week.start);
+
+  const totalScheduled = round1(
+    netBaselineHours + customGoalsHours + plannedActivityHours + loggedRevisionHours
+  );
   const remaining = round1(safeLimit - totalScheduled);
 
   const baseStressPercent = (totalScheduled / safeLimit) * 100;
@@ -208,6 +223,7 @@ export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult>
     excusedHours,
     exceptions,
     customGoalsHours,
+    plannedActivityHours,
     loggedRevisionHours,
     overdueTaskCount: overdueTasks.length,
     highPriorityTaskCount: highPriorityTasks.length,

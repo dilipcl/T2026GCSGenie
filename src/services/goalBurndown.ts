@@ -1,4 +1,6 @@
 import { db } from '../db';
+import { calculateBurnoutCapacity, safeStudyHours } from './burnoutEngine';
+import { readActivityLoad } from './activityPlanService';
 import { DailyCheckIn, Goal } from '../types';
 import { minutesForGoalFromCheckIn } from './goalProgress';
 import { addDaysISO, parseISODate, startOfWeekISO, todayISO } from '../utils/date';
@@ -325,5 +327,92 @@ export async function portfolioBurndown(today: string = todayISO()): Promise<Por
     weeksOfHistory: historyWeeks.size,
     hasEnoughData: goals.length > 0 && historyWeeks.size >= MIN_WEEKS_FOR_CHART,
     goalsWithoutBudget: approved.length - budgeted.length,
+  };
+}
+
+export interface BurndownFeasibility {
+  /** Summed across every approved goal still short of its line. */
+  requiredHoursPerWeek: number;
+  /** Study time this week actually has, once school, cadets and life are out. */
+  studyHeadroomHours: number;
+  /** What the week's planned activities took out of that headroom. */
+  activityHours: number;
+  /** Hours the plan needs beyond what the week can physically hold. */
+  shortfallHours: number;
+  isAchievable: boolean;
+  /** Nothing approved carries a budget, so there is no rate to check. */
+  hasGoals: boolean;
+  message: string;
+}
+
+/**
+ * Whether catching up is arithmetically possible this week.
+ *
+ * The burn-down says what rate is now needed; the capacity gauge says what the
+ * week can hold. Separately each is fine and neither is actionable. Together
+ * they answer the question a weekly review is actually for: is this plan behind,
+ * or is it impossible?
+ *
+ * The distinction matters because the two have opposite remedies. Behind is
+ * fixed by more hours. Impossible is fixed by fewer goals, a later target, or a
+ * lighter week - and telling someone to try harder at something that does not
+ * fit is how a plan stops being believed.
+ *
+ * Activities are the reason this is worth computing at all. Until the week's
+ * parties, films and parade nights were written down, the headroom was
+ * overstated by exactly the hours nobody had recorded, so every plan looked
+ * feasible right up to the point it was not.
+ */
+export async function assessFeasibility(
+  today: string = todayISO()
+): Promise<BurndownFeasibility> {
+  const [portfolio, capacity, activity] = await Promise.all([
+    portfolioBurndown(today),
+    calculateBurnoutCapacity(),
+    readActivityLoad(startOfWeekISO(today)),
+  ]);
+
+  // Only goals still short of their line demand a rate. A goal that is ahead
+  // needs no hours this week, and counting its steady-state budget would
+  // manufacture a shortfall out of a plan that is going well.
+  const requiredHoursPerWeek = round1(
+    portfolio.goals
+      .filter((g) => g.weeksRemaining > 0 && g.varianceHours < 0)
+      .reduce((sum, g) => sum + g.requiredHoursPerWeek, 0)
+  );
+
+  const studyHeadroomHours = round1(Math.max(0, safeStudyHours(capacity)));
+  const shortfallHours = round1(Math.max(0, requiredHoursPerWeek - studyHeadroomHours));
+  const hasGoals = portfolio.goals.length > 0;
+  const isAchievable = shortfallHours === 0;
+
+  const activityHours = activity.bespokeExpectedHours;
+
+  let message: string;
+  if (!hasGoals) {
+    message = 'No approved goal carries a weekly budget, so there is no rate to check.';
+  } else if (requiredHoursPerWeek === 0) {
+    message = 'Every goal is on or ahead of its line. Nothing to make up this week.';
+  } else if (isAchievable) {
+    message =
+      `Catching up needs ${requiredHoursPerWeek}h a week and this week has ` +
+      `${studyHeadroomHours}h free. It fits.`;
+  } else {
+    message =
+      `Catching up needs ${requiredHoursPerWeek}h a week but only ${studyHeadroomHours}h ` +
+      `is free after everything else` +
+      (activityHours > 0 ? `, including ${activityHours}h of planned activities` : '') +
+      `. That is ${shortfallHours}h short — this is not a "try harder" week, it is a ` +
+      `later target or a smaller goal.`;
+  }
+
+  return {
+    requiredHoursPerWeek,
+    studyHeadroomHours,
+    activityHours,
+    shortfallHours,
+    isAchievable,
+    hasGoals,
+    message,
   };
 }

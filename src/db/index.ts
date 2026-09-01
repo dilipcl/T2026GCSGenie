@@ -29,6 +29,9 @@ import {
   ImprovementIdea,
   DriveSyncState,
   ActivityComment,
+  WeekPlanBaseline,
+  PlanAmendment,
+  PlannedActivity,
 } from '../types';
 import {
   INITIAL_SUBJECTS,
@@ -107,6 +110,9 @@ export class GCSEGenieDatabase extends Dexie {
   improvements!: Table<ImprovementIdea, string>;
   driveSync!: Table<DriveSyncState, string>;
   activityComments!: Table<ActivityComment, string>;
+  planBaselines!: Table<WeekPlanBaseline, string>;
+  planAmendments!: Table<PlanAmendment, string>;
+  plannedActivities!: Table<PlannedActivity, string>;
 
   constructor() {
     super('GCSEGenieDB', IS_BROWSER ? { addons: [dexieCloud] } : {});
@@ -304,6 +310,36 @@ export class GCSEGenieDatabase extends Dexie {
      */
     this.version(14).stores({
       activityComments: 'id, activityId, createdAt, authorRole',
+    });
+
+    /**
+     * v15 gives a week a promise that stops moving.
+     *
+     * `planBaselines` is keyed by the week's Monday, so the row for a week is
+     * findable without a query and a week cannot be baselined twice. `status`
+     * is indexed because the parent portal asks "is anything waiting on me"
+     * across every week, not just this one.
+     *
+     * Amendments are their own table rather than an array on the baseline. Two
+     * devices can both add work to an approved week while offline, and Dexie
+     * Cloud merges rows; it does not merge an array inside one, so the second
+     * device's amendment would silently overwrite the first's.
+     */
+    this.version(15).stores({
+      planBaselines: 'id, weekStart, status',
+      planAmendments: 'id, weekStart, addedTaskId, at',
+    });
+
+    /**
+     * v16 asks what else the week is for.
+     *
+     * Indexed on `weekStart` because every read is "what is planned for this
+     * week"; `category` is indexed so the breakdown does not have to load a
+     * term of rows to total five numbers. `fromCommitmentId` is indexed so a
+     * commitment's derived rows can be found and refreshed without scanning.
+     */
+    this.version(16).stores({
+      plannedActivities: 'id, weekStart, category, fromCommitmentId',
     });
 
     this.on('ready', async () => {

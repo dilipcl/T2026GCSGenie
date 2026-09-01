@@ -128,6 +128,60 @@ export interface DailyCheckIn {
  */
 export type PlanBucket = 'THIS_WEEK' | 'NEXT_UP' | 'LATER';
 
+/**
+ * Where a week's plan stands.
+ *
+ * DRAFT is the week still being decided. AWAITING_APPROVAL is Tejas saying he
+ * is done deciding. BASELINED is the promise both sides have agreed to, and the
+ * point after which adding work costs something - see `PlanAmendment`.
+ */
+export type PlanBaselineStatus = 'DRAFT' | 'AWAITING_APPROVAL' | 'BASELINED';
+
+export interface WeekPlanBaseline {
+  /** The week's Monday, in ISO form. One row per week, so a week cannot baseline twice. */
+  id: string;
+  weekStart: string;
+  status: PlanBaselineStatus;
+  /**
+   * What was committed at the moment approval was asked for. Kept as a list
+   * rather than recomputed, because the whole value of a baseline is that it
+   * does not move when the plan does.
+   */
+  taskIds: string[];
+  /** Hours promised at that moment, by the same reckoning the load bar uses. */
+  hours: number;
+  submittedAt?: number;
+  approvedAt?: number;
+  /** Set when a parent sends it back instead of approving, with what to fix. */
+  returnedAt?: number;
+  returnedNote?: string;
+  createdAt: number;
+}
+
+/**
+ * Work added to a week that was already baselined.
+ *
+ * A separate record rather than a flag on the task, because the question it
+ * answers is about the week, not the item: how far the promise has drifted from
+ * what was agreed, and whether anything was taken out to make room. A baseline
+ * nobody can amend gets ignored the first time real life intervenes; one that
+ * can be amended silently is not a baseline at all.
+ */
+export interface PlanAmendment {
+  id: string;
+  weekStart: string;
+  addedTaskId: string;
+  addedTitle: string;
+  /** What came out to make room, when something did. */
+  displacedTaskId?: string;
+  displacedTitle?: string;
+  /** Net hours this put on the week: positive when nothing was displaced. */
+  hoursAdded: number;
+  reason?: string;
+  at: number;
+  by: UserRole;
+}
+
 export interface Task {
   id: string;
   subjectId: SubjectId;
@@ -146,6 +200,12 @@ export interface Task {
   remediationSourceDoc?: string;
   linkedGoalId?: string;
   linkedTopicId?: string;
+  /**
+   * The key date this work was planned for. Set when a task is created from
+   * the "Coming up" panel, which is what lets the readiness check tell a mock
+   * with revision behind it from one that is merely known about.
+   */
+  linkedMilestoneId?: string;
   xpValue: number;
   completed: boolean;
   completedAt?: number;
@@ -352,6 +412,62 @@ export interface ProofAttachment {
  * silently drifted out of agreement; joining them means "log absence" on
  * Tuesday knows which occasion it is cancelling and for how many hours.
  */
+/**
+ * What a week is spent on, beyond the work itself.
+ *
+ * Five kinds, because "busy" is not one thing. A careers evening and a birthday
+ * party both cost three hours and are not remotely the same call, and a week
+ * with no FUN in it at all is a finding rather than a triumph.
+ */
+export type ActivityCategory =
+  | 'ACADEMIC'
+  | 'EXTRA_CURRICULAR'
+  | 'CAREER'
+  | 'RECREATIONAL'
+  | 'FUN';
+
+/**
+ * One kind of thing planned for a week, and how many of it.
+ *
+ * The unit is deliberately "4 days of school" rather than four rows: that is
+ * how the week is actually described out loud, and one row per occasion would
+ * make the common case - a normal school week - a chore to enter and therefore
+ * one nobody enters.
+ *
+ * Recurring commitments (school, cadets) already reach the capacity gauge
+ * through `FixedCommitment`. Those appear here with `fromCommitmentId` set, so
+ * the week reads as a whole while their hours are counted exactly once. Only
+ * bespoke rows - the birthday party, the film, meeting friends - add to the
+ * load, because only they were not already known about.
+ */
+export interface PlannedActivity {
+  id: string;
+  /** The week's Monday, ISO. One activity plan per week. */
+  weekStart: string;
+  label: string;
+  category: ActivityCategory;
+  /** How many occasions are expected: 4 days of school, 2 parade nights. */
+  plannedOccasions: number;
+  /** Hours one occasion costs. Total planned is the product of the two. */
+  hoursEach: number;
+  /**
+   * How many actually happened. Undefined until someone says - and it is a
+   * check-in that says, because a plan made on Monday is a forecast and
+   * treating a forecast as a record is how the gauge came to overstate every
+   * week that went differently.
+   */
+  actualOccasions?: number;
+  confirmedAt?: number;
+  /**
+   * The recurring commitment this row stands for. Set means the hours are
+   * already in the capacity baseline and must not be added twice.
+   */
+  fromCommitmentId?: string;
+  notes?: string;
+  createdAt: number;
+  createdBy: UserRole;
+}
+
 export interface FixedCommitment {
   id: string;
   label: string;
@@ -440,7 +556,9 @@ export type ChangeCategory =
   | 'GOAL'
   | 'REWARD'
   | 'PLAN'
-  | 'PROOF';
+  | 'PROOF'
+  /** A sanction, which is the only category that ever takes XP away. */
+  | 'SANCTION';
 
 /**
  * One confirmed change, written the moment it is made.
@@ -598,9 +716,30 @@ export interface RewardRedemption {
   parentComments?: string;
 }
 
+/**
+ * How serious an incident was, which is the only input to what it costs.
+ *
+ * A flat penalty was the whole problem: being late to a lesson and being sent
+ * out of one both cost 500 XP and both froze the shop, so the scale carried no
+ * information and every incident became the same argument. Three tiers, fixed
+ * in advance, mean the number is a consequence of the category rather than a
+ * judgement made in the moment.
+ */
+export type SanctionSeverity = 'MINOR' | 'DETENTION' | 'SERIOUS';
+
 export interface Sanction {
   id: string;
   type: 'DETENTION' | 'HOMEWORK_SANCTION' | 'CUSTOM';
+  /**
+   * Absent on rows written before tiers existed. Those were all logged at the
+   * old flat rate, so they read as SERIOUS - see `severityOf`.
+   */
+  severity?: SanctionSeverity;
+  /**
+   * The tier this would have been on its own, set only when a repeat inside the
+   * window pushed it up one. Kept so the record says why it cost what it did.
+   */
+  escalatedFrom?: SanctionSeverity;
   reason: string;
   date: string;
   penaltyXP: number;
