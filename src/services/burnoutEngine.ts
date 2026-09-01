@@ -2,7 +2,7 @@ import { db } from '../db';
 import { CommitmentException, FixedCommitment, RAGStatus } from '../types';
 import { todayISO } from '../utils/date';
 import { currentWeek, isInWeek, WeekWindow } from './weekWindow';
-import { readActivityLoad } from './activityPlanService';
+import { bespokeActivityHours } from './activityPlanService';
 
 /** One commitment's contribution to the week, after any absences. */
 export interface CommitmentLoad {
@@ -165,7 +165,12 @@ export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult>
   const overdueTasks = pendingTasks.filter((t) => t.dueDate < todayStr);
   const highPriorityTasks = pendingTasks.filter((t) => t.priority === 'HIGH');
 
-  const { bespokeExpectedHours: plannedActivityHours } = await readActivityLoad(week.start);
+  /**
+   * Typed-in activities only. The recurring commitments reach this function
+   * through `commitmentBreakdown` above, and asking the activity panel for them
+   * as well would charge the week twice for the same Tuesday evening.
+   */
+  const plannedActivityHours = await bespokeActivityHours(week.start);
 
   const totalScheduled = round1(
     netBaselineHours + customGoalsHours + plannedActivityHours + loggedRevisionHours

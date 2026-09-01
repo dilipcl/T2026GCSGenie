@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { Task, PlanBucket, MilestoneReminder, Goal, PlanAmendment } from '../../types';
+import { Task, PlanBucket, MilestoneReminder, Goal, PlanAmendment, WeekType } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import {
   loadWeekCommitment,
@@ -50,6 +50,12 @@ import { logAuditEvent } from '../../services/auditService';
 interface PlanViewProps {
   onAdd: () => void;
   onOpenReview: () => void;
+  /**
+   * Needed to work out which occasions fall in this week: a fortnightly
+   * timetable means "how many parade nights" has a different answer in an odd
+   * week than an even one.
+   */
+  activeWeek: WeekType;
 }
 
 const BUCKETS: { id: PlanBucket; label: string; blurb: string }[] = [
@@ -69,7 +75,7 @@ const BUCKETS: { id: PlanBucket; label: string; blurb: string }[] = [
  * Key dates live here too rather than in their own tab: a deadline is only
  * meaningful next to the work meant to meet it.
  */
-export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
+export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview, activeWeek }) => {
   const { toast } = useFeedback();
   const [deferring, setDeferring] = useState<{ task: Task; bucket: PlanBucket } | null>(null);
 
@@ -372,7 +378,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
       {/* Before the checklist: study time is what is left after everything
           else, so the week's other commitments have to be on the page before
           "does this fit" means anything. */}
-      <WeekActivitiesPanel weekStart={weekStartISO()} />
+      <WeekActivitiesPanel weekStart={weekStartISO()} weekType={activeWeek} />
 
       <PlanFinalisationCard
         checks={checks}

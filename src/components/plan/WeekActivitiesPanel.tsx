@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ActivityCategory, PlannedActivity } from '../../types';
+import { ActivityCategory, PlannedActivity, WeekType } from '../../types';
 import {
   ACTIVITY_CATEGORIES,
   CATEGORY_ORDER,
@@ -8,17 +8,21 @@ import {
   expectedHours,
   isConfirmed,
   plannedHours,
+  purgeSeededActivities,
   readActivityLoad,
   removeActivity,
   saveActivity,
-  seedWeekFromCommitments,
 } from '../../services/activityPlanService';
+import { CommitmentOccasion, occasionsOn } from '../../services/commitmentService';
+import { CommitmentExceptionModal } from '../commitments/CommitmentExceptionModal';
+import { addDaysISO, parseISODate, formatFriendlyDate } from '../../utils/date';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { InfoTip } from '../shared/InfoTip';
-import { CalendarRange, Plus, Trash2, Lock, Check } from 'lucide-react';
+import { CalendarRange, Plus, Trash2, Check, SlidersHorizontal, Undo2 } from 'lucide-react';
 
 interface Props {
   weekStart: string;
+  weekType: WeekType;
 }
 
 /**
@@ -34,21 +38,31 @@ interface Props {
  * described out loud. The recurring things are filled in automatically and
  * marked as already counted; only the bespoke rows move the gauge.
  */
-export const WeekActivitiesPanel: React.FC<Props> = ({ weekStart }) => {
+export const WeekActivitiesPanel: React.FC<Props> = ({ weekStart, weekType }) => {
   const { toast } = useFeedback();
   const [adding, setAdding] = useState(false);
+  /** Which commitment row has its days expanded, if any. */
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [exceptionFor, setExceptionFor] = useState<CommitmentOccasion | null>(null);
   const [label, setLabel] = useState('');
   const [category, setCategory] = useState<ActivityCategory>('FUN');
   const [occasions, setOccasions] = useState(1);
   const [hours, setHours] = useState(2);
 
-  const load = useLiveQuery(() => readActivityLoad(weekStart), [weekStart]);
+  const load = useLiveQuery(() => readActivityLoad(weekStart, weekType), [weekStart, weekType]);
 
-  // The usual week, filled in once, so the honest answer is not ten taps away.
+  /** Every occasion in the week, so a row can offer its own days to change. */
+  const days = useLiveQuery(async () => {
+    const dates = Array.from({ length: 7 }, (_, i) => addDaysISO(i, parseISODate(weekStart)));
+    const perDay = await Promise.all(dates.map((date) => occasionsOn(date, weekType)));
+    return perDay.flat();
+  }, [weekStart, weekType], [] as CommitmentOccasion[]);
+
+  // Clears the copies the first version stored. They are derived now, and a
+  // survivor would show the week twice.
   useEffect(() => {
-    seedWeekFromCommitments(weekStart).catch(() => {
-      // A failure here costs the convenience, never the panel: the list still
-      // renders and anything missing can be added by hand.
+    purgeSeededActivities(weekStart).catch(() => {
+      // Costs the tidy-up, never the panel.
     });
   }, [weekStart]);
 
@@ -187,10 +201,8 @@ export const WeekActivitiesPanel: React.FC<Props> = ({ weekStart }) => {
             const meta = ACTIVITY_CATEGORIES[a.category];
             const shortfall = plannedHours(a) - expectedHours(a);
             return (
-              <div
-                key={a.id}
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900/70 border border-slate-800"
-              >
+              <div key={a.id} className="rounded-xl bg-slate-900/70 border border-slate-800">
+                <div className="flex items-center gap-2 p-2.5">
                 <span className="text-base leading-none flex-shrink-0">{meta.icon}</span>
 
                 <div className="min-w-0 flex-1">
@@ -206,29 +218,26 @@ export const WeekActivitiesPanel: React.FC<Props> = ({ weekStart }) => {
                   </p>
                 </div>
 
-                {/* Already in the gauge as a commitment. Said, not hidden - the
-                    week should read as a whole even where a row is not what
-                    moves the number. */}
-                {!addsToLoad(a) && (
-                  <span
-                    title="Already counted as a fixed commitment"
-                    className="text-[9px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 flex-shrink-0"
-                  >
-                    <Lock className="w-2.5 h-2.5" />
-                    counted
-                  </span>
-                )}
-
-                {isConfirmed(a) && (
-                  <span
-                    title="Confirmed at a check-in"
-                    className="text-emerald-400 flex-shrink-0"
-                  >
+                {isConfirmed(a) && addsToLoad(a) && (
+                  <span title="Confirmed at a check-in" className="text-emerald-400 flex-shrink-0">
                     <Check className="w-3.5 h-3.5" />
                   </span>
                 )}
 
-                {addsToLoad(a) && (
+                {/* A recurring commitment is editable through its own days.
+                    The first version showed these locked, which left no way to
+                    say "no school Monday" from the one screen that claims to
+                    describe the week. */}
+                {!addsToLoad(a) ? (
+                  <button
+                    onClick={() => setOpenRow((prev) => (prev === a.id ? null : a.id))}
+                    aria-expanded={openRow === a.id}
+                    className="px-2 py-1.5 rounded-lg text-[10px] font-bold text-slate-300 bg-slate-800 border border-slate-700 hover:bg-slate-700 flex items-center gap-1 flex-shrink-0"
+                  >
+                    <SlidersHorizontal className="w-3 h-3" />
+                    <span>Change</span>
+                  </button>
+                ) : (
                   <button
                     onClick={() => drop(a)}
                     aria-label={`Remove "${a.label}"`}
@@ -238,9 +247,55 @@ export const WeekActivitiesPanel: React.FC<Props> = ({ weekStart }) => {
                   </button>
                 )}
               </div>
-            );
-          })}
-        </div>
+
+              {/* The week's days for this commitment. Marking one writes a
+                  `commitmentException`, which is the row the capacity gauge
+                  actually reads - so the hours move here and there together. */}
+              {openRow === a.id && (
+                <div className="ml-8 mb-1.5 space-y-1">
+                  {days
+                    .filter((o) => o.commitment.id === a.fromCommitmentId)
+                    .map((occasion) => {
+                      const missed =
+                        occasion.exception && occasion.exception.status !== 'ATTENDED';
+                      return (
+                        <button
+                          key={`${occasion.commitment.id}_${occasion.date}_${occasion.title}`}
+                          onClick={() => setExceptionFor(occasion)}
+                          className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-[10px] transition-colors ${
+                            missed
+                              ? 'bg-slate-950 border-slate-800 text-slate-500'
+                              : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <span className={missed ? 'line-through' : ''}>
+                            {formatFriendlyDate(occasion.date)} · {occasion.title}
+                          </span>
+                          <span className="flex items-center gap-1.5 flex-shrink-0">
+                            <span>{occasion.hours}h</span>
+                            {missed ? (
+                              <span className="text-emerald-400 flex items-center gap-1">
+                                <Undo2 className="w-3 h-3" />
+                                not happening
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">change</span>
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  {days.filter((o) => o.commitment.id === a.fromCommitmentId).length === 0 && (
+                    <p className="text-[10px] text-slate-500 italic px-1">
+                      No occasions in this week&rsquo;s timetable.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
       )}
 
       {load.byCategory.length > 0 && (
@@ -256,6 +311,11 @@ export const WeekActivitiesPanel: React.FC<Props> = ({ weekStart }) => {
           })}
         </div>
       )}
+
+      <CommitmentExceptionModal
+        occasion={exceptionFor}
+        onClose={() => setExceptionFor(null)}
+      />
     </div>
   );
 };

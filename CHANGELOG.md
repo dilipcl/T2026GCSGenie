@@ -1,5 +1,32 @@
 # Changelog
 
+## November 2026 - The week, read from one place
+
+**A correction, found within the hour of shipping.** The activity panel wrote
+its own copy of each recurring commitment into `plannedActivities`, and that
+copy was the only thing the panel could see - while the capacity gauge reads
+`commitments` and `commitmentExceptions` and never looked at it. Two records of
+the same fact, and only one of them counted.
+
+The consequences were worse than the read-only rows that gave it away. There was
+no way to say "no school on Monday" from the one screen that claims to describe
+the week. And the check-in's "did these happen?" step would have accepted
+"School: 2 of 5", shown 19.5h given back, and left the gauge charging the full
+32.5h. A number that moves on screen and nowhere else is worse than a locked
+row, because it looks like it worked.
+
+The commitments are now **derived on every read** from the timetable and the
+same exception rows the gauge deducts from. Nothing is stored, so the two cannot
+disagree - there is one answer and both are reading it.
+
+Each row carries a **Change** control that opens that week's days, and picking
+one opens the absence dialog the app already had. That dialog says "6.5h come
+off this week's scheduled load", and it means it: the hours move in the panel
+and in the gauge together, because they are the same hours.
+
+Stale copies written by the first version are purged on open, so a week is never
+counted twice.
+
 ## November 2026 - What else is the week for?
 
 **Study time is what is left.** The capacity gauge knew about school and cadets

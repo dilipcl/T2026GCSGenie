@@ -1,8 +1,9 @@
 import { db } from '../db';
-import { ActivityCategory, PlannedActivity, UserRole } from '../types';
+import { ActivityCategory, PlannedActivity, UserRole, WeekType } from '../types';
 import { logAuditEvent } from './auditService';
 import { newId } from '../utils/id';
-import { startOfWeekISO, todayISO } from '../utils/date';
+import { addDaysISO, parseISODate, startOfWeekISO, todayISO } from '../utils/date';
+import { occasionsOn } from './commitmentService';
 
 /**
  * What the week is for, besides the work.
@@ -111,10 +112,33 @@ export function addsToLoad(activity: PlannedActivity): boolean {
   return !activity.fromCommitmentId;
 }
 
-export async function loadWeekActivities(
+/** Only the rows someone typed in. This is what the capacity gauge adds. */
+export async function bespokeActivities(
   weekStart: string = startOfWeekISO()
 ): Promise<PlannedActivity[]> {
   const rows = await db.plannedActivities.where('weekStart').equals(weekStart).toArray();
+  // Defensive: the first version stored copies of the commitments here. They
+  // are derived now, and any survivor would be counted against the week twice.
+  return rows.filter((a) => !a.fromCommitmentId);
+}
+
+/** Hours the gauge should add: typed-in rows only, at their expected count. */
+export async function bespokeActivityHours(
+  weekStart: string = startOfWeekISO()
+): Promise<number> {
+  const rows = await bespokeActivities(weekStart);
+  return round1(rows.reduce((sum, a) => sum + expectedHours(a), 0));
+}
+
+export async function loadWeekActivities(
+  weekStart: string = startOfWeekISO(),
+  weekType: WeekType = 'ODD'
+): Promise<PlannedActivity[]> {
+  const [stored, derived] = await Promise.all([
+    bespokeActivities(weekStart),
+    derivedActivities(weekStart, weekType),
+  ]);
+  const rows = [...derived, ...stored];
   // Category order, then longest first: the shape of the week, not its
   // insertion history. `id` breaks a tie so the list never reshuffles.
   return rows.sort(
@@ -150,9 +174,10 @@ export interface ActivityLoad {
 }
 
 export async function readActivityLoad(
-  weekStart: string = startOfWeekISO()
+  weekStart: string = startOfWeekISO(),
+  weekType: WeekType = 'ODD'
 ): Promise<ActivityLoad> {
-  const activities = await loadWeekActivities(weekStart);
+  const activities = await loadWeekActivities(weekStart, weekType);
 
   const byCategory = CATEGORY_ORDER.map((category) => {
     const rows = activities.filter((a) => a.category === category);
@@ -281,53 +306,89 @@ export async function confirmAttendance(
 }
 
 /**
- * Puts the recurring commitments into the week's list, once.
+ * The recurring commitments, as this week actually stands.
  *
- * Without this the panel opens empty every Monday and the honest answer - "the
- * usual school week, plus these three things" - takes ten taps to express. Rows
- * already present are left exactly as they are, including any confirmation, so
- * this is safe to call on every open and safe to call from two devices.
+ * Derived on every read, never stored. The first version wrote a copy of each
+ * commitment into `plannedActivities` and that copy was wrong the moment
+ * anything changed: it could not be edited, and confirming it at a check-in
+ * moved the panel's numbers while the capacity gauge - which reads commitments
+ * and `commitmentExceptions`, not this table - carried on charging the week for
+ * lessons nobody attended. Two records of the same fact, and only one of them
+ * counted.
+ *
+ * So the count comes from the timetable and the misses come from the exception
+ * rows the gauge already uses. The panel and the gauge cannot now disagree,
+ * because there is only one answer and both are reading it.
  */
-export async function seedWeekFromCommitments(
-  weekStart: string = startOfWeekISO()
+export async function derivedActivities(
+  weekStart: string = startOfWeekISO(),
+  weekType: WeekType = 'ODD'
 ): Promise<PlannedActivity[]> {
-  const [commitments, existing] = await Promise.all([
-    db.commitments.toArray(),
-    db.plannedActivities.where('weekStart').equals(weekStart).toArray(),
-  ]);
+  const days = Array.from({ length: 7 }, (_, i) => addDaysISO(i, parseISODate(weekStart)));
+  const perDay = await Promise.all(days.map((date) => occasionsOn(date, weekType)));
 
-  const alreadyThere = new Set(
-    existing.flatMap((a) => (a.fromCommitmentId ? [a.fromCommitmentId] : []))
-  );
+  const byCommitment = new Map<
+    string,
+    { label: string; hours: number[]; missed: number }
+  >();
 
-  const created: PlannedActivity[] = [];
-  for (const commitment of commitments.filter((c) => c.isActive)) {
-    if (alreadyThere.has(commitment.id)) continue;
-
-    const hoursEach = commitment.hoursPerOccasion || commitment.weeklyHours || 0;
-    if (hoursEach <= 0) continue;
-
-    const occasions = Math.max(1, Math.round((commitment.weeklyHours || 0) / hoursEach));
-
-    const row: PlannedActivity = {
-      // Deterministic, so two devices seeding the same week offline produce one
-      // row and not two - the same reasoning as CommitmentException's id.
-      id: `activity_${commitment.id}__${weekStart}`,
-      weekStart,
-      label: commitment.label,
-      category: guessCategory(commitment.label),
-      plannedOccasions: occasions,
-      hoursEach: round1(hoursEach),
-      fromCommitmentId: commitment.id,
-      createdAt: Date.now(),
-      createdBy: 'STUDENT',
-    };
-
-    await db.plannedActivities.put(row);
-    created.push(row);
+  for (const occasions of perDay) {
+    for (const occasion of occasions) {
+      const row = byCommitment.get(occasion.commitment.id) ?? {
+        label: occasion.commitment.label,
+        hours: [],
+        missed: 0,
+      };
+      row.hours.push(occasion.hours);
+      // `ATTENDED` is an exception that says it happened after all, so it is
+      // not a miss. Anything else took the evening out of the week.
+      if (occasion.exception && occasion.exception.status !== 'ATTENDED') row.missed += 1;
+      byCommitment.set(occasion.commitment.id, row);
+    }
   }
 
-  return created;
+  const rows: PlannedActivity[] = [];
+  for (const [commitmentId, row] of byCommitment) {
+    const planned = row.hours.length;
+    if (planned === 0) continue;
+
+    const totalHours = row.hours.reduce((sum, h) => sum + h, 0);
+    rows.push({
+      // Stable and derived, so React keys hold across renders. Never written.
+      id: `derived_${commitmentId}__${weekStart}`,
+      weekStart,
+      label: row.label,
+      category: guessCategory(row.label),
+      plannedOccasions: planned,
+      hoursEach: round1(totalHours / planned),
+      // Only ever set when something was actually missed, so an untouched week
+      // reads as a forecast rather than as a confirmed full attendance.
+      actualOccasions: row.missed > 0 ? planned - row.missed : undefined,
+      fromCommitmentId: commitmentId,
+      createdAt: 0,
+      createdBy: 'STUDENT',
+    });
+  }
+
+  return rows;
+}
+
+/**
+ * Removes the stored copies the first version seeded.
+ *
+ * They are now derived, so any left behind would show the week twice. Safe to
+ * call on every open: it only ever deletes rows carrying `fromCommitmentId`,
+ * which nothing writes any more.
+ */
+export async function purgeSeededActivities(
+  weekStart: string = startOfWeekISO()
+): Promise<number> {
+  const stale = (await db.plannedActivities.where('weekStart').equals(weekStart).toArray()).filter(
+    (a) => a.fromCommitmentId
+  );
+  if (stale.length === 0) return 0;
+  await db.plannedActivities.bulkDelete(stale.map((a) => a.id));
+  return stale.length;
 }
 
 /**

@@ -284,6 +284,7 @@ export const App: React.FC = () => {
           <PlanView
             onAdd={() => setIsQuickAddOpen(true)}
             onOpenReview={() => setIsReviewOpen(true)}
+            activeWeek={activeWeek}
           />
         )}
 

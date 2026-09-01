@@ -15,9 +15,12 @@ import {
   readActivityLoad,
   removeActivity,
   saveActivity,
-  seedWeekFromCommitments,
+  derivedActivities,
+  purgeSeededActivities,
+  bespokeActivityHours,
   shouldAskAboutActivities,
 } from './activityPlanService';
+import { logException } from './commitmentService';
 import { calculateBurnoutCapacity, safeStudyHours } from './burnoutEngine';
 
 function freezeAt(iso: string) {
@@ -106,6 +109,12 @@ describe('counting the hours', () => {
 });
 
 describe('the week as a whole', () => {
+  // No recurring commitments, so these describe only what was typed in. The
+  // derived rows are the real timetable and have their own block below.
+  beforeEach(async () => {
+    await db.commitments.clear();
+  });
+
   it('totals the planned and the expected separately', async () => {
     await add({ label: 'Party', plannedOccasions: 1, hoursEach: 3 });
     const film = await add({ label: 'Film night', plannedOccasions: 1, hoursEach: 2.5 });
@@ -212,14 +221,16 @@ describe('what the capacity gauge is allowed to count', () => {
     expect(load.bespokeExpectedHours).toBe(3);
   });
 
-  it('does not count one standing in for a fixed commitment', async () => {
-    // Those hours are already inside the commitment baseline. Counting them
-    // here charges the week twice for the same Tuesday evening.
+  it('ignores a stored row that stands in for a fixed commitment', async () => {
+    // Those hours reach the gauge through the commitment itself. A stored copy
+    // is the stale shape the first version wrote, and counting it would charge
+    // the week twice for the same Tuesday evening.
+    await db.commitments.clear();
     await add({ label: 'Cadets', hoursEach: 3, plannedOccasions: 2, fromCommitmentId: 'c1' });
     const load = await readActivityLoad(MONDAY);
 
-    expect(load.totalPlannedHours).toBe(6);
     expect(load.bespokeExpectedHours).toBe(0);
+    expect(load.totalPlannedHours).toBe(0);
   });
 
   it('distinguishes the two kinds', async () => {
@@ -230,41 +241,108 @@ describe('what the capacity gauge is allowed to count', () => {
   });
 });
 
-describe('seeding the week from the recurring commitments', () => {
-  it('creates a row per active commitment', async () => {
-    const created = await seedWeekFromCommitments(MONDAY);
-    const commitments = (await db.commitments.toArray()).filter((c) => c.isActive);
-
-    expect(created.length).toBeGreaterThan(0);
-    expect(created).toHaveLength(commitments.length);
-    expect(created.every((a) => a.fromCommitmentId)).toBe(true);
+describe('the recurring commitments, derived rather than stored', () => {
+  it('lists a row for each commitment that has occasions this week', async () => {
+    const rows = await derivedActivities(MONDAY, 'ODD');
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.fromCommitmentId)).toBe(true);
   });
 
-  it('is safe to run twice', async () => {
-    // Called on every open, and from two devices.
-    await seedWeekFromCommitments(MONDAY);
-    const again = await seedWeekFromCommitments(MONDAY);
-    expect(again).toHaveLength(0);
+  it('stores nothing, so the panel and the gauge cannot disagree', async () => {
+    await derivedActivities(MONDAY, 'ODD');
+    // The first version wrote a copy here. That copy was a second record of the
+    // same fact, and only the commitment half ever reached the capacity gauge.
+    expect(await db.plannedActivities.toArray()).toHaveLength(0);
   });
 
-  it('does not overwrite a confirmation on re-run', async () => {
-    const [first] = await seedWeekFromCommitments(MONDAY);
-    await confirmAttendance(first, 0);
-    await seedWeekFromCommitments(MONDAY);
-
-    const stored = await db.plannedActivities.get(first.id);
-    expect(stored?.actualOccasions).toBe(0);
+  it('counts school as one occasion per weekday', async () => {
+    const school = (await derivedActivities(MONDAY, 'ODD')).find((r) =>
+      r.label.toLowerCase().includes('school')
+    );
+    expect(school?.plannedOccasions).toBe(5);
   });
 
-  it('uses a deterministic id, so two devices produce one row', async () => {
-    const [first] = await seedWeekFromCommitments(MONDAY);
-    expect(first.id).toContain(first.fromCommitmentId!);
-    expect(first.id).toContain(MONDAY);
+  it('leaves an untouched week reading as a forecast, not a confirmation', async () => {
+    const rows = await derivedActivities(MONDAY, 'ODD');
+    expect(rows.every((r) => r.actualOccasions === undefined)).toBe(true);
   });
 
-  it('adds nothing to the load, since the hours are already counted', async () => {
-    await seedWeekFromCommitments(MONDAY);
-    expect((await readActivityLoad(MONDAY)).bespokeExpectedHours).toBe(0);
+  it('drops the count when a day is marked as not happening', async () => {
+    const commitments = await db.commitments.toArray();
+    const school = commitments.find((c) => c.label.toLowerCase().includes('school'))!;
+
+    await logException({
+      commitment: school,
+      date: MONDAY,
+      title: school.label,
+      scheduledHours: school.hoursPerOccasion,
+      status: 'CANCELLED_BY_ORGANISER',
+      reasonCategory: 'STAND_DOWN',
+    });
+
+    const row = (await derivedActivities(MONDAY, 'ODD')).find(
+      (r) => r.fromCommitmentId === school.id
+    )!;
+    expect(row.plannedOccasions).toBe(5);
+    expect(row.actualOccasions).toBe(4);
+    expect(expectedHours(row)).toBeLessThan(plannedHours(row));
+  });
+
+  it('does not treat "attended after all" as a miss', async () => {
+    const school = (await db.commitments.toArray()).find((c) =>
+      c.label.toLowerCase().includes('school')
+    )!;
+    await logException({
+      commitment: school,
+      date: MONDAY,
+      title: school.label,
+      scheduledHours: school.hoursPerOccasion,
+      status: 'ATTENDED',
+      reasonCategory: 'OTHER',
+    });
+
+    const row = (await derivedActivities(MONDAY, 'ODD')).find(
+      (r) => r.fromCommitmentId === school.id
+    )!;
+    expect(row.actualOccasions).toBeUndefined();
+  });
+
+  it('clears the copies the first version stored', async () => {
+    await db.plannedActivities.add({
+      id: 'activity_stale',
+      weekStart: MONDAY,
+      label: 'School',
+      category: 'ACADEMIC',
+      plannedOccasions: 5,
+      hoursEach: 6.5,
+      fromCommitmentId: 'commit_school',
+      createdAt: Date.now(),
+      createdBy: 'STUDENT',
+    });
+
+    expect(await purgeSeededActivities(MONDAY)).toBe(1);
+    expect(await db.plannedActivities.toArray()).toHaveLength(0);
+  });
+
+  it('never purges a row somebody typed in', async () => {
+    await add({ label: 'Birthday party' });
+    expect(await purgeSeededActivities(MONDAY)).toBe(0);
+    expect(await db.plannedActivities.toArray()).toHaveLength(1);
+  });
+
+  it('ignores a stale stored copy when totalling the load', async () => {
+    await db.plannedActivities.add({
+      id: 'activity_stale',
+      weekStart: MONDAY,
+      label: 'School',
+      category: 'ACADEMIC',
+      plannedOccasions: 5,
+      hoursEach: 6.5,
+      fromCommitmentId: 'commit_school',
+      createdAt: Date.now(),
+      createdBy: 'STUDENT',
+    });
+    expect(await bespokeActivityHours(MONDAY)).toBe(0);
   });
 });
 
@@ -302,11 +380,39 @@ describe('the effect on study headroom', () => {
 
   it('does not charge the week twice for a recurring commitment', async () => {
     const before = safeStudyHours(await calculateBurnoutCapacity());
-    await seedWeekFromCommitments(MONDAY);
+    // Reading the panel must not move the gauge: the commitments reach it
+    // through their own breakdown, and the panel only derives a view of them.
+    await derivedActivities(MONDAY, 'ODD');
     const after = safeStudyHours(await calculateBurnoutCapacity());
 
-    // School and cadets already reach the gauge as commitments.
     expect(after).toBeCloseTo(before, 1);
+  });
+
+  it('gives the hours back when a school day is cancelled', async () => {
+    // The bug this whole rework is about: the panel used to show the day gone
+    // while the gauge carried on charging for it.
+    const school = (await db.commitments.toArray()).find((c) =>
+      c.label.toLowerCase().includes('school')
+    )!;
+    const before = safeStudyHours(await calculateBurnoutCapacity());
+
+    await logException({
+      commitment: school,
+      date: MONDAY,
+      title: school.label,
+      scheduledHours: school.hoursPerOccasion,
+      status: 'CANCELLED_BY_ORGANISER',
+      reasonCategory: 'STAND_DOWN',
+    });
+
+    const after = safeStudyHours(await calculateBurnoutCapacity());
+    expect(after - before).toBeCloseTo(school.hoursPerOccasion, 1);
+
+    // And the panel now says the same thing.
+    const row = (await derivedActivities(MONDAY, 'ODD')).find(
+      (r) => r.fromCommitmentId === school.id
+    )!;
+    expect(row.actualOccasions).toBe(row.plannedOccasions - 1);
   });
 
   it('reports the activity hours it counted', async () => {
@@ -355,6 +461,7 @@ describe('when the check-in should ask', () => {
 
 describe('removing one', () => {
   it('takes it out of the week and logs it', async () => {
+    await db.commitments.clear();
     const a = await add({ label: 'Cancelled party' });
     await removeActivity(a);
 

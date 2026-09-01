@@ -88,9 +88,11 @@ Five categories, because "busy" is not one thing: **Academic, Extra-curricular, 
 Recreational, Fun.** A careers evening and a birthday party both cost three hours and are not the
 same call, and a week with no Fun in it is a finding rather than a triumph.
 
-Recurring commitments are filled in automatically and marked *counted* — their hours already reach
-the capacity gauge, and adding them again would charge the week twice for the same Tuesday evening.
-Only bespoke rows move the number.
+Recurring commitments appear here too, but they are **derived, never stored** — read from the
+timetable and from the same absence rows the capacity gauge deducts from, so the panel and the gauge
+cannot disagree. Each carries a **Change** control that opens that week's days; marking one opens the
+absence dialog, and the hours come off the panel and the gauge together because they are the same
+hours. Only the typed-in rows are stored, and only they add to the load.
 
 **The check-in confirms it.** A plan made on Monday is a forecast; not every parade night happens
 and not every party is gone to. From midweek the check-in asks how many of each actually did — one

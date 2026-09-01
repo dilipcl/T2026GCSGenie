@@ -102,13 +102,18 @@ because that is how a week is described out loud and one row per occasion makes
 an ordinary week tedious to enter - which means it does not get entered, and an
 empty table is worse than a rough one.
 
-**Double counting is the whole design risk.** School and cadets already reach the
-capacity gauge through `FixedCommitment`. Rows seeded from one carry
-`fromCommitmentId`, are shown as *counted*, and are excluded from
-`bespokeExpectedHours` - the only figure `calculateBurnoutCapacity` adds. The
-seed is idempotent and its id is `activity_${commitmentId}__${weekStart}`,
-deterministic for the same reason `CommitmentException` ids are: two devices
-seeding the same week offline must merge to one row, not deduct twice.
+**Recurring commitments are derived, never stored.** The first version seeded a
+copy of each into `plannedActivities`, and that copy was the only thing the panel
+could see while `calculateBurnoutCapacity` read `commitments` and
+`commitmentExceptions` - two records of one fact, one of them decorative. It
+could not be edited, and confirming it at a check-in moved the panel while the
+gauge carried on charging for lessons nobody attended.
+
+`derivedActivities` now reads the occasions from the timetable and the misses
+from the exception rows the gauge itself deducts from, so the two cannot
+disagree. `bespokeActivityHours` - typed-in rows only - is the single figure the
+gauge adds, and it filters `fromCommitmentId` defensively so a surviving copy
+can never be counted. `purgeSeededActivities` clears those copies on open.
 
 **A forecast is not a record.** `expectedHours` falls back to the plan until
 `actualOccasions` is set, because an unconfirmed activity has not been shown to
