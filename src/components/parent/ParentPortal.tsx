@@ -4,7 +4,6 @@ import {
   ParentSettings,
   AgentAuditReport,
   AuditLogEntry,
-  Sanction,
   LLMProvider,
 } from '../../types';
 import { runAgenticAudit } from '../../services/llmAgentService';
@@ -26,11 +25,13 @@ import { GuidanceLinksPanel } from './GuidanceLinksPanel';
 import { HandoverResetPanel } from './HandoverResetPanel';
 import { DriveBackupPanel } from './DriveBackupPanel';
 import { DataQualityPanel } from './DataQualityPanel';
+import { SanctionPanel } from './SanctionPanel';
+import { PlanApprovalPanel } from './PlanApprovalPanel';
 import { PortalSection } from './PortalSection';
 import { UserCog, ListChecks, Link as LinkIcon } from 'lucide-react';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
-import { todayISO, formatLogTimestamp } from '../../utils/date';
+import { formatLogTimestamp } from '../../utils/date';
 import { setPassphrase, getLockState, LockState } from '../../services/parentLockService';
 import { MIN_PASSPHRASE_LENGTH, PBKDF2_ITERATIONS } from '../../utils/credential';
 import { verifyAuditChain, ChainVerification } from '../../services/auditService';
@@ -46,7 +47,6 @@ import {
   ShieldCheck,
   FileWarning,
 } from 'lucide-react';
-import { newId } from '../../utils/id';
 import { useFeedback } from '../shared/FeedbackProvider';
 
 export const ParentPortal: React.FC = () => {
@@ -62,7 +62,6 @@ export const ParentPortal: React.FC = () => {
   const [activeReport, setActiveReport] = useState<AgentAuditReport | null>(null);
   const [isRunningAudit, setIsRunningAudit] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
-  const [sanctions, setSanctions] = useState<Sanction[]>([]);
   const [proofUsage, setProofUsage] = useState({ count: 0, bytes: 0 });
   const [isRestoring, setIsRestoring] = useState(false);
 
@@ -75,12 +74,6 @@ export const ParentPortal: React.FC = () => {
   const [integrity, setIntegrity] = useState<ChainVerification | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // Sanction form
-  const [sanctionReason, setSanctionReason] = useState('');
-  const [sanctionRemediation, setSanctionRemediation] = useState(
-    'Complete 45 minutes of focused English revision and submit notes to parents'
-  );
-
   const loadData = async () => {
     const s = await db.parentSettings.get('active_settings');
     if (s) setSettings(s);
@@ -90,9 +83,6 @@ export const ParentPortal: React.FC = () => {
 
     const logs = await db.auditLogs.orderBy('timestamp').reverse().limit(50).toArray();
     setAuditLogs(logs);
-
-    const sancList = await db.sanctions.orderBy('date').reverse().toArray();
-    setSanctions(sancList);
 
     setProofUsage(await totalAttachmentBytes());
     setLockState(await getLockState());
@@ -286,58 +276,6 @@ export const ParentPortal: React.FC = () => {
     } finally {
       setIsRestoring(false);
     }
-  };
-
-  const handleLogSanction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!sanctionReason.trim()) return;
-
-    const newSanction: Sanction = {
-      id: newId('sanc'),
-      type: 'DETENTION',
-      reason: sanctionReason.trim(),
-      date: todayISO(),
-      penaltyXP: -500,
-      shopFrozen: true,
-      remediationTaskIdRequired: sanctionRemediation.trim(),
-      loggedBy: 'PARENT',
-    };
-
-    await db.sanctions.add(newSanction);
-    await logAuditEvent({
-      user: 'PARENT',
-      action: 'SANCTION_FREEZE',
-      entity: 'Sanction',
-      entityId: newSanction.id,
-      newValue: `Logged School Detention (-500 XP penalty & Rewards Frozen). Reason: ${newSanction.reason}`,
-    });
-
-    setSanctionReason('');
-    loadData();
-    toast.success(
-      'Sanction logged',
-      '-500 XP applied and the Rewards Shop is frozen until the remediation quest is approved.'
-    );
-  };
-
-  const handleLiftSanction = async (sanction: Sanction) => {
-    await db.sanctions.update(sanction.id, {
-      shopFrozen: false,
-      resolvedAt: Date.now(),
-    });
-
-    await logAuditEvent({
-      user: 'PARENT',
-      action: 'UPDATE',
-      entity: 'Sanction',
-      entityId: sanction.id,
-      fieldChanged: 'shopFrozen',
-      oldValue: 'true',
-      newValue: 'false (Remediation approved by Parent, Shop Unlocked)',
-    });
-
-    loadData();
-    toast.success('Sanction lifted', 'The Rewards Shop is unlocked again.');
   };
 
   return (
@@ -722,85 +660,11 @@ export const ParentPortal: React.FC = () => {
         </div>
       </div>
 
-      {/* Log School Sanction / Detention */}
-      <div className="glass-card p-6">
-        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-800">
-          <ShieldAlert className="w-5 h-5 text-rose-400" />
-          <h3 className="font-bold text-sm text-white">Log a School Sanction</h3>
-        </div>
+      {/* Where this week's plan is agreed to. Above the sanctions because it
+          is the far more frequent reason to be on this screen. */}
+      <PlanApprovalPanel />
 
-        <form onSubmit={handleLogSanction} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-              Sanction / Detention Reason
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Missing English homework / Late to period 3"
-              value={sanctionReason}
-              onChange={(e) => setSanctionReason(e.target.value)}
-              required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-              Remediation Quest Required to Unlock Shop
-            </label>
-            <input
-              type="text"
-              value={sanctionRemediation}
-              onChange={(e) => setSanctionRemediation(e.target.value)}
-              required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-            />
-          </div>
-
-          <div className="flex items-end">
-            <button
-              type="submit"
-              className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-rose-950/50"
-            >
-              Log Detention (-500 XP & Freeze Shop)
-            </button>
-          </div>
-        </form>
-
-        {/* Active Sanctions List */}
-        {sanctions.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <h4 className="text-xs font-bold text-slate-400 uppercase">Sanctions History</h4>
-            {sanctions.map((s) => (
-              <div
-                key={s.id}
-                className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between text-xs"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-rose-400">DETENTION ({s.date})</span>
-                    <span className="text-slate-300">{s.reason}</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Unlock Quest: {s.remediationTaskIdRequired}
-                  </p>
-                </div>
-
-                {s.shopFrozen && !s.resolvedAt ? (
-                  <button
-                    onClick={() => handleLiftSanction(s)}
-                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow"
-                  >
-                    Approve Quest & Lift Freeze
-                  </button>
-                ) : (
-                  <span className="text-emerald-400 text-xs font-semibold">Resolved</span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <SanctionPanel />
 
       {/* UX-5. The portal is opened to do one thing, and used to make you
           scroll past eight others to reach it. Grouped, and collapsed by

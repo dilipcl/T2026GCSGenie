@@ -111,3 +111,54 @@ body {
   min-height: 44px;
   min-width: 44px;
 }
+
+/*
+ * The Home headline ticker.
+ *
+ * The track holds two identical copies of the line end to end and slides by
+ * exactly half its own width, so the moment the first copy leaves, the second
+ * is in precisely the position the first started - the loop has no seam and no
+ * jump, which a single copy resetting to zero always has.
+ *
+ * `width: max-content` matters: a percentage translate is a percentage of the
+ * element's own width, and without it the track would size to its flex parent
+ * and the -50% would be half the wrong number.
+ */
+.ticker-viewport {
+  overflow: hidden;
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll 45s linear infinite;
+}
+
+/*
+ * Pause on hover and on keyboard focus. A line that cannot be stopped is a line
+ * whose interesting item is always the one that just went past.
+ */
+.ticker-viewport:hover .ticker-track,
+.ticker-viewport:focus-within .ticker-track {
+  animation-play-state: paused;
+}
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/*
+ * Motion is a preference, not a detail. Someone who has asked their device for
+ * less of it gets the line standing still - still readable, still complete,
+ * just not moving. Never `display: none`: the information is the point, the
+ * scrolling is only how it fits.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+  .ticker-viewport {
+    overflow-x: auto;
+  }
+}

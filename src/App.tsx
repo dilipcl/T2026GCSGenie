@@ -11,6 +11,7 @@ import { DueSoonCard } from './components/dashboard/DueSoonCard';
 import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
 import { SessionTimerCard } from './components/dashboard/SessionTimerCard';
 import { PlanPulseBanner } from './components/dashboard/PlanPulseBanner';
+import { HeadlineTicker } from './components/dashboard/HeadlineTicker';
 import { QuickAddSheet, QuickAddEditing } from './components/shared/QuickAddSheet';
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { ChangeGuardProvider } from './components/shared/ChangeGuardProvider';
@@ -162,6 +163,10 @@ export const App: React.FC = () => {
         <ErrorBoundary label="this screen" resetKeys={[activeTab]}>
         {activeTab === 'DASHBOARD' && (
           <div className="space-y-5">
+            {/* The term in one passing line. Above the nudges because it is the
+                only thing on this page that reports rather than asks. */}
+            <HeadlineTicker />
+
             {/* 0. Anything at risk, before the scroll starts. The field test
                    found the burnout banner unread at the bottom of the page;
                    a nudge nobody scrolls to is not a nudge. */}

@@ -6,7 +6,8 @@ import { goalsNeedingAction } from '../../services/goalProgress';
 import { readEnergySignal } from '../../services/energySignal';
 import { messageContext, needSupportMessage } from '../../services/whatsappService';
 import { WhatsAppShare } from '../shared/WhatsAppShare';
-import { Flame, TrendingDown, Coffee, Target, BatteryLow } from 'lucide-react';
+import { readFinalisationState } from '../../services/planBaselineService';
+import { Flame, TrendingDown, Coffee, Target, BatteryLow, ClipboardList } from 'lucide-react';
 
 interface PlanPulseBannerProps {
   onOpenCheckIn: () => void;
@@ -38,15 +39,85 @@ export const PlanPulseBanner: React.FC<PlanPulseBannerProps> = ({
   const behindGoals = useLiveQuery(() => goalsNeedingAction(), [], []);
   const energy = useLiveQuery(() => readEnergySignal(), []);
   const settings = useLiveQuery(() => db.parentSettings.get('active_settings'), []);
+  const finalisation = useLiveQuery(() => readFinalisationState(), []);
 
   const showRepair = repair?.available;
   const showPulse = pulse?.slipping || pulse?.breaksEatingThePlan;
   const showGoals = behindGoals.length > 0;
   const showEnergy = energy?.isLow;
-  if (!showRepair && !showPulse && !showGoals && !showEnergy) return null;
+  const nudge = finalisation?.nudge;
+  if (!showRepair && !showPulse && !showGoals && !showEnergy && !nudge) return null;
 
   return (
     <div className="space-y-3">
+      {/* Finalising the week comes before every nudge about how it is going.
+
+          A week nobody has agreed to is a week where "committed" means only
+          "currently in the left-hand column" - so the slipping warning, the
+          load bar and the goal pacing are all measuring against a plan that can
+          be rewritten to match whatever happened. Settle what the week is
+          first; then the rest of these mean something. */}
+      {nudge && (
+        <div
+          className={`p-4 rounded-2xl border ${
+            nudge.tone === 'URGENT'
+              ? 'border-amber-500/50 bg-amber-950/25'
+              : 'border-indigo-500/40 bg-indigo-950/25'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <ClipboardList
+              className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                nudge.tone === 'URGENT' ? 'text-amber-300' : 'text-indigo-300'
+              }`}
+            />
+            <div className="min-w-0">
+              <h3
+                className={`text-sm font-bold ${
+                  nudge.tone === 'URGENT' ? 'text-amber-100' : 'text-indigo-100'
+                }`}
+              >
+                {nudge.headline}
+              </h3>
+              <p className="text-[11px] text-slate-200/90 mt-0.5 max-w-lg leading-snug">
+                {nudge.body}
+              </p>
+
+              {/* Named, not counted. "3 steps" sends you looking; the steps
+                  themselves tell you what to do before you get there. */}
+              {nudge.outstanding > 0 && finalisation && (
+                <ul className="mt-2 space-y-0.5">
+                  {finalisation.checks
+                    .filter((c) => !c.ok && c.blocking)
+                    .map((c) => (
+                      <li key={c.id} className="text-[11px] text-slate-300/90 leading-snug">
+                        · {c.label}
+                      </li>
+                    ))}
+                </ul>
+              )}
+
+              {onOpenPlan && nudge.tone !== 'INFO' && (
+                <button
+                  onClick={onOpenPlan}
+                  className="mt-2.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-all"
+                >
+                  Open the plan
+                </button>
+              )}
+              {onOpenPlan && nudge.tone === 'INFO' && nudge.headline !== 'Waiting on a parent' && (
+                <button
+                  onClick={onOpenPlan}
+                  className="mt-2.5 px-3.5 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-[11px] transition-all"
+                >
+                  Open the plan
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Running on empty comes first. The other three nudges all ask for more
           effort; this one is the only one that offers to ask for less, and
           putting it under them would be telling someone who is exhausted to

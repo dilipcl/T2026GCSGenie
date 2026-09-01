@@ -5,9 +5,10 @@ import {
   GoalBurndown,
   MIN_WEEKS_FOR_CHART,
   portfolioBurndown,
+  assessFeasibility,
 } from '../../services/goalBurndown';
 import { BurndownChart } from './BurndownChart';
-import { TrendingDown, ChevronDown, ChevronRight, Info } from 'lucide-react';
+import { TrendingDown, ChevronDown, ChevronRight, Info, Gauge } from 'lucide-react';
 
 /**
  * Target against actual, for the whole plan and for each goal in it.
@@ -130,9 +131,37 @@ const GoalRow: React.FC<{ item: GoalBurndown }> = ({ item }) => {
 
 export const GoalBurndownPanel: React.FC = () => {
   const report = useLiveQuery(() => portfolioBurndown(), []);
+  const feasibility = useLiveQuery(() => assessFeasibility(), []);
   if (!report) return null;
 
   const { goals, unattributedHours, goalsWithoutBudget } = report;
+
+  /**
+   * Behind, or impossible?
+   *
+   * The burn-down says what rate is now needed; the capacity gauge says what the
+   * week can hold. Each is fine alone and neither is actionable. Together they
+   * answer the question the weekly review is actually for - and the two answers
+   * have opposite remedies, so conflating them is what makes a plan stop being
+   * believed. Shown only when there is a rate to check.
+   */
+  const feasibilityBanner =
+    feasibility && feasibility.hasGoals && feasibility.requiredHoursPerWeek > 0 ? (
+      <div
+        className={`mt-3 p-3 rounded-xl border text-[11px] flex items-start gap-2 ${
+          feasibility.isAchievable
+            ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-100'
+            : 'bg-rose-950/40 border-rose-500/50 text-rose-100'
+        }`}
+      >
+        <Gauge
+          className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+            feasibility.isAchievable ? 'text-emerald-400' : 'text-rose-400'
+          }`}
+        />
+        <span>{feasibility.message}</span>
+      </div>
+    ) : null;
 
   /**
    * Nothing approved. This is the family's actual position, and it is not a
@@ -188,6 +217,8 @@ export const GoalBurndownPanel: React.FC = () => {
         </div>
         <p className={`text-sm font-bold ${variance.tone}`}>{variance.text}</p>
       </div>
+
+      {feasibilityBanner}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="Committed" value={hrs(report.committedHours)} />

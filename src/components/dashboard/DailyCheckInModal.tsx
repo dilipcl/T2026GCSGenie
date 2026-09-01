@@ -23,6 +23,16 @@ import { InfoTip } from '../shared/InfoTip';
 import { WhatsAppShare } from '../shared/WhatsAppShare';
 import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { messageContext, questionMessage } from '../../services/whatsappService';
+import {
+  ACTIVITY_CATEGORIES,
+  confirmAttendance,
+  expectedHours,
+  plannedHours,
+  readActivityLoad,
+  shouldAskAboutActivities,
+} from '../../services/activityPlanService';
+import { PlannedActivity } from '../../types';
+import { currentWeek } from '../../services/weekWindow';
 
 interface DailyCheckInModalProps {
   isOpen: boolean;
@@ -89,6 +99,19 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   const [showDetail, setShowDetail] = useState(false);
   const [settings, setSettings] = useState<ParentSettings | undefined>(undefined);
 
+  /**
+   * The week's planned activities that nobody has confirmed yet.
+   *
+   * A plan made on Monday is a forecast, and the capacity gauge has been
+   * treating it as a record - so a parade night that was stood down and a party
+   * that was skipped both went on costing the week hours it actually had. The
+   * check-in is the only moment someone is already telling the app how the day
+   * went, so it is the only place this question is cheap to ask.
+   */
+  const [activities, setActivities] = useState<PlannedActivity[]>([]);
+  /** id -> occasions that actually happened, as answered here. */
+  const [attendance, setAttendance] = useState<Record<string, number>>({});
+
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
   const [todayCheckInCount, setTodayCheckInCount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -124,6 +147,15 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       setCreateQuestionTask(true);
       setShowDetail(false);
       db.parentSettings.get('active_settings').then(setSettings);
+
+      setAttendance({});
+      readActivityLoad()
+        .then((load) => {
+          setActivities(
+            shouldAskAboutActivities(load, currentWeek().weekday) ? load.unconfirmed : []
+          );
+        })
+        .catch(() => setActivities([]));
 
       // Auto detect session based on hour
       const hour = new Date().getHours();
@@ -269,7 +301,16 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
         isDailyBaseXPAwarded: isDailyBase,
       });
 
-      // 2. Mark completed tasks
+      // 2. Confirm what actually happened, so the gauge stops charging the week
+      //    for evenings that were stood down.
+      for (const activity of activities) {
+        const answered = attendance[activity.id];
+        if (typeof answered === 'number') {
+          await confirmAttendance(activity, answered);
+        }
+      }
+
+      // 3. Mark completed tasks
       for (const taskId of completedTaskIds) {
         await db.tasks.update(taskId, {
           completed: true,
@@ -277,7 +318,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
         });
       }
 
-      // 3. Turn the forward-looking answers into tasks for tomorrow, so the
+      // 4. Turn the forward-looking answers into tasks for tomorrow, so the
       //    reflection actually leads somewhere instead of ending in the log
       const tomorrow = addDaysISO(1);
       const spawned: Task[] = [];
@@ -332,7 +373,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
         }
       }
 
-      // 4. Write to write-only audit trail
+      // 5. Write to write-only audit trail
       await logAuditEvent({
         user: 'STUDENT',
         action: 'INSERT',
@@ -415,6 +456,73 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
               </button>
             ))}
           </div>
+
+          {/* Did the week go as planned?
+
+              Only what has not been answered, only from midweek, and gone
+              entirely once every row has a reply. A question with a known
+              answer is the fastest way to train someone to skim past the whole
+              form - which costs the check-in, not just this step. */}
+          {activities.length > 0 && (
+            <div className="p-3 rounded-xl bg-cyan-950/25 border border-cyan-500/40 space-y-2">
+              <p className="text-[11px] font-bold text-cyan-100">
+                Did these happen? Anything that did not gives you the time back.
+              </p>
+
+              {activities.map((activity) => {
+                const meta = ACTIVITY_CATEGORIES[activity.category];
+                const answered = attendance[activity.id];
+                return (
+                  <div key={activity.id} className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm leading-none">{meta.icon}</span>
+                    <span className="text-[11px] text-white font-semibold min-w-0 flex-1 truncate">
+                      {activity.label}
+                      <span className="text-slate-400 font-normal">
+                        {' '}
+                        · {activity.plannedOccasions} × {activity.hoursEach}h
+                      </span>
+                    </span>
+
+                    {/* One button per possible count, up to the plan. Typing a
+                        number here would be a keyboard on a phone for an answer
+                        that is almost always "all of them" or "none". */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {Array.from({ length: activity.plannedOccasions + 1 }, (_, n) => n).map(
+                        (n) => (
+                          <button
+                            type="button"
+                            key={n}
+                            onClick={() =>
+                              setAttendance((prev) => ({ ...prev, [activity.id]: n }))
+                            }
+                            className={`w-7 h-7 rounded-lg text-[11px] font-bold border transition-colors ${
+                              answered === n
+                                ? 'bg-cyan-600 text-white border-cyan-400'
+                                : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                            }`}
+                          >
+                            {n}
+                          </button>
+                        )
+                      )}
+                    </div>
+
+                    {typeof answered === 'number' && answered < activity.plannedOccasions && (
+                      <span className="text-[10px] text-emerald-300 font-semibold w-full">
+                        +
+                        {Math.round(
+                          (plannedHours(activity) -
+                            expectedHours({ ...activity, actualOccasions: answered })) *
+                            10
+                        ) / 10}
+                        h back this week
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Energy & Focus */}
           <div className="grid grid-cols-2 gap-3">

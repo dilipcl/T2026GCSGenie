@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { Task, PlanBucket, MilestoneReminder } from '../../types';
+import { Task, PlanBucket, MilestoneReminder, Goal, PlanAmendment } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import {
   loadWeekCommitment,
@@ -10,10 +10,10 @@ import {
   assessPlan,
   taskHours,
 } from '../../services/planService';
-import { calculateBurnoutCapacity } from '../../services/burnoutEngine';
+import { calculateBurnoutCapacity, safeStudyHours } from '../../services/burnoutEngine';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { recordChange } from '../../services/changeLogService';
-import { formatFriendlyDate, formatCountdown, daysUntil } from '../../utils/date';
+import { formatFriendlyDate, formatCountdown, daysUntil, addDaysISO } from '../../utils/date';
 import {
   CalendarClock,
   ChevronLeft,
@@ -23,9 +23,29 @@ import {
   Plus,
   CheckCircle2,
   Circle,
+  ArrowLeftRight,
+  Target,
+  CalendarPlus,
 } from 'lucide-react';
 import { InfoTip } from '../shared/InfoTip';
 import { DeferReasonModal } from './DeferReasonModal';
+import { PlanFinalisationCard } from './PlanFinalisationCard';
+import { WeekActivitiesPanel } from './WeekActivitiesPanel';
+import { BringIntoWeekModal } from './BringIntoWeekModal';
+import { PlanForKeyDateModal, PlannedWork } from './PlanForKeyDateModal';
+import {
+  amendmentsFor,
+  commitToWeek,
+  goalFocus,
+  loadBaseline,
+  planAmendment,
+  readinessChecks,
+  submitForApproval,
+  weekStartISO,
+  AmendmentPlan,
+} from '../../services/planBaselineService';
+import { newId } from '../../utils/id';
+import { logAuditEvent } from '../../services/auditService';
 
 interface PlanViewProps {
   onAdd: () => void;
@@ -53,7 +73,14 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
   const { toast } = useFeedback();
   const [deferring, setDeferring] = useState<{ task: Task; bucket: PlanBucket } | null>(null);
 
+  const [bringingIn, setBringingIn] = useState<{ task: Task; plan: AmendmentPlan } | null>(null);
+  const [planningFor, setPlanningFor] = useState<MilestoneReminder | null>(null);
+
   const commitment = useLiveQuery(() => loadWeekCommitment(), []);
+  const baseline = useLiveQuery(() => loadBaseline(), []);
+  const amendments = useLiveQuery(() => amendmentsFor(), [], [] as PlanAmendment[]);
+  const allTasks = useLiveQuery(() => db.tasks.toArray(), [], [] as Task[]);
+  const goals = useLiveQuery(() => db.goals.toArray(), [], [] as Goal[]);
   const burnout = useLiveQuery(() => calculateBurnoutCapacity(), []);
   const milestones = useLiveQuery<MilestoneReminder[]>(
     async () => (await db.milestones.orderBy('date').toArray()).filter((m) => !m.isCompleted),
@@ -62,13 +89,34 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
 
   if (!commitment || !burnout || !milestones) return null;
 
-  // What the plan can occupy: the ceiling less school and fixed commitments
-  const safeStudyHours =
-    Math.round((burnout.safeWeeklyHoursLimit - (burnout.totalScheduledHours - burnout.loggedRevisionHours)) * 10) / 10;
-  const health = assessPlan(commitment, Math.max(0, safeStudyHours));
+  // What the plan can occupy: the ceiling less school and fixed commitments.
+  // The engine owns this sum; writing it out again here is how the planner and
+  // the dashboard came to disagree about how much time the week actually had.
+  const headroomHours = safeStudyHours(burnout);
+  const health = assessPlan(commitment, Math.max(0, headroomHours));
+
+  const headroom = Math.max(0, headroomHours);
+  const checks = readinessChecks({
+    commitment,
+    safeStudyHours: headroom,
+    milestones,
+    allTasks,
+  });
+  const focus = goalFocus(commitment.columns.THIS_WEEK);
 
   const move = async (task: Task, bucket: PlanBucket) => {
     if (bucket === 'THIS_WEEK') {
+      /**
+       * Once the week is agreed, pulling something in is no longer free. The
+       * modal is where the trade gets made; before approval this never fires
+       * and the move stays one tap, which is how planning should feel.
+       */
+      const plan = planAmendment(task, commitment, headroom, baseline);
+      if (plan.needsAmendment) {
+        setBringingIn({ task, plan });
+        return;
+      }
+
       await moveTaskToBucket(task, bucket);
       toast.success(`Committed "${task.title}"`, 'It counts towards this week now.');
       return;
@@ -108,6 +156,122 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
         : 'Deferring is planning, not failing - it stops counting against you.'
     );
   };
+
+  const submitPlan = async (note?: string) => {
+    await submitForApproval(commitment, note, weekStartISO());
+    await recordChange({
+      category: 'PLAN',
+      summary: `Sent this week's plan for approval — ${commitment.committedCount} tasks, ${commitment.committedHours}h`,
+      detail: note,
+      entity: 'WeekPlanBaseline',
+      entityId: weekStartISO(),
+    });
+    toast.success('Sent for approval', 'A parent agrees it, and then it is the baseline.');
+  };
+
+  /** The swap, applied: out first so the week never briefly holds both. */
+  const confirmBringIn = async (displaced: Task | undefined, reason: string) => {
+    if (!bringingIn) return;
+    const { task } = bringingIn;
+    setBringingIn(null);
+
+    if (displaced) {
+      await moveTaskToBucket(displaced, 'NEXT_UP', `Swapped out for "${task.title}"`);
+    }
+    await moveTaskToBucket(task, 'THIS_WEEK');
+    await commitToWeek({ task, displaced, reason });
+
+    await recordChange({
+      category: 'PLAN',
+      summary: displaced
+        ? `Swapped "${displaced.title}" out for "${task.title}" in an agreed week`
+        : `Added "${task.title}" on top of an agreed week`,
+      detail: reason || undefined,
+      entity: 'Task',
+      entityId: task.id,
+    });
+
+    toast.success(
+      displaced ? 'Swapped over' : 'Added on top',
+      displaced
+        ? `"${displaced.title}" moved to Next up. The week keeps its shape.`
+        : `The week grew. It is on the record, which is the point.`
+    );
+  };
+
+  /** A key date becomes work the plan can actually see. */
+  const createWorkForKeyDate = async (work: PlannedWork) => {
+    const milestone = planningFor;
+    if (!milestone) return;
+    setPlanningFor(null);
+
+    const now = Date.now();
+    // Mirrors moveTaskToBucket: a promise for this week cannot be dated a
+    // fortnight out, or the list stops meaning anything.
+    const dueDate =
+      work.bucket === 'THIS_WEEK' && daysUntil(work.dueDate) > 7 ? addDaysISO(7) : work.dueDate;
+
+    const task: Task = {
+      id: newId('task'),
+      subjectId: work.subjectId,
+      bucket: work.bucket,
+      committedAt: work.bucket === 'THIS_WEEK' ? now : undefined,
+      estimatedHours: work.estimatedHours,
+      title: work.title,
+      description: `Planned for ${milestone.title} (${formatFriendlyDate(milestone.date)}).`,
+      dueDate,
+      priority: 'HIGH',
+      isHomework: false,
+      isRemediation: false,
+      linkedGoalId: work.linkedGoalId,
+      linkedMilestoneId: milestone.id,
+      xpValue: 60,
+      completed: false,
+      createdAt: now,
+    };
+
+    await db.tasks.add(task);
+    await logAuditEvent({
+      user: 'STUDENT',
+      action: 'INSERT',
+      entity: 'Task',
+      entityId: task.id,
+      newValue: `${task.title} [planned for "${milestone.title}", ${work.estimatedHours}h]`,
+    });
+
+    if (work.bucket === 'THIS_WEEK') {
+      await commitToWeek({ task, reason: `Planned for "${milestone.title}"` });
+    }
+
+    await recordChange({
+      category: 'PLAN',
+      summary: `Planned work for "${milestone.title}"`,
+      detail: `${task.title} — ${work.estimatedHours}h`,
+      entity: 'Task',
+      entityId: task.id,
+    });
+
+    toast.success('Added to the plan', `"${task.title}" now counts towards ${milestone.title}.`);
+  };
+
+  /** Pointing a task at the goal it serves, from where the gap is visible. */
+  const linkToGoal = async (task: Task, goalId: string) => {
+    await db.tasks.update(task.id, { linkedGoalId: goalId || undefined });
+    await logAuditEvent({
+      user: 'STUDENT',
+      action: 'UPDATE',
+      entity: 'Task',
+      entityId: task.id,
+      fieldChanged: 'linkedGoalId',
+      oldValue: task.linkedGoalId ?? '(none)',
+      newValue: goals.find((g) => g.id === goalId)?.title ?? '(none)',
+    });
+  };
+
+  const isBaselined = baseline?.status === 'BASELINED';
+  /** Whether a key date already has unfinished work pointed at it. */
+  const plannedFor = (milestoneId: string) =>
+    allTasks.some((t) => t.linkedMilestoneId === milestoneId && !t.completed);
 
   const soonMilestones = milestones.filter((m) => daysUntil(m.date) <= 21);
   const loadPercent = health.safeStudyHours
@@ -205,6 +369,42 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
         )}
       </div>
 
+      {/* Before the checklist: study time is what is left after everything
+          else, so the week's other commitments have to be on the page before
+          "does this fit" means anything. */}
+      <WeekActivitiesPanel weekStart={weekStartISO()} />
+
+      <PlanFinalisationCard
+        checks={checks}
+        baseline={baseline}
+        amendments={amendments}
+        onSubmit={submitPlan}
+      />
+
+      {/* Work that is not aimed at anything.
+
+          A term of homework can be done conscientiously and still move no goal
+          at all - the work is real, it is just pointed elsewhere. Shown only
+          when it is a real share of the week, because one stray permission slip
+          is not drift, it is a permission slip. */}
+      {focus.offGoal.length > 0 && (
+        <div className="glass-card p-4 border border-amber-500/40 bg-amber-950/20">
+          <div className="flex items-start gap-2.5">
+            <Target className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <h3 className="text-xs font-bold text-amber-100">
+                {focus.offGoalHours}h of this week is not linked to a goal
+              </h3>
+              <p className="text-[11px] text-amber-100/80 mt-0.5 leading-snug">
+                {focus.offGoalShare > 0.5
+                  ? 'Most of what you have promised is pointed at nothing in particular. Work still counts, but it is not moving a Grade 9 goal.'
+                  : 'Link each one to the goal it serves, so the hours show up where they belong.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* The three buckets */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {BUCKETS.map((bucket) => {
@@ -255,16 +455,49 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
                           </div>
                         </div>
 
+                        {/* The goal this serves, asked for where its absence is
+                            visible. A select rather than another modal: the
+                            answer is one tap and the alert above is useless
+                            without a way to act on it. */}
+                        {bucket.id === 'THIS_WEEK' && !task.linkedGoalId && goals.length > 0 && (
+                          <select
+                            aria-label={`Link "${task.title}" to a goal`}
+                            value=""
+                            onChange={(e) => linkToGoal(task, e.target.value)}
+                            className="w-full mt-2 bg-slate-950 border border-amber-500/40 rounded-lg px-2 py-1.5 text-[10px] text-amber-100"
+                          >
+                            <option value="">⚠ Not linked to a goal — pick one</option>
+                            {goals.map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.title}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+
                         {/* One tap each way. Deferring is meant to feel routine. */}
                         <div className="flex items-center gap-1 mt-2">
-                          <button
-                            onClick={() => move(task, BUCKETS[Math.max(0, index - 1)].id)}
-                            disabled={index === 0}
-                            aria-label={`Move "${task.title}" towards this week`}
-                            className="p-1 rounded-lg text-slate-500 hover:text-emerald-300 hover:bg-slate-800 disabled:opacity-20 disabled:hover:text-slate-500 transition-colors"
-                          >
-                            <ChevronLeft className="w-3.5 h-3.5" />
-                          </button>
+                          {/* Named rather than a bare chevron. "Coming up" work
+                              could always be pulled in, but only through an arrow
+                              small enough that nobody found it. */}
+                          {bucket.id !== 'THIS_WEEK' ? (
+                            <button
+                              onClick={() => move(task, 'THIS_WEEK')}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/40 text-indigo-200 text-[10px] font-bold hover:bg-indigo-600/30 transition-colors"
+                            >
+                              <ArrowLeftRight className="w-3 h-3" />
+                              <span>{isBaselined ? 'Swap in' : 'Pull in'}</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => move(task, BUCKETS[Math.max(0, index - 1)].id)}
+                              disabled
+                              aria-label={`"${task.title}" is already committed`}
+                              className="p-1 rounded-lg text-slate-500 opacity-20"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() =>
                               move(task, BUCKETS[Math.min(BUCKETS.length - 1, index + 1)].id)
@@ -338,15 +571,35 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
                       </p>
                     </div>
                   </div>
-                  <span
-                    className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${
-                      daysUntil(m.date) <= 7
-                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
-                        : 'bg-slate-800 text-slate-400 border-slate-700'
-                    }`}
-                  >
-                    {formatCountdown(m.date)}
-                  </span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${
+                        daysUntil(m.date) <= 7
+                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                          : 'bg-slate-800 text-slate-400 border-slate-700'
+                      }`}
+                    >
+                      {formatCountdown(m.date)}
+                    </span>
+
+                    {/* The route from knowing about a date to planning for it.
+                        Without this the panel was a countdown to things
+                        arriving, which the plan could not see. */}
+                    {plannedFor(m.id) ? (
+                      <span className="text-[10px] font-bold text-emerald-300 flex items-center gap-1 px-2 py-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Planned</span>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setPlanningFor(m)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-200 text-[10px] font-bold hover:bg-amber-500/25 transition-colors"
+                      >
+                        <CalendarPlus className="w-3 h-3" />
+                        <span>Plan work</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -358,6 +611,20 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview }) => {
         task={deferring?.task ?? null}
         onCancel={() => setDeferring(null)}
         onConfirm={confirmDefer}
+      />
+
+      <BringIntoWeekModal
+        task={bringingIn?.task ?? null}
+        plan={bringingIn?.plan}
+        onCancel={() => setBringingIn(null)}
+        onConfirm={confirmBringIn}
+      />
+
+      <PlanForKeyDateModal
+        milestone={planningFor}
+        goals={goals}
+        onCancel={() => setPlanningFor(null)}
+        onConfirm={createWorkForKeyDate}
       />
     </div>
   );
