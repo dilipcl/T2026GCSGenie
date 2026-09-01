@@ -152,6 +152,18 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   // early return - a hook cannot be called conditionally.
   useEscapeToClose(isOpen, onClose);
 
+  /**
+   * Minted before the confirmation sheet opens rather than inside the write, so
+   * the change-log row can name the record it is about. Without that the
+   * activity feed has to pair the two logs by timestamp, which is guesswork the
+   * moment two things happen in the same second.
+   *
+   * Sits above the early return with the other hooks. Below it, this ran only
+   * while the dialog was open, so opening it changed the hook count and React
+   * tore the whole app down rather than showing the check-in.
+   */
+  const pendingCheckInId = React.useMemo(() => newId('checkin'), [isOpen]);
+
   if (!isOpen) return null;
 
   const toggleTask = (id: string) => {
@@ -215,14 +227,6 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       run: () => applyCheckIn(),
     });
   };
-
-  /**
-   * Minted before the confirmation sheet opens rather than inside the write, so
-   * the change-log row can name the record it is about. Without that the
-   * activity feed has to pair the two logs by timestamp, which is guesswork the
-   * moment two things happen in the same second.
-   */
-  const pendingCheckInId = React.useMemo(() => newId('checkin'), [isOpen]);
 
   const applyCheckIn = async () => {
     setIsSubmitting(true);
