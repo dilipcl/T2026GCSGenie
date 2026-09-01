@@ -109,6 +109,22 @@ The distinction matters because the remedies are opposite. **Behind** is fixed b
 **Impossible** is fixed by fewer goals, a later target, or a lighter week — and telling someone to
 try harder at something that does not fit is how a plan stops being believed.
 
+### This week's health — one letter
+A RAG score on Home, with a percentage, answering the question none of the other cards did: is this
+week going well or not? Six weighted signals — **effort against your goals** (hours done against
+what the week has asked for so far), **goals at risk** (the share off pace), **work promised this
+week**, **week target set** (has the plan been agreed), **key goals finalised**, and **workload**.
+
+Every number is read from the service that already owns it; nothing is recomputed. The letter is
+never shown alone — anything not green is listed underneath it by default, because a score you
+cannot take apart is a score nobody believes.
+
+Targets are pro-rated by the day, so a slow Monday is not a red week. A signal that cannot apply —
+effort against goals when no goal is approved — is marked *not counted* and left out of the average
+rather than scored zero: a family with no approved goals has one problem, not three. And a single
+red keeps the week off green however good the average, because averaging one real failure away is
+how a dashboard reassures you about the exact thing that is wrong.
+
 ### The headline line
 A single line across the top of Home: XP to spend, the week's promise, anything overdue, study time
 left, hours booked for life outside school and any handed back, goal variance, recent sanctions, and
@@ -887,6 +903,7 @@ src/
 │   ├── sanctionService.ts             # the three tiers and the escalation window
 │   ├── activityPlanService.ts         # what else the week holds, by category
 │   ├── headlineMetrics.ts             # the Home ticker's facts, assembled once
+│   ├── weekHealth.ts                  # the week's RAG letter, composed from the rest
 │   ├── llmAgentService.ts             # agentic audit (live + offline)
 │   ├── backupService.ts               # schema-walking export, safe restore
 │   ├── handoverService.ts             # preview + clear the QA activity before launch

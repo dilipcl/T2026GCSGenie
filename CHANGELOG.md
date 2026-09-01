@@ -1,5 +1,38 @@
 # Changelog
 
+## November 2026 - Is this week going well?
+
+**A health score for the week.** Every part of it already existed and none of it
+was ever added up. Goal pace lived on one screen, the commitment count on
+another, whether the week had even been agreed on a third. Each was honest alone
+and none answered the question a parent actually asks on a Wednesday evening.
+
+Six signals, weighted: effort against the goals, how much of the portfolio is at
+risk, the work promised this week, whether the week was ever agreed, whether the
+goals are finalised, and the workload. Red, amber or green, with a percentage.
+
+Composed, never recomputed - each signal reads the service that already owns that
+number. The last time this app grew a second copy of a figure it already had, the
+copy drifted and the screen confidently reported hours the capacity gauge was
+still charging for. One owner per number.
+
+**Three rules keep the letter honest.** It is never shown without the signals
+underneath it, because a score nobody can take apart is a score nobody believes -
+and an unbelieved score is worse than none, since it still gets argued about. It
+is pro-rated by the day, so nothing is judged against a full week's target on
+Tuesday morning. And a missing thing counts once: a family with no approved goals
+has one problem, not three, so the signals that depend on goals drop out of the
+average rather than scoring zero and reporting a crisis three times over.
+
+**Averaging cannot hide a failure.** A single red keeps the week off green
+however well everything else is going, and two reds make it red whatever the
+arithmetic says. Averaging one genuine failure away is how a dashboard ends up
+reassuring people about the exact thing that is wrong.
+
+The sentence under the letter names the biggest problem rather than describing
+the colour, because "amber" tells nobody what to do, and the button goes to the
+screen that problem lives on rather than offering every link every time.
+
 ## November 2026 - The week, read from one place
 
 **A correction, found within the hour of shipping.** The activity panel wrote

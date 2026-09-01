@@ -12,6 +12,7 @@ import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
 import { SessionTimerCard } from './components/dashboard/SessionTimerCard';
 import { PlanPulseBanner } from './components/dashboard/PlanPulseBanner';
 import { HeadlineTicker } from './components/dashboard/HeadlineTicker';
+import { WeekHealthCard } from './components/dashboard/WeekHealthCard';
 import { QuickAddSheet, QuickAddEditing } from './components/shared/QuickAddSheet';
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { ChangeGuardProvider } from './components/shared/ChangeGuardProvider';
@@ -166,6 +167,14 @@ export const App: React.FC = () => {
             {/* The term in one passing line. Above the nudges because it is the
                 only thing on this page that reports rather than asks. */}
             <HeadlineTicker />
+
+            {/* The letter, above the nudges. Those each raise one thing; this
+                says whether the week as a whole is working, which is the
+                question actually being asked on a Wednesday evening. */}
+            <WeekHealthCard
+              onOpenPlan={() => setActiveTab('PLAN')}
+              onOpenGoals={() => setActiveTab('GOALS')}
+            />
 
             {/* 0. Anything at risk, before the scroll starts. The field test
                    found the burnout banner unread at the bottom of the page;

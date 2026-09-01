@@ -141,6 +141,31 @@ renders two copies translated by exactly -50% so the loop has no seam. Motion
 respects `prefers-reduced-motion`, pauses on hover and focus, and the accessible
 copy is a plain `sr-only` list - a marquee announced on a loop is unusable.
 
+## The week health score (November 2026)
+
+**Composed, never recomputed.** `readWeekHealth` reads `goalProgress`,
+`planService`, `planBaselineService` and `burnoutEngine` and adds nothing of its
+own. Every figure keeps one owner; the alternative is the failure mode this
+codebase has already hit once, where a second copy of a number drifted from the
+first and the screen reported hours the gauge was still charging for.
+
+**Signals can be inapplicable, and that is not zero.** `notApplicable` drops a
+signal out of the weighted mean entirely rather than scoring it zero. Without it
+a family with no approved goals fails three signals for one problem and the
+score reports a crisis three times over.
+
+**The band is not the mean.** `overallStatus` caps the result at amber while any
+signal is red, and returns red outright at two. A weighted mean will happily
+average one genuine failure into a comfortable green, which is precisely when a
+health score does harm rather than nothing.
+
+**Pro-rated by weekday, like `goalProgress` already is.** Nothing is called red
+for being behind before Wednesday. A goal is "behind" at one minute past midnight
+on Monday, which is true and useless.
+
+**The headline names the concern, not the colour.** A letter with no sentence is
+a number to argue about; the sentence is the part that can be acted on.
+
 ## 1. Executive Summary & System Philosophy
 
 **GCSE Genie** is a private, offline-first, zero-administrative-overhead academic organiser and performance acceleration platform. It is engineered specifically for Tejas Dilip as he embarks on his two-year GCSE journey (Years 10–11) at Guildford County School (GCS), targeting **Grade 9s** across all six core and elective subjects.
