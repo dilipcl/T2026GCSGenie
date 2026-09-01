@@ -132,7 +132,16 @@ export const Navigation: React.FC<NavigationProps> = ({
           phone had solved this already with five daily tabs and a sheet; this
           is the same split, and it shares `isMoreOpen` so there is one menu
           with two presentations rather than two things to keep in step. */}
-      <nav className="hidden md:flex items-center gap-1.5 p-1.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-800/80 mb-6">
+      {/* `relative z-[35]` is load-bearing, not decoration. `backdrop-blur-md`
+          makes this bar its own stacking context, which traps the More dropdown
+          inside it: the menu's `z-50` then only orders it against its siblings
+          in here, while the bar as a whole sat at the page's default depth and
+          every card below it - and the add button at `z-30` - painted straight
+          over the open menu. Lifting the bar lifts the menu with it. 35 is
+          deliberate: above the content and the add button, still below the
+          sticky header at `z-40`, which should stay on top when the bar scrolls
+          up underneath it. */}
+      <nav className="hidden md:flex relative z-[35] items-center gap-1.5 p-1.5 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-800/80 mb-6">
         {dailyItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -224,18 +233,25 @@ export const Navigation: React.FC<NavigationProps> = ({
           role="dialog"
           aria-modal="true"
           aria-label="Rewards, subjects and settings"
-          className="md:hidden fixed inset-0 z-40 flex flex-col justify-end"
+          className="md:hidden fixed inset-0 z-[45] flex flex-col justify-end"
         >
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setIsMoreOpen(false)}
           />
 
-          {/* pb-nav-safe, not pb-safe: this sheet opens flush with the bottom of
-              the screen and the fixed bottom bar paints on top of it, so the
-              second row of tiles - Subjects, Careers, and Parent Portal in
-              parent mode - was all but untappable on a phone. */}
-          <div className="relative bg-slate-900 border-t border-slate-700 rounded-t-3xl p-4 pb-nav-safe shadow-2xl max-h-[70vh] overflow-y-auto">
+          {/* The sheet used to share `z-40` with the bottom bar, and a tie is
+              settled by document order - so the bar, which comes after it,
+              painted over the sheet and over its own backdrop. The second row
+              of tiles was all but untappable, and the bar stayed lit and
+              clickable through a dialog that calls itself modal. It was worked
+              around with `pb-nav-safe`, padding the sheet clear of a bar that
+              should never have been in front of it.
+
+              `z-[45]` puts the sheet where a modal belongs: above the bar, with
+              the backdrop dimming it. `pb-safe` is then enough - the 76px that
+              used to dodge the bar is 76px of sheet back. */}
+          <div className="relative bg-slate-900 border-t border-slate-700 rounded-t-3xl p-4 pb-safe shadow-2xl max-h-[70vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-sm font-bold text-white">Rewards, subjects &amp; settings</h3>

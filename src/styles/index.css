@@ -16,6 +16,29 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * The layer stack, in one place.
+ *
+ * These numbers live in `className` strings spread across the app, which is how
+ * two of them silently ended up equal: the mobile More sheet and the bottom bar
+ * were both `z-40`, a tie is settled by document order, and the bar - written
+ * later - painted over the dialog it was supposed to sit behind. Written down,
+ * a new layer is a choice against a list rather than a guess.
+ *
+ *   80  DatabaseGate .............. the app cannot read its own data; nothing outranks it
+ *   70  ErrorBoundary (overlay) ... a dialog that stopped rendering, and its way out
+ *   65  ChangeGuard sheet ......... confirm, raised over whatever asked for it
+ *   50  modals .................... check-in, quick add, weekly review, tour, PIN
+ *   45  mobile More sheet ......... a modal, so above the bar it opens from
+ *   40  sticky header, bottom bar . chrome: always visible, never over a modal
+ *   35  desktop nav bar ........... lifted so its More dropdown clears the page;
+ *                                   `backdrop-blur` makes the bar a stacking
+ *                                   context, so the menu inside can never rise
+ *                                   above whatever the bar itself is behind
+ *   30  quick-add button .......... floats over content, under the chrome
+ *  auto page content
+ */
+
 /* iOS Safe Area Insets for iPhone Dynamic Island and Home Bar */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 1rem);
