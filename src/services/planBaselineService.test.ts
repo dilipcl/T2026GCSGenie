@@ -117,7 +117,7 @@ describe('what is outstanding before a week can be baselined', () => {
   });
 
   it('objects to an empty week', async () => {
-    const input = await readyInput([makeTask({ bucket: 'NEXT_UP', dueDate: '2026-10-20' })]);
+    const input = await readyInput([makeTask({ bucket: 'FUTURE', dueDate: '2026-10-20' })]);
     const check = readinessChecks(input).find((c) => c.id === 'HAS_COMMITMENT')!;
     expect(check.ok).toBe(false);
     expect(canSubmit(readinessChecks(input))).toBe(false);

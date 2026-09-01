@@ -1,5 +1,33 @@
 # Changelog
 
+## November 2026 - Sprints, and dates that own their work
+
+**Four columns, not three.** The middle bucket did two jobs. "Next up" meant
+both "I am doing this next week" and "this is somewhere in the next month" -
+completely different promises sharing a column, and the week you are about to
+plan is the only one you can realistically pull from.
+
+This week, Next week, Future, Backlog. The line that matters runs between the
+second and the third: everything left of it is scheduled into a week, everything
+right of it is merely known about. Existing rows are re-filed by their due date,
+which is the only evidence available about which of the two they were.
+
+**A key date now owns its work.** Planning a mock used to spawn a task called
+"Revise for Physics mock" that went off into This week, while the date stayed in
+Coming up - the same thing twice, in two lists, under two names, with neither row
+admitting the other existed. And once planned, the date became a dead "Planned"
+badge: no way to add a second piece of revision, rename the first, or undo it.
+
+The work is now nested under the date that prompted it, with its bucket and
+hours, and an edit and a remove on each row. "Plan work" becomes "Add work" and
+stays available, because one piece of revision is rarely the whole answer.
+
+**The auto-title is gone.** It prefixed everything with "Revise for", which is
+nonsense for a date that is itself an action - "Add all the Goals and get them
+approved" is not something you revise for. The task takes the date's own words,
+and the suggestion chips offer the revision framings for the dates that want
+one.
+
 ## November 2026 - Is this week going well?
 
 **A health score for the week.** Every part of it already existed and none of it

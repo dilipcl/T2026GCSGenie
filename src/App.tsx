@@ -292,6 +292,7 @@ export const App: React.FC = () => {
         {activeTab === 'PLAN' && (
           <PlanView
             onAdd={() => setIsQuickAddOpen(true)}
+            onEdit={(task: Task) => openEditor({ kind: 'TASK', record: task })}
             onOpenReview={() => setIsReviewOpen(true)}
             activeWeek={activeWeek}
           />

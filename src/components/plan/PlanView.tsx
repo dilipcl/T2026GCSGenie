@@ -26,6 +26,8 @@ import {
   ArrowLeftRight,
   Target,
   CalendarPlus,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { InfoTip } from '../shared/InfoTip';
 import { DeferReasonModal } from './DeferReasonModal';
@@ -49,6 +51,8 @@ import { logAuditEvent } from '../../services/auditService';
 
 interface PlanViewProps {
   onAdd: () => void;
+  /** Opens the shared add sheet on an existing task, so editing lives in one place. */
+  onEdit: (task: Task) => void;
   onOpenReview: () => void;
   /**
    * Needed to work out which occasions fall in this week: a fortnightly
@@ -60,8 +64,9 @@ interface PlanViewProps {
 
 const BUCKETS: { id: PlanBucket; label: string; blurb: string }[] = [
   { id: 'THIS_WEEK', label: 'This week', blurb: 'What you have promised' },
-  { id: 'NEXT_UP', label: 'Next up', blurb: 'Roughly this month' },
-  { id: 'LATER', label: 'Later this term', blurb: 'Known about, not yet planned' },
+  { id: 'NEXT_WEEK', label: 'Next week', blurb: 'The next sprint' },
+  { id: 'FUTURE', label: 'Future', blurb: 'Dated, further out' },
+  { id: 'BACKLOG', label: 'Backlog', blurb: 'Someday — no guilt' },
 ];
 
 /**
@@ -75,7 +80,7 @@ const BUCKETS: { id: PlanBucket; label: string; blurb: string }[] = [
  * Key dates live here too rather than in their own tab: a deadline is only
  * meaningful next to the work meant to meet it.
  */
-export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview, activeWeek }) => {
+export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onEdit, onOpenReview, activeWeek }) => {
   const { toast } = useFeedback();
   const [deferring, setDeferring] = useState<{ task: Task; bucket: PlanBucket } | null>(null);
 
@@ -182,7 +187,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview, activeW
     setBringingIn(null);
 
     if (displaced) {
-      await moveTaskToBucket(displaced, 'NEXT_UP', `Swapped out for "${task.title}"`);
+      await moveTaskToBucket(displaced, 'NEXT_WEEK', `Swapped out for "${task.title}"`);
     }
     await moveTaskToBucket(task, 'THIS_WEEK');
     await commitToWeek({ task, displaced, reason });
@@ -200,7 +205,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview, activeW
     toast.success(
       displaced ? 'Swapped over' : 'Added on top',
       displaced
-        ? `"${displaced.title}" moved to Next up. The week keeps its shape.`
+        ? `"${displaced.title}" moved to next week. The week keeps its shape.`
         : `The week grew. It is on the record, which is the point.`
     );
   };
@@ -278,6 +283,33 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview, activeW
   /** Whether a key date already has unfinished work pointed at it. */
   const plannedFor = (milestoneId: string) =>
     allTasks.some((t) => t.linkedMilestoneId === milestoneId && !t.completed);
+
+  /** Everything planned against a key date, finished work included. */
+  const workFor = (milestoneId: string) =>
+    allTasks
+      .filter((t) => t.linkedMilestoneId === milestoneId)
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.id.localeCompare(b.id));
+
+  const openEditor = ({ record }: { kind: 'TASK'; record: Task }) => onEdit(record);
+
+  /**
+   * Takes a piece of planned work back off a key date.
+   *
+   * Deletes the task rather than only unlinking it: it was created from this
+   * panel and exists for this date, so leaving an orphan behind in the backlog
+   * is the tidying-up nobody would ever do.
+   */
+  const unplanWork = async (task: Task, milestoneTitle: string) => {
+    await db.tasks.delete(task.id);
+    await logAuditEvent({
+      user: 'STUDENT',
+      action: 'DELETE',
+      entity: 'Task',
+      entityId: task.id,
+      oldValue: `${task.title} [planned for "${milestoneTitle}"]`,
+    });
+    toast.info(`Removed "${task.title}"`, `No longer planned for ${milestoneTitle}.`);
+  };
 
   const soonMilestones = milestones.filter((m) => daysUntil(m.date) <= 21);
   const loadPercent = health.safeStudyHours
@@ -362,7 +394,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview, activeW
             <span>
               You have promised {commitment.committedHours}h but only have about{' '}
               {health.safeStudyHours}h of study time after school, cadets and everything else. Move
-              something to Next up before Thursday decides for you.
+              something to next week before Thursday decides for you.
             </span>
           </div>
         )}
@@ -412,7 +444,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview, activeW
       )}
 
       {/* The three buckets */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {BUCKETS.map((bucket) => {
           const items = commitment.columns[bucket.id];
           const pending = items.filter((t) => !t.completed);
@@ -430,7 +462,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview, activeW
               {pending.length === 0 ? (
                 <p className="text-[11px] text-slate-500 italic py-4 text-center">
                   {bucket.id === 'THIS_WEEK'
-                    ? 'Nothing committed yet. Pull something across from Next up.'
+                    ? 'Nothing committed yet. Pull something in from Next week or the Backlog.'
                     : 'Empty.'}
                 </p>
               ) : (
@@ -566,8 +598,9 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview, activeW
               return (
                 <div
                   key={m.id}
-                  className="p-2.5 bg-slate-900/70 border border-slate-800 rounded-xl flex flex-wrap items-center justify-between gap-2"
+                  className="p-2.5 bg-slate-900/70 border border-slate-800 rounded-xl"
                 >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-base leading-none">{subject?.icon ?? '📌'}</span>
                     <div className="min-w-0">
@@ -591,22 +624,66 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onOpenReview, activeW
                     {/* The route from knowing about a date to planning for it.
                         Without this the panel was a countdown to things
                         arriving, which the plan could not see. */}
-                    {plannedFor(m.id) ? (
-                      <span className="text-[10px] font-bold text-emerald-300 flex items-center gap-1 px-2 py-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Planned</span>
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => setPlanningFor(m)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-200 text-[10px] font-bold hover:bg-amber-500/25 transition-colors"
-                      >
-                        <CalendarPlus className="w-3 h-3" />
-                        <span>Plan work</span>
-                      </button>
-                    )}
+                    {/* Always offered. The first version turned into a dead
+                        "Planned" badge the moment one task existed, which left
+                        no way to add a second piece of revision, rename the
+                        first, or undo it at all. */}
+                    <button
+                      onClick={() => setPlanningFor(m)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-200 text-[10px] font-bold hover:bg-amber-500/25 transition-colors"
+                    >
+                      <CalendarPlus className="w-3 h-3" />
+                      <span>{plannedFor(m.id) ? 'Add work' : 'Plan work'}</span>
+                    </button>
                   </div>
                 </div>
+
+                {/* The work planned against this date, nested under it.
+
+                    Previously the task went off into "This week" under an
+                    auto-generated title and the two never referred to each
+                    other, so the same thing appeared twice in different lists
+                    and neither row admitted the other existed. */}
+                {workFor(m.id).length > 0 && (
+                  <ul className="mt-2 pt-2 border-t border-slate-800 space-y-1">
+                    {workFor(m.id).map((task) => (
+                      <li
+                        key={task.id}
+                        className="flex items-center gap-2 text-[11px] pl-1"
+                      >
+                        <span className="text-slate-600" aria-hidden="true">
+                          └
+                        </span>
+                        <span
+                          className={`min-w-0 flex-1 truncate ${
+                            task.completed ? 'text-slate-500 line-through' : 'text-slate-200'
+                          }`}
+                        >
+                          {task.title}
+                        </span>
+                        <span className="text-slate-500 flex-shrink-0">
+                          {taskHours(task)}h ·{' '}
+                          {BUCKETS.find((b) => b.id === inferBucket(task))?.label}
+                        </span>
+                        <button
+                          onClick={() => openEditor({ kind: 'TASK', record: task })}
+                          aria-label={`Edit "${task.title}"`}
+                          className="p-1 rounded text-slate-500 hover:text-indigo-300 hover:bg-slate-800 flex-shrink-0"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => unplanWork(task, m.title)}
+                          aria-label={`Remove "${task.title}"`}
+                          className="p-1 rounded text-slate-500 hover:text-rose-300 hover:bg-slate-800 flex-shrink-0"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               );
             })}
           </div>

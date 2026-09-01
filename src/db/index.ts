@@ -342,6 +342,41 @@ export class GCSEGenieDatabase extends Dexie {
       plannedActivities: 'id, weekStart, category, fromCommitmentId',
     });
 
+    /**
+     * v17 splits the middle of the planner in two.
+     *
+     * `NEXT_UP` meant both "I am doing this next week" and "this is somewhere in
+     * the next month" - two entirely different promises sharing a column. Rows
+     * are re-filed by their due date, which is the only evidence available about
+     * which of the two they were: inside a fortnight is next week's sprint,
+     * beyond it is merely known about.
+     *
+     * `LATER` becomes FUTURE when it carries a real date and BACKLOG when the
+     * date is so far out that it was never a schedule, only a note.
+     */
+    this.version(17).upgrade(async (tx) => {
+      const horizon = (days: number) => {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+          d.getDate()
+        ).padStart(2, '0')}`;
+      };
+      const fortnight = horizon(14);
+      const term = horizon(75);
+
+      await tx
+        .table('tasks')
+        .toCollection()
+        .modify((task: { bucket?: string; dueDate?: string }) => {
+          if (task.bucket === 'NEXT_UP') {
+            task.bucket = (task.dueDate ?? '') <= fortnight ? 'NEXT_WEEK' : 'FUTURE';
+          } else if (task.bucket === 'LATER') {
+            task.bucket = (task.dueDate ?? '') <= term ? 'FUTURE' : 'BACKLOG';
+          }
+        });
+    });
+
     this.on('ready', async () => {
       await this.seedMissingRows();
     });

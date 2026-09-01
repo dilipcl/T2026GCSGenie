@@ -45,8 +45,11 @@ the preset chips (ordered by clock time, taken from the school day), tick Tue + 
 tap creates all three. Filling in a rotation no longer means retyping the same period twenty times.
 Leaving the name blank takes it from the subject.
 
-### Plan — the week's promise
-Three buckets: **This week** (committed), **Next up** (roughly this month), **Later this term**.
+### Plan — sprints
+Four columns, borrowed from how sprints actually work: **This week** (the current sprint), **Next
+week** (the next one), **Future** (dated, further out), **Backlog** (someday, no guilt). The line
+that matters runs between Next week and Future — everything left of it is scheduled into a week,
+everything right of it is merely known about.
 Only committed work counts towards the load meter and the nudges, so the backlog carries no guilt.
 Moving something out is one tap — that is the release valve that keeps a heavy week from becoming a
 quit. The load bar measures against the study time actually left after school and fixed commitments.
@@ -73,8 +76,10 @@ goal at all. The planner reports how many committed *hours* have no goal behind 
 task count, because one unattached four-hour task matters more than three fifteen-minute ones — and
 offers the link inline where the gap shows.
 
-Key dates live here too, and each offers **Plan work**, which creates a task linked back to the date.
-The link is what lets the checklist tell a mock with revision behind it from one merely known about.
+Key dates live here too, and each **owns its work**: the tasks planned against it are nested
+underneath with their bucket and hours, each editable and removable, and **Add work** stays
+available because one piece of revision is rarely the whole answer. That link is also what lets the
+checklist tell a mock with revision behind it from one merely known about.
 The **Weekly review** runs from here: four steps, fifteen minutes, ending in a sign-off that is
 recorded.
 

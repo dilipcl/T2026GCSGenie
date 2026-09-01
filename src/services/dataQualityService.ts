@@ -112,7 +112,7 @@ export interface TaskDefaults {
  */
 export function withTaskDefaults(task: Partial<Task>): TaskDefaults {
   return {
-    bucket: task.bucket ?? 'LATER',
+    bucket: task.bucket ?? 'BACKLOG',
     estimatedHours: task.estimatedHours,
   };
 }
@@ -417,7 +417,7 @@ export async function autoFix(): Promise<AutoFixResult> {
   for (const task of tasks) {
     const patch: Partial<Task> = {};
 
-    if (task.bucket === undefined) patch.bucket = 'LATER';
+    if (task.bucket === undefined) patch.bucket = 'BACKLOG';
 
     const tidied = normaliseTitle(task.title);
     if (tidied !== task.title) patch.title = tidied;

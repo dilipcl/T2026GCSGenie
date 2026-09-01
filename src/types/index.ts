@@ -126,7 +126,27 @@ export interface DailyCheckIn {
  * THIS_WEEK is a promise; the other two are a backlog and carry no guilt. Only
  * committed work counts towards the weekly load and the slipping nudge.
  */
-export type PlanBucket = 'THIS_WEEK' | 'NEXT_UP' | 'LATER';
+/**
+ * Where a piece of work sits, borrowed from how sprints actually work.
+ *
+ * The first three buckets were This week / Next up / Later, and the middle one
+ * did too much: "next up" meant both "I am doing this next week" and "this is
+ * somewhere in the next month", which are completely different promises. The
+ * week you are about to plan deserves a column of its own, because it is the
+ * only one you can realistically pull from.
+ *
+ * The line that matters runs between NEXT_WEEK and FUTURE: everything left of
+ * it is scheduled into a week, everything right of it is merely known about.
+ */
+export type PlanBucket =
+  /** The current sprint. Counts towards the load, the baseline and every nudge. */
+  | 'THIS_WEEK'
+  /** The next sprint. Planned, but not yet promised. */
+  | 'NEXT_WEEK'
+  /** Dated and coming, beyond next week. Known about, not yet scheduled. */
+  | 'FUTURE'
+  /** The product backlog: someday, no sprint, no guilt. */
+  | 'BACKLOG';
 
 /**
  * Where a week's plan stands.

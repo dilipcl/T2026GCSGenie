@@ -41,14 +41,17 @@ export function inferBucket(task: Task): PlanBucket {
   if (task.bucket) return task.bucket;
   const days = daysUntil(task.dueDate);
   if (days <= 7) return 'THIS_WEEK';
-  if (days <= 31) return 'NEXT_UP';
-  return 'LATER';
+  if (days <= 14) return 'NEXT_WEEK';
+  // Beyond a term away it was never a schedule, only a note to self.
+  if (days <= 75) return 'FUTURE';
+  return 'BACKLOG';
 }
 
 export interface PlanColumns {
   THIS_WEEK: Task[];
-  NEXT_UP: Task[];
-  LATER: Task[];
+  NEXT_WEEK: Task[];
+  FUTURE: Task[];
+  BACKLOG: Task[];
 }
 
 export interface WeekCommitment {
@@ -65,7 +68,7 @@ export interface WeekCommitment {
 export async function loadWeekCommitment(): Promise<WeekCommitment> {
   const all = await db.tasks.orderBy('dueDate').toArray();
 
-  const columns: PlanColumns = { THIS_WEEK: [], NEXT_UP: [], LATER: [] };
+  const columns: PlanColumns = { THIS_WEEK: [], NEXT_WEEK: [], FUTURE: [], BACKLOG: [] };
   for (const task of all) columns[inferBucket(task)].push(task);
 
   const committed = columns.THIS_WEEK;
@@ -109,6 +112,11 @@ export async function moveTaskToBucket(
   if (bucket === 'THIS_WEEK') {
     patch.committedAt = Date.now();
     if (daysUntil(task.dueDate) > 7) patch.dueDate = addDaysISO(7);
+  } else if (bucket === 'NEXT_WEEK') {
+    // Same contradiction, one sprint out: a thing promised for next week cannot
+    // still say it is due in October.
+    patch.committedAt = undefined;
+    if (daysUntil(task.dueDate) > 14) patch.dueDate = addDaysISO(14);
   } else {
     patch.committedAt = undefined;
   }
@@ -117,8 +125,9 @@ export async function moveTaskToBucket(
 
   const label: Record<PlanBucket, string> = {
     THIS_WEEK: 'This week',
-    NEXT_UP: 'Next up',
-    LATER: 'Later this term',
+    NEXT_WEEK: 'Next week',
+    FUTURE: 'Future',
+    BACKLOG: 'Backlog',
   };
   await logAuditEvent({
     user: 'STUDENT',
@@ -171,7 +180,7 @@ export function assessPlan(commitment: WeekCommitment, safeStudyHours: number): 
     isOvercommitted: commitment.committedHours > safeStudyHours,
     slipping,
     slippingReason: slipping
-      ? `${commitment.committedDone} of ${commitment.committedCount} done with the week nearly gone. Move what will not happen to Next up - that is planning, not failing.`
+      ? `${commitment.committedDone} of ${commitment.committedCount} done with the week nearly gone. Move what will not happen to Next week - that is planning, not failing.`
       : undefined,
   };
 }

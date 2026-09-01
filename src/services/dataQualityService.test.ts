@@ -77,7 +77,7 @@ describe('titles too thin to identify later', () => {
 
 describe('defaults applied on the way in', () => {
   it('gives every task a real bucket instead of undefined', () => {
-    expect(withTaskDefaults({}).bucket).toBe('LATER');
+    expect(withTaskDefaults({}).bucket).toBe('BACKLOG');
   });
 
   it('keeps a bucket that was chosen', () => {
@@ -233,7 +233,7 @@ describe('auto-fixing only what cannot be wrong', () => {
     const fixed = await db.tasks.get('task_messy');
 
     expect(result.fixed).toBe(1);
-    expect(fixed?.bucket).toBe('LATER');
+    expect(fixed?.bucket).toBe('BACKLOG');
     expect(fixed?.title).toBe('Lock in Physic Session (Electricity, Circuits)');
   });
 

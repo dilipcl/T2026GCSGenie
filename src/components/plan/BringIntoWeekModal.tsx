@@ -127,8 +127,8 @@ export const BringIntoWeekModal: React.FC<Props> = ({ task, plan, onCancel, onCo
               >
                 <span className="block font-semibold truncate">{candidate.title}</span>
                 <span className="block text-[10px] text-slate-400 mt-0.5">
-                  {formatFriendlyDate(candidate.dueDate)} · {taskHours(candidate)}h — moves to Next
-                  up
+                  {formatFriendlyDate(candidate.dueDate)} · {taskHours(candidate)}h — moves to next
+                  week
                 </span>
               </button>
             ))

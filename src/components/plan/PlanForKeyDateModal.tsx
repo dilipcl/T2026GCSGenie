@@ -60,7 +60,12 @@ export const PlanForKeyDateModal: React.FC<Props> = ({
   // Reopening for a different key date must not inherit the last one's answers.
   useEffect(() => {
     if (!milestone) return;
-    setTitle(`Revise for ${milestone.title}`);
+    // The date's own words, not "Revise for" bolted onto them. Half these
+    // entries are already an action - "Add all the Goals and get them approved"
+    // is not something you revise for - and the result read like a machine had
+    // written it, because one had. The chips below offer the revision framings
+    // for the dates that genuinely want one.
+    setTitle(milestone.title);
     setHours(2);
     setSubjectId(milestone.subjectId ?? '');
     setGoalId('');
@@ -205,7 +210,7 @@ export const PlanForKeyDateModal: React.FC<Props> = ({
           {(
             [
               { id: 'THIS_WEEK', label: 'This week' },
-              { id: 'NEXT_UP', label: 'Next up' },
+              { id: 'NEXT_WEEK', label: 'Next week' },
             ] as { id: PlanBucket; label: string }[]
           ).map((b) => (
             <button
