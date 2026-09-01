@@ -49,6 +49,93 @@ analysis has to interpret a blank. They are excluded from RAG health - with no
 topics the weighted score would default to a meaningful-looking number that moves
 only with homework - and included in workload, because the time is real.
 
+## Plan baselining and tiered sanctions (v15, November 2026)
+
+**A week is a record, not a filter.** `planBaselines` is keyed by the week's
+Monday, so the row for a week is findable without a query and a week cannot
+baseline twice. The committed task ids are *captured* at submission rather than
+recomputed at approval: what a parent agrees to must be exactly what was on
+screen when it was sent, and approving a moving target is not approving
+anything.
+
+**Amendments are rows, not an array on the baseline.** Two devices can both add
+work to an approved week while offline. Dexie Cloud merges rows; it does not
+merge an array inside one, so the second device's amendment would silently
+overwrite the first's. They sort by `at` then by `id` - ids are random UUIDs
+carrying no chronology, so without the tiebreak two amendments sharing a
+millisecond come back in whatever order the index yields and the list reshuffles
+between renders. Arbitrary but stable beats arbitrary and moving.
+
+**Readiness is computed, never stored.** `readinessChecks` derives everything
+from the current tables, so a stale check cannot outlive the thing it was about.
+Blocking and advisory are distinguished: a week over its headroom, or work with
+no goal behind it, is stated and submitted anyway. Refusing would push the
+planning outside the app, and a planner nobody uses measures nothing.
+
+**One reader for the nudge.** `readFinalisationState` assembles the checklist,
+the status and the dashboard reminder in a single pass. Two components each
+deriving "what is outstanding" from the same tables is how they drift apart, and
+a nudge that contradicts the screen it links to is worse than no nudge.
+
+**Goal drift is measured in hours.** One unattached four-hour task matters more
+than three fifteen-minute ones; counting rows hides exactly that. It is a
+warning and never a block - a permission slip belongs to no goal.
+
+**Sanction tiers are a table, not a judgement.** `SANCTION_TIERS` fixes the
+penalty and the freeze per severity. Escalation adds one tier for a repeat inside
+14 days - one tier, once, never compounding, because a run of three small things
+reaching a frozen shop is where a rule stops being believed. `severityOf` reads
+rows written before tiers existed as SERIOUS, which is the rate they were logged
+at, so they still escalate correctly. `requiresRemediation` tracks `freezesShop`
+exactly: a freeze with no way to end it is a punishment with no exit.
+
+**Dates go through `utils/date`, never `toISOString`.** The escalation window and
+the week start both compare local ISO strings. Deriving them with `toISOString`
+resolves in UTC, which east of Greenwich lands a day early - the window silently
+reached fifteen days back and a sanction that should have aged out still
+escalated the next one.
+
+## Planned activities and the headline line (v16, November 2026)
+
+**Activities are counts, not occurrences.** One row says "4 days of school",
+because that is how a week is described out loud and one row per occasion makes
+an ordinary week tedious to enter - which means it does not get entered, and an
+empty table is worse than a rough one.
+
+**Double counting is the whole design risk.** School and cadets already reach the
+capacity gauge through `FixedCommitment`. Rows seeded from one carry
+`fromCommitmentId`, are shown as *counted*, and are excluded from
+`bespokeExpectedHours` - the only figure `calculateBurnoutCapacity` adds. The
+seed is idempotent and its id is `activity_${commitmentId}__${weekStart}`,
+deterministic for the same reason `CommitmentException` ids are: two devices
+seeding the same week offline must merge to one row, not deduct twice.
+
+**A forecast is not a record.** `expectedHours` falls back to the plan until
+`actualOccasions` is set, because an unconfirmed activity has not been shown to
+be missed - it has only not been asked about. Treating silence as absence would
+hand back hours nobody freed up. `isConfirmed` tests for the number's presence
+rather than its truthiness, so a confirmed zero is a confirmation and not a gap.
+
+**The check-in owns the confirmation** because it is the one moment someone is
+already telling the app how the day went. It asks from midweek only, and stops
+once every row is answered: a question with a known answer trains people to skim
+the form, which costs the check-in rather than just the question.
+
+**Feasibility composes rather than extends.** `assessFeasibility` reads the
+burn-down, the capacity gauge and the activity load and compares a required rate
+to real headroom. It lives beside `portfolioBurndown` but does not alter it, so
+the existing burn-down tests keep testing the burn-down. Only goals with negative
+variance contribute to the rate - counting a healthy goal's steady budget would
+manufacture a shortfall from a plan that is going well.
+
+**The ticker reads, never writes.** `headlineMetrics.readHeadlines` issues its
+reads in one `Promise.all`; it runs on every Home render, and eight sequential
+awaits is a visible pause on the most-opened screen. Items are omitted rather
+than zeroed, each carries a `tone` separate from its text, and the marquee
+renders two copies translated by exactly -50% so the loop has no seam. Motion
+respects `prefers-reduced-motion`, pauses on hover and focus, and the accessible
+copy is a plain `sr-only` list - a marquee announced on a loop is unusable.
+
 ## 1. Executive Summary & System Philosophy
 
 **GCSE Genie** is a private, offline-first, zero-administrative-overhead academic organiser and performance acceleration platform. It is engineered specifically for Tejas Dilip as he embarks on his two-year GCSE journey (Years 10–11) at Guildford County School (GCS), targeting **Grade 9s** across all six core and elective subjects.

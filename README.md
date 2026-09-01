@@ -51,8 +51,72 @@ Only committed work counts towards the load meter and the nudges, so the backlog
 Moving something out is one tap — that is the release valve that keeps a heavy week from becoming a
 quit. The load bar measures against the study time actually left after school and fixed commitments.
 
-Key dates live here too, and the **Weekly review** runs from here: four steps, fifteen minutes,
-ending in a sign-off that is recorded.
+**Finalising the week.** A week runs Draft → Awaiting approval → Baselined. A readiness checklist
+says exactly what is outstanding — commit something, estimate every committed task, clear anything
+already overdue, plan work for key dates inside a fortnight — and only then can the week be sent.
+A parent approves it in the Portal, behind the passphrase. Over-promising is invisible from inside
+your own week and looks reasonable one task at a time; a second pair of eyes is the only thing that
+catches a fortnight of it.
+
+Two checks warn rather than block: a week over its headroom, and work that is not linked to a goal.
+A mock fortnight legitimately blows the ceiling, and refusing to let anyone plan such a week only
+pushes the planning outside the app. It is stated, a reason is asked for, and the parent decides.
+
+**Changing an agreed week.** After approval, pulling work in offers the swap first — pick what comes
+out, see the trade in hours, and the change is recorded with what it displaced. Adding on top stays
+available with a reason, because school does not check the plan before setting homework and refusing
+outright would send the work somewhere the app cannot see. What this buys is a truthful answer at
+the weekly review: was the plan wrong, or was it abandoned?
+
+**Work that is aimed at nothing.** A term of homework can be done conscientiously and still move no
+goal at all. The planner reports how many committed *hours* have no goal behind them — hours, not
+task count, because one unattached four-hour task matters more than three fifteen-minute ones — and
+offers the link inline where the gap shows.
+
+Key dates live here too, and each offers **Plan work**, which creates a task linked back to the date.
+The link is what lets the checklist tell a mock with revision behind it from one merely known about.
+The **Weekly review** runs from here: four steps, fifteen minutes, ending in a sign-off that is
+recorded.
+
+### What else the week holds
+Study time is what is left after everything else, and until now "everything else" meant only the
+recurring commitments. The Plan tab now takes the week's other activities — **4 days of school,
+2 parade nights, 1 birthday party, a film, an afternoon with friends** — as counts rather than
+individual rows, because that is how a week gets described out loud.
+
+Five categories, because "busy" is not one thing: **Academic, Extra-curricular, Career-focussed,
+Recreational, Fun.** A careers evening and a birthday party both cost three hours and are not the
+same call, and a week with no Fun in it is a finding rather than a triumph.
+
+Recurring commitments are filled in automatically and marked *counted* — their hours already reach
+the capacity gauge, and adding them again would charge the week twice for the same Tuesday evening.
+Only bespoke rows move the number.
+
+**The check-in confirms it.** A plan made on Monday is a forecast; not every parade night happens
+and not every party is gone to. From midweek the check-in asks how many of each actually did — one
+tap per count — and hands the hours back when the answer is fewer. It does not ask on Monday, when
+nothing has happened yet, and stops once every row has an answer. Until something is confirmed the
+forecast stands: silence is a question nobody has asked, not evidence of absence.
+
+### Behind, or impossible?
+The burn-down says what rate is now needed to finish on time. The capacity gauge says what the week
+can actually hold. Separately each is fine and neither is actionable; together they answer the
+question the weekly review is for.
+
+The distinction matters because the remedies are opposite. **Behind** is fixed by more hours.
+**Impossible** is fixed by fewer goals, a later target, or a lighter week — and telling someone to
+try harder at something that does not fit is how a plan stops being believed.
+
+### The headline line
+A single line across the top of Home: XP to spend, the week's promise, anything overdue, study time
+left, hours booked for life outside school and any handed back, goal variance, recent sanctions, and
+the next key date. Everything in it already lived on some card — which is the point, since those
+cards are on four different screens and nobody visits four screens.
+
+Nothing appears unless it is true and current; "0 of 0 done" every day for a month is noise wearing
+the costume of information. It pauses on hover and on keyboard focus, stops entirely under
+`prefers-reduced-motion`, and renders the same facts as a plain list for screen readers, because a
+marquee announced on a loop is unusable.
 
 ### Focus blocks
 25 minutes with the break attached, logging its own study time against the subject being worked on.
@@ -465,9 +529,23 @@ Tracks total committed hours against a safe weekly ceiling and warns before a ne
 | Homework completed | +50 (+60 if High priority) |
 | Chore ticked off | +10 daily / +25 weekly, set per chore |
 | Diagnostic quest completed | +100 to +300 |
-| School sanction logged by parent | −500 and Rewards Shop frozen |
+| Sanction: Minor (late, kit, low-level disruption) | −50 |
+| Sanction: Detention (lunchtime or break) | −150 |
+| Sanction: Serious (after-school, removal, or a repeat) | −500 and Rewards Shop frozen |
 
 XP is banked once. Homework ticked off inside a check-in is credited through the task itself, not twice.
+
+**Sanctions are tiered, and the tier is fixed in advance.** Every incident used to cost 500 XP and
+freeze the shop, so being late to a lesson and being sent out of one were priced identically — which
+is not a rule, it is one punishment with a text box. It failed both ways: absurd for the small
+things, so it stopped being applied, and then not there for the serious ones either. The parent picks
+what happened and the number follows.
+
+A second incident inside 14 days escalates one tier — one tier, once, not one per prior incident.
+Compounding would take three late marks to a frozen shop, which is where a rule stops being believed.
+The escalation is shown before the button is pressed. Only the top tier freezes the shop, and only a
+frozen shop needs something put right to reopen it; a freeze with no exit is a punishment with no
+end. Sanctions logged before tiers existed read as Serious, which is what they were.
 
 **Pending reward requests reserve their cost.** The balance shown is what can actually be spent; XP
 held against requests awaiting a parent's decision is displayed separately. Without this the shop
@@ -791,7 +869,8 @@ src/
 │   ├── tasks/  calendar/  goals/      # My Work, Key Dates, Subjects & Goals
 │   ├── remediation/                   # Fix My Mistakes
 │   ├── timetable/  rewards/  guidance/ # incl. How Genie works + first-run tour
-│   ├── parent/                        # PIN + Parent Portal
+│   ├── plan/                          # buckets, finalisation, swap-in, key-date work
+│   ├── parent/                        # PIN + Parent Portal, plan approval, sanctions
 │   └── layout/                        # Header, Navigation, SyncStatus chip
 ├── services/
 │   ├── ragCalculator.ts               # subject health, XP ledger (incl. reservations)
@@ -802,6 +881,10 @@ src/
 │   ├── parentLockService.ts           # claim / unlock / change the passphrase
 │   ├── auditService.ts                # hash-chained change log + field-level diffs
 │   ├── burnoutEngine.ts               # weekly time budget
+│   ├── planBaselineService.ts         # readiness, approval, amendments, goal drift
+│   ├── sanctionService.ts             # the three tiers and the escalation window
+│   ├── activityPlanService.ts         # what else the week holds, by category
+│   ├── headlineMetrics.ts             # the Home ticker's facts, assembled once
 │   ├── llmAgentService.ts             # agentic audit (live + offline)
 │   ├── backupService.ts               # schema-walking export, safe restore
 │   ├── handoverService.ts             # preview + clear the QA activity before launch
@@ -823,12 +906,25 @@ two devices creating a record in the same millisecond produce the same key, and 
 and destroys the other. Dexie Cloud requires primary keys with "sufficient entropy for global
 uniqueness". Use `newId('task')` from `src/utils/id.ts`, which pairs a readable prefix with a UUID.
 
-**A sheet flush with the bottom of the screen must clear the nav bar.** The mobile bottom bar is
-`fixed` and paints over anything beneath it, so `pb-safe` alone leaves the last row of a bottom sheet
-untappable — which is exactly how the More menu lost its second row. Use `pb-nav-safe`, which adds
-the bar's height and collapses again above `md`, where the bar does not exist. Note that both
-classes are defined *after* `@tailwind utilities`, so they beat a responsive `sm:pb-5` written
-alongside them; that is why the breakpoint is handled inside the class itself.
+**A sheet flush with the bottom of the screen must clear the nav bar** — unless it outranks it. The
+mobile bottom bar is `fixed` and paints over anything beneath it, so `pb-safe` alone leaves the last
+row of a bottom sheet untappable. Use `pb-nav-safe`, which adds the bar's height and collapses again
+above `md`, where the bar does not exist. Note that both classes are defined *after*
+`@tailwind utilities`, so they beat a responsive `sm:pb-5` written alongside them; that is why the
+breakpoint is handled inside the class itself.
+
+The More sheet is the exception, and it shows what the padding was really working around: the sheet
+and the bar were both `z-40`, a tie is settled by document order, and the bar is written second — so
+it covered a dialog marked `aria-modal` and stayed lit and tappable through it. The sheet now sits at
+`z-[45]` and uses plain `pb-safe`. Padding is the right answer when something legitimately sits in
+front of you; it is the wrong answer when the thing in front of you should have been behind.
+
+**Pick z-index against the layer table in `styles/index.css`, not by eye.** Those numbers otherwise
+live only in `className` strings spread across the app, which is exactly how two of them silently
+ended up equal. And a `z-index` inside an element with `backdrop-blur` cannot escape it: the blur
+makes that element a stacking context, so a dropdown's `z-50` only orders it against its siblings
+while the whole bar sits at the page's default depth. That is why the desktop nav carries
+`relative z-[35]` — the menu can only ever rise as high as the bar containing it.
 
 **Escape belongs to the topmost layer only.** `useEscapeToClose(isOpen, onClose)` keeps a shared
 stack, because a modal routinely opens the confirm dialog on top of itself and both listen on
@@ -836,5 +932,12 @@ stack, because a modal routinely opens the confirm dialog on top of itself and b
 form underneath it. The hook holds `onClose` in a ref and subscribes on `isOpen` alone, so a
 background re-render cannot re-push a modal to the top of the stack. Call it above the
 `if (!isOpen) return null` — a hook cannot be called conditionally.
+
+**A hook below an early return will take the whole app down.** A modal driven by an `isOpen` prop
+stays mounted while closed, so a hook underneath `if (!isOpen) return null` runs only *sometimes* —
+opening the dialog changes the hook count, React throws, and with no boundary the entire tree
+unmounts. The check-in did exactly this and blanked the app. `src/test/hookOrder.test.ts` now fails
+on any hook below an early return, and `ErrorBoundary` wraps the tab content and each modal so the
+next one costs a panel instead of the app.
 
 **Never use `toISOString()` for "today".** It resolves in UTC, so during British Summer Time anything between 00:00 and 01:00 local returns the *previous* day — a check-in at 00:30 lands on yesterday and breaks the streak. Use the helpers in `src/utils/date.ts` (`todayISO`, `addDaysISO`, `daysUntil`, `formatFriendlyDate`, `formatCountdown`).

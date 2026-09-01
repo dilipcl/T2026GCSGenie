@@ -1,5 +1,128 @@
 # Changelog
 
+## November 2026 - What else is the week for?
+
+**Study time is what is left.** The capacity gauge knew about school and cadets
+because those recur and somebody set them up once. It knew nothing about the
+birthday party, the film, or the afternoon with friends - so a week with nine
+hours of real, non-negotiable life in it looked identical to an empty one, and
+the planner cheerfully advised committing the time twice over.
+
+The Plan tab now asks what else the week holds. The unit is "4 days of school",
+not four rows, because that is how a week gets described out loud and one row per
+occasion would make an ordinary week a chore to enter - and therefore one nobody
+enters.
+
+**Five categories**, because "busy" is not one thing: Academic,
+Extra-curricular, Career-focussed, Recreational, Fun. A careers evening and a
+birthday party both cost three hours and are not remotely the same call, and a
+week with no Fun in it at all is a finding rather than a triumph.
+
+**Recurring things are filled in automatically** from the fixed commitments and
+marked as already counted. Their hours are in the gauge already; adding them a
+second time would charge the week twice for the same Tuesday evening. Only
+bespoke rows move the number. The seed is idempotent and uses a deterministic id,
+so two devices doing it offline produce one row rather than two.
+
+**A plan is a forecast, and the check-in is where it becomes a record.** Not
+every parade night happens and not every party is gone to. From midweek the
+check-in asks how many of each actually did, one tap per count, and hands the
+hours back when the answer is fewer. It does not ask on Monday, when nothing has
+happened yet, and it stops asking once every row has an answer - a question with
+a known answer is the fastest way to train someone to skim the whole form.
+
+Until something is confirmed the forecast stands. Silence is not absence; it is a
+question nobody has asked yet, and treating it as absence would quietly hand back
+hours nobody freed up.
+
+**Behind, or impossible?** The burn-down says what rate is now needed; the
+capacity gauge says what the week can hold. Each was fine alone and neither was
+actionable. Together they answer the question a weekly review is actually for -
+and the two have opposite remedies. Behind is fixed by more hours. Impossible is
+fixed by fewer goals, a later target, or a lighter week, and telling someone to
+try harder at something that does not fit is how a plan stops being believed.
+
+**A headline line across Home.** Everything in it already lived on some card,
+which is the point: the numbers that say how the term is going were spread over
+four screens and nobody visits four screens. XP, the week's promise, overdue
+work, study time left, hours booked and handed back, goal variance, sanctions,
+and the next key date.
+
+Nothing appears unless it is true and current - "0 of 0 done" every day for a
+month is noise wearing the costume of information. It pauses on hover and on
+focus, stops entirely for anyone who has asked their device for less motion, and
+renders the same facts as a plain list for screen readers, because a marquee
+announced on a loop is unusable.
+
+## November 2026 - What did the week actually promise?
+
+**A plan that closes.** The planner could always say what this week held, but
+nothing ever ended the decision. The list stayed editable all week, so
+"committed" meant only "currently in the left-hand column" - it drifted quietly,
+and by Friday there was no way to tell an honest re-plan from a week rewritten to
+match whatever happened to get done.
+
+A week now runs Draft -> Awaiting approval -> Baselined. Tejas decides what the
+week holds and sends it; a parent agrees it behind the PIN. That gate is not
+ceremony: over-promising is invisible from inside your own week and perfectly
+reasonable one task at a time, and a second pair of eyes is the only thing that
+catches a fortnight of it.
+
+**The readiness checklist** says what is outstanding, and names it. Commit
+something; give every committed task an hours estimate; clear anything already
+overdue; plan work for key dates inside a fortnight. A nudge that says "finalise
+your plan" and leaves you to work out what that means is a nudge that gets
+ignored.
+
+Two checks are advisory rather than blocking. A week can be legitimately over its
+headroom - a mock fortnight is - and refusing to let anyone plan such a week only
+pushes the planning outside the app. It is stated, a reason is asked for, and the
+parent decides.
+
+**Amendments.** After approval the plan still bends, because school does not
+check the plan before setting homework. But adding work now offers the swap
+first, prices the trade in hours, and records what came out. A week that only
+ever grows is the same over-promising the baseline existed to stop, arrived at
+one reasonable addition at a time. Adding on top stays available with a reason -
+refusing outright would send the work somewhere the app cannot see, which is
+worse than an honest overrun.
+
+**Coming up became actionable.** The key dates panel listed the mocks and the
+coursework deadlines and did nothing with them - a countdown to things arriving,
+with no route from knowing about one to planning for it. Each now offers "Plan
+work", which creates a task linked back to the date. The link is the point: it is
+what lets the checklist tell a mock with revision behind it from one that is
+merely known about.
+
+Pulling work in from Next up is a named button rather than a chevron small enough
+that nobody found it.
+
+**Work that is aimed at nothing.** A term of homework can be done
+conscientiously and still move no goal at all - the work is real, it is just
+pointed elsewhere, and nothing noticed because a task and a goal were only ever
+connected when someone remembered to connect them. The planner now reports how
+many committed hours have no goal behind them, and offers the link inline where
+the gap is visible.
+
+Measured in hours, not task count: one unattached four-hour task matters more
+than three fifteen-minute ones, and counting rows hides exactly that. It warns
+and never blocks - a permission slip belongs to no goal and must not stop a week.
+
+**Sanctions have tiers.** Every incident used to cost 500 XP and freeze the
+Rewards Shop, so being late to a lesson and being sent out of one were priced
+identically. That is not a rule, it is one punishment with a text box, and it
+fails both ways: absurd for the small things, so it stops being applied, and then
+not there for the serious ones either.
+
+Minor (-50), Detention (-150), Serious (-500, freezes the shop until something is
+put right). A second incident inside a fortnight escalates one tier - one tier,
+once, not one per prior incident, because compounding would take three late marks
+to a frozen shop and that is where a rule stops being believed. The escalation is
+shown before the button is pressed.
+
+Rows written before tiers existed read as Serious, which is what they were logged
+at.
+
 ## October 2026 - Can you actually see the work?
 
 **Evidence.** A third pane on Updates that searches any piece of work and shows
