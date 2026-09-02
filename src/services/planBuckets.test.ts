@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { db } from '../db';
 import { resetDatabase } from '../test/harness';
 import { Task } from '../types';
-import { inferBucket, loadWeekCommitment, moveTaskToBucket } from './planService';
+import { inferBucket, isKnownBucket, loadWeekCommitment, moveTaskToBucket } from './planService';
 import { addDaysISO } from '../utils/date';
 
 function freezeAt(iso: string) {
@@ -147,5 +147,57 @@ describe('moving between sprints', () => {
     const row = rows.find((r) => r.entityId === task.id);
     expect(row?.newValue).toContain('Next week');
     expect(row?.newValue).toContain('Ran out of time');
+  });
+});
+
+describe('a bucket written by another version', () => {
+  /**
+   * The database syncs. A second device still on the previous build writes
+   * `LATER` into a shared table long after this one has upgraded, so migrating
+   * on open is not enough - the row arrives afterwards, naming a column that
+   * does not exist. This crashed the entire planner in production.
+   */
+  it('recognises only the four that exist', () => {
+    expect(isKnownBucket('THIS_WEEK')).toBe(true);
+    expect(isKnownBucket('BACKLOG')).toBe(true);
+    expect(isKnownBucket('LATER')).toBe(false);
+    expect(isKnownBucket('NEXT_UP')).toBe(false);
+    expect(isKnownBucket(undefined)).toBe(false);
+    expect(isKnownBucket(42)).toBe(false);
+  });
+
+  it('falls back to the due date rather than trusting the stored name', () => {
+    const legacy = { ...makeTask({ dueDate: addDaysISO(2) }), bucket: 'LATER' } as unknown as Task;
+    expect(inferBucket(legacy)).toBe('THIS_WEEK');
+  });
+
+  it('does not crash the planner', async () => {
+    // `columns[bucket].push(task)` on an undefined column took down the whole
+    // screen. One unrecognised string must never cost the planner.
+    await db.tasks.bulkAdd([
+      { ...makeTask({ dueDate: addDaysISO(2) }), bucket: 'LATER' } as unknown as Task,
+      { ...makeTask({ dueDate: addDaysISO(40) }), bucket: 'NEXT_UP' } as unknown as Task,
+      makeTask({ dueDate: addDaysISO(1), bucket: 'THIS_WEEK' }),
+    ]);
+
+    const { columns, committedCount } = await loadWeekCommitment();
+    // The legacy row due in two days lands where its date says, not in a void.
+    expect(committedCount).toBe(2);
+    expect(columns.FUTURE).toHaveLength(1);
+  });
+
+  it('files every task somewhere, whatever it says', async () => {
+    await db.tasks.bulkAdd([
+      { ...makeTask(), bucket: 'ATLANTIS' } as unknown as Task,
+      { ...makeTask(), bucket: '' } as unknown as Task,
+    ]);
+
+    const { columns } = await loadWeekCommitment();
+    const total =
+      columns.THIS_WEEK.length +
+      columns.NEXT_WEEK.length +
+      columns.FUTURE.length +
+      columns.BACKLOG.length;
+    expect(total).toBe(2);
   });
 });

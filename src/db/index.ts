@@ -365,15 +365,58 @@ export class GCSEGenieDatabase extends Dexie {
       const fortnight = horizon(14);
       const term = horizon(75);
 
+      const week = horizon(7);
+
       await tx
         .table('tasks')
         .toCollection()
         .modify((task: { bucket?: string; dueDate?: string }) => {
-          if (task.bucket === 'NEXT_UP') {
-            task.bucket = (task.dueDate ?? '') <= fortnight ? 'NEXT_WEEK' : 'FUTURE';
-          } else if (task.bucket === 'LATER') {
-            task.bucket = (task.dueDate ?? '') <= term ? 'FUTURE' : 'BACKLOG';
-          }
+          if (task.bucket !== 'NEXT_UP' && task.bucket !== 'LATER') return;
+          const due = task.dueDate ?? '';
+
+          /**
+           * Work due inside the week is this week's, whatever the old column
+           * said. The first version of this migration preserved the old
+           * distinction faithfully and filed homework due in two days under
+           * "Future", because it had once been dropped in "Later this term" and
+           * nobody had moved it since. The due date is the better evidence.
+           */
+          if (due && due <= week) task.bucket = 'THIS_WEEK';
+          else if (due && due <= fortnight) task.bucket = 'NEXT_WEEK';
+          else if (due && due <= term) task.bucket = 'FUTURE';
+          else task.bucket = 'BACKLOG';
+        });
+    });
+
+    /**
+     * v18 undoes a mistake v17 made.
+     *
+     * v17 re-filed the old `LATER` column into `FUTURE` whenever the date was
+     * inside the term, which was faithful to the old label and wrong about the
+     * work: homework due in two days went into "Future" because it had once
+     * been dropped in "Later this term" and nobody had moved it since. v17 has
+     * since been corrected, but databases that already ran it are past that
+     * point and will never run it again.
+     *
+     * This repairs them from the only fact that settles it. Work due inside the
+     * week is this week's, whatever column it is sitting in - the same rule
+     * `moveTaskToBucket` already enforces in the opposite direction when it
+     * pulls a far-off due date back on commitment.
+     */
+    this.version(18).upgrade(async (tx) => {
+      const d = new Date();
+      d.setDate(d.getDate() + 7);
+      const week = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+        d.getDate()
+      ).padStart(2, '0')}`;
+
+      await tx
+        .table('tasks')
+        .toCollection()
+        .modify((task: { bucket?: string; dueDate?: string; completed?: boolean }) => {
+          if (task.completed) return;
+          if (task.bucket !== 'FUTURE' && task.bucket !== 'BACKLOG') return;
+          if (task.dueDate && task.dueDate <= week) task.bucket = 'THIS_WEEK';
         });
     });
 

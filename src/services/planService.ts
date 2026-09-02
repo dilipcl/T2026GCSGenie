@@ -29,8 +29,29 @@ export function taskHours(task: Task): number {
     : DEFAULT_HOURS[task.priority] ?? 1;
 }
 
+/** The four columns that exist. Anything else stored is from another version. */
+const BUCKETS: readonly PlanBucket[] = ['THIS_WEEK', 'NEXT_WEEK', 'FUTURE', 'BACKLOG'];
+
 /**
- * Where an unplanned task belongs.
+ * Whether a stored bucket is one this version knows about.
+ *
+ * It is not enough to migrate on upgrade. This database syncs, so a second
+ * device still running the previous build writes `LATER` into a shared table
+ * long after this one has upgraded - and the row arrives with a column name
+ * that no longer exists. Trusting it crashed the whole planner:
+ * `columns[bucket].push(task)` on an undefined column, caught by the error
+ * boundary and shown as a broken screen.
+ *
+ * So the stored value is checked rather than assumed, always, and anything
+ * unrecognised falls back to the due date - which is the one piece of evidence
+ * every version agrees on.
+ */
+export function isKnownBucket(bucket: unknown): bucket is PlanBucket {
+  return typeof bucket === 'string' && (BUCKETS as readonly string[]).includes(bucket);
+}
+
+/**
+ * Where a task belongs.
  *
  * Existing tasks predate buckets entirely, and dropping several months of
  * homework into an empty backlog would be useless. Anything already due inside
@@ -38,7 +59,7 @@ export function taskHours(task: Task): number {
  * how far away it is.
  */
 export function inferBucket(task: Task): PlanBucket {
-  if (task.bucket) return task.bucket;
+  if (isKnownBucket(task.bucket)) return task.bucket;
   const days = daysUntil(task.dueDate);
   if (days <= 7) return 'THIS_WEEK';
   if (days <= 14) return 'NEXT_WEEK';
@@ -69,7 +90,13 @@ export async function loadWeekCommitment(): Promise<WeekCommitment> {
   const all = await db.tasks.orderBy('dueDate').toArray();
 
   const columns: PlanColumns = { THIS_WEEK: [], NEXT_WEEK: [], FUTURE: [], BACKLOG: [] };
-  for (const task of all) columns[inferBucket(task)].push(task);
+  for (const task of all) {
+    // `inferBucket` already guarantees one of the four, but the lookup is
+    // belt-and-braces: a single unrecognised value here takes down the entire
+    // planner, and no stored string is worth that.
+    const column = columns[inferBucket(task)] ?? columns.BACKLOG;
+    column.push(task);
+  }
 
   const committed = columns.THIS_WEEK;
   const today = todayISO();
