@@ -1,0 +1,1247 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="How GCSE Genie works: goals with a price in hours, a week that has to fit, and a check-in that moves both.">
+<meta name="theme-color" content="#0A0D16">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#129503;</text></svg>">
+<title>How Genie Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Karla:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+
+<style>
+  /* Supplied by the artifact runtime before; this page stands on its own. */
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+
+  /* Dark-committed on purpose: the app itself is dark-only, and this guide is
+     meant to sit beside it. Every colour is painted explicitly. */
+  :root {
+    --ground: #0A0D16;
+    --surface: #12172A;
+    --surface-2: #171D33;
+    --ink: #F0F3FA;
+    --ink-2: #A9B1C9;
+    --ink-3: #717A96;
+    --rule: #232B45;
+    --rule-2: #303956;
+    --indigo: #8B85FF;
+    --emerald: #4FD1A5;
+    --amber: #F0B95E;
+    --rose: #FF7A97;
+    --lime: #C6F24E;
+
+    --display: 'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif;
+    --body: 'Karla', 'Helvetica Neue', Arial, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+    --shadow: 0 2px 4px rgba(0,0,0,.4), 0 20px 50px -28px rgba(0,0,0,.9);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 clamp(1.1rem, 4vw, 2rem) 6rem; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: clamp(3rem, 9vw, 6rem) 0 clamp(2rem, 5vw, 3rem); }
+
+  .kicker {
+    font-family: var(--mono); font-size: .68rem; font-weight: 600;
+    letter-spacing: .2em; text-transform: uppercase;
+    color: var(--lime); margin: 0 0 1.2rem;
+  }
+
+  h1 {
+    font-family: var(--display); font-weight: 800;
+    font-size: clamp(2.4rem, 8.5vw, 4.4rem);
+    line-height: .98; letter-spacing: -.035em;
+    margin: 0 0 1.2rem; text-wrap: balance;
+  }
+  h1 span { color: var(--lime); }
+
+  .standfirst {
+    font-size: clamp(1.05rem, 2.4vw, 1.22rem);
+    color: var(--ink-2); max-width: 36rem; margin: 0 0 1.8rem;
+  }
+
+  .watch {
+    display: inline-flex; align-items: center; gap: .7rem;
+    padding: .85rem 1.3rem;
+    background: var(--lime); color: #0A0D16;
+    font-weight: 700; font-size: .95rem;
+    border-radius: 100px; text-decoration: none;
+    transition: transform .15s ease;
+  }
+  .watch:hover { transform: translateY(-1px); }
+  .watch small { font-weight: 600; opacity: .65; }
+
+  /* ---------- sections ---------- */
+  section { padding: clamp(3rem, 7vw, 4.5rem) 0 0; scroll-margin-top: 1.5rem; }
+
+  .label {
+    font-family: var(--mono); font-size: .66rem; font-weight: 600;
+    letter-spacing: .18em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 .8rem;
+    display: flex; align-items: center; gap: .7rem;
+  }
+  .label::after { content: ''; flex: 1; height: 1px; background: var(--rule); }
+
+  h2 {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(1.7rem, 5vw, 2.5rem);
+    line-height: 1.08; letter-spacing: -.028em;
+    margin: 0 0 1rem; text-wrap: balance;
+  }
+
+  h3 {
+    font-family: var(--display); font-weight: 600;
+    font-size: 1.18rem; letter-spacing: -.015em;
+    margin: 2.4rem 0 .6rem; text-wrap: balance;
+  }
+
+  p { margin: 0 0 1.05rem; max-width: 40rem; color: var(--ink-2); }
+  p strong { color: var(--ink); font-weight: 700; }
+  a { color: var(--indigo); }
+
+  code {
+    font-family: var(--mono); font-size: .84em;
+    background: var(--surface-2); border: 1px solid var(--rule);
+    border-radius: 4px; padding: .08em .36em; color: var(--ink);
+  }
+
+  .lead { font-size: 1.06rem; color: var(--ink); max-width: 38rem; }
+
+  /* ---------- diagram ---------- */
+  figure { margin: 1.8rem 0 2.4rem; }
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--rule-2);
+    border-radius: 12px;
+    padding: 1.4rem 1rem;
+    overflow-x: auto;
+  }
+  .diagram svg { display: block; width: 100%; min-width: 620px; height: auto; color: var(--ink-2); }
+
+  figcaption { margin-top: .85rem; font-size: .88rem; color: var(--ink-3); max-width: 40rem; }
+  figcaption b { color: var(--ink-2); font-weight: 600; }
+
+  /* ---------- screenshots ---------- */
+  .shot {
+    border: 1px solid var(--rule-2); border-radius: 10px;
+    overflow: hidden; background: #070A11; box-shadow: var(--shadow);
+  }
+  .shot-bar {
+    display: flex; align-items: center; gap: .4rem;
+    padding: .5rem .8rem; background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  .shot-bar i { width: 8px; height: 8px; border-radius: 50%; background: var(--rule-2); display: block; }
+  .shot-bar span {
+    font-family: var(--mono); font-size: .61rem; color: var(--ink-3);
+    margin-left: .5rem; letter-spacing: .06em;
+  }
+  .shot img { display: block; width: 100%; height: auto; }
+
+  /* ---------- step list (the ordered start) ---------- */
+  .steps { counter-reset: s; display: flex; flex-direction: column; gap: .7rem; margin: 1.6rem 0 2rem; }
+  .stepcard {
+    counter-increment: s;
+    display: grid; grid-template-columns: 2.4rem 1fr; gap: 1rem;
+    padding: 1.05rem 1.2rem;
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 10px; align-items: start;
+    transition: border-color .15s ease;
+  }
+  .stepcard:hover { border-color: var(--rule-2); }
+  .stepcard::before {
+    content: counter(s);
+    font-family: var(--display); font-weight: 800; font-size: 1.15rem;
+    color: var(--lime); line-height: 1.2;
+  }
+  .stepcard h4 { font-family: var(--body); font-weight: 700; font-size: 1rem; margin: 0 0 .2rem; color: var(--ink); }
+  .stepcard p { margin: 0; font-size: .93rem; }
+  .stepcard .who {
+    display: inline-block; font-family: var(--mono); font-size: .58rem;
+    letter-spacing: .12em; text-transform: uppercase;
+    padding: .16rem .45rem; border-radius: 3px; margin-left: .5rem;
+    border: 1px solid currentColor; vertical-align: 2px;
+  }
+  .who-t { color: var(--emerald); }
+  .who-p { color: var(--amber); }
+  .who-b { color: var(--indigo); }
+  .stepcard a { font-weight: 600; text-decoration: none; border-bottom: 1px solid currentColor; }
+
+  /* ---------- ways-to-add grid ---------- */
+  .ways { display: grid; grid-template-columns: 1fr; gap: .7rem; margin: 1.5rem 0 2rem; }
+  @media (min-width: 640px) { .ways { grid-template-columns: repeat(3, 1fr); } }
+  .way {
+    padding: 1.1rem; background: var(--surface);
+    border: 1px solid var(--rule); border-top: 3px solid var(--c); border-radius: 8px;
+  }
+  .way h4 {
+    font-family: var(--mono); font-size: .66rem; font-weight: 600;
+    letter-spacing: .13em; text-transform: uppercase; color: var(--c);
+    margin: 0 0 .45rem;
+  }
+  .way p { margin: 0; font-size: .89rem; }
+  .w1 { --c: var(--indigo); } .w2 { --c: var(--emerald); } .w3 { --c: var(--amber); }
+
+  /* ---------- callout ---------- */
+  .note {
+    margin: 1.7rem 0; padding: 1.1rem 1.25rem;
+    background: var(--surface); border: 1px solid var(--rule-2);
+    border-left: 3px solid var(--amber); border-radius: 8px;
+  }
+  .note-l {
+    font-family: var(--mono); font-size: .63rem; font-weight: 600;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--amber);
+    display: block; margin-bottom: .45rem;
+  }
+  .note p { margin: 0; font-size: .93rem; }
+  .note p + p { margin-top: .65rem; }
+
+  .note.good { border-left-color: var(--emerald); }
+  .note.good .note-l { color: var(--emerald); }
+
+  /* ---------- table ---------- */
+  .table-wrap { overflow-x: auto; margin: 1.4rem 0 2rem; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 460px; font-size: .9rem; }
+  th {
+    font-family: var(--mono); font-size: .62rem; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+    text-align: left; padding: .7rem .9rem; background: var(--surface-2);
+    border-bottom: 1px solid var(--rule-2); white-space: nowrap;
+  }
+  td { padding: .78rem .9rem; border-bottom: 1px solid var(--rule); color: var(--ink-2); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { color: var(--ink); font-weight: 600; }
+
+  /* ---------- pills ---------- */
+  .pills { display: flex; flex-wrap: wrap; gap: .45rem; margin: 1.2rem 0 1.8rem; }
+  .pills a {
+    font-family: var(--mono); font-size: .68rem; font-weight: 600;
+    padding: .45rem .8rem; border-radius: 100px;
+    background: var(--surface); border: 1px solid var(--rule-2);
+    color: var(--ink-2); text-decoration: none;
+  }
+  .pills a:hover { border-color: var(--indigo); color: var(--indigo); }
+
+  /* ---------- close ---------- */
+  .close {
+    margin-top: clamp(3.5rem, 9vw, 6rem);
+    padding-top: clamp(2.2rem, 6vw, 3.5rem);
+    border-top: 1px solid var(--rule); text-align: center;
+  }
+  .close p {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(1.5rem, 4.5vw, 2.2rem); line-height: 1.2;
+    color: var(--lime); max-width: 26rem; margin: 0 auto 1rem;
+    letter-spacing: -.02em;
+  }
+  .close small { font-family: var(--mono); font-size: .65rem; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+
+  :focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; border-radius: 3px; }
+  @media (prefers-reduced-motion: reduce) { *, html { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <p class="kicker">GCSE Genie · How it works</p>
+    <h1>One place for<br>everything you<br>said <span>yes</span> to.</h1>
+    <p class="standfirst">
+      School, cadets, drums, DofE, nine subjects, homework. Genie holds the plan so you don't have
+      to carry it in your head — and shows you, honestly, whether it all fits.
+    </p>
+    <a class="watch" href="https://drive.google.com/file/d/1LvhZ_3cmvE3l6J3zRTpRCKWSCg9F8mgw/view?usp=drive_link" target="_blank" rel="noopener noreferrer">
+      ▶ Watch the film first <small>· 3 min</small>
+    </a>
+  </header>
+
+  <!-- ============ THE MAP ============ -->
+  <section id="map">
+    <p class="label">The whole thing on one page</p>
+    <h2>How the pieces fit together</h2>
+
+    <p class="lead">
+      Genie only really does two things. It checks your <strong>goals are getting the hours you
+      promised them</strong>, and it checks <strong>your week isn't overfull</strong>. Everything
+      else on this page feeds one of those two.
+    </p>
+
+    <figure>
+      <div class="diagram">
+        <svg viewBox="0 0 920 430" role="img" aria-label="A map of GCSE Genie: the timetable and fixed commitments plus your goals fill up your week's capacity; tasks link to a goal; a check-in logs hours which move that goal's pace bar; confirmed changes are signed off and sent to the family.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+            <marker id="ar-em" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#4FD1A5"/>
+            </marker>
+          </defs>
+
+          <!-- column headings -->
+          <text x="20" y="26" font-family="monospace" font-size="12" fill="#717A96" letter-spacing="1.5">SET UP ONCE</text>
+          <text x="345" y="26" font-family="monospace" font-size="12" fill="#717A96" letter-spacing="1.5">EVERY DAY</text>
+          <text x="700" y="26" font-family="monospace" font-size="12" fill="#717A96" letter-spacing="1.5">WHAT YOU SEE</text>
+
+          <!-- set-up boxes -->
+          <rect x="20" y="46" width="190" height="52" rx="8" fill="#12172A" stroke="#303956"/>
+          <text x="36" y="70" font-size="14" fill="#F0F3FA" font-weight="600">Your timetable</text>
+          <text x="36" y="88" font-size="11.5" fill="#A9B1C9">Odd / even week lessons</text>
+
+          <rect x="20" y="112" width="190" height="52" rx="8" fill="#12172A" stroke="#303956"/>
+          <text x="36" y="136" font-size="14" fill="#F0F3FA" font-weight="600">Fixed commitments</text>
+          <text x="36" y="154" font-size="11.5" fill="#A9B1C9">Cadets · drums · DofE · art</text>
+
+          <rect x="20" y="200" width="190" height="62" rx="8" fill="#12172A" stroke="#8B85FF" stroke-width="1.5"/>
+          <text x="36" y="224" font-size="14" fill="#F0F3FA" font-weight="600">Your goals</text>
+          <text x="36" y="242" font-size="11.5" fill="#A9B1C9">Each one costs</text>
+          <text x="36" y="256" font-size="11.5" fill="#8B85FF">hours per week</text>
+
+          <!-- the week -->
+          <rect x="345" y="88" width="180" height="76" rx="8" fill="#171D33" stroke="#303956"/>
+          <text x="435" y="118" font-size="14.5" fill="#F0F3FA" font-weight="600" text-anchor="middle">Your week</text>
+          <text x="435" y="138" font-size="11.5" fill="#A9B1C9" text-anchor="middle">60 hours, all in</text>
+          <text x="435" y="154" font-size="11.5" fill="#A9B1C9" text-anchor="middle">Sleep included</text>
+
+          <!-- tasks -->
+          <rect x="345" y="200" width="180" height="62" rx="8" fill="#12172A" stroke="#303956"/>
+          <text x="435" y="224" font-size="14" fill="#F0F3FA" font-weight="600" text-anchor="middle">Tasks</text>
+          <text x="435" y="243" font-size="11.5" fill="#A9B1C9" text-anchor="middle">Homework, fix-ups</text>
+
+          <!-- check in -->
+          <rect x="345" y="304" width="180" height="62" rx="8" fill="#12172A" stroke="#4FD1A5" stroke-width="1.5"/>
+          <text x="435" y="328" font-size="14" fill="#F0F3FA" font-weight="600" text-anchor="middle">Check in</text>
+          <text x="435" y="347" font-size="11.5" fill="#4FD1A5" text-anchor="middle">"45 min of Maths"</text>
+
+          <!-- outputs -->
+          <rect x="700" y="46" width="200" height="62" rx="8" fill="#12172A" stroke="#303956"/>
+          <text x="716" y="70" font-size="14" fill="#F0F3FA" font-weight="600">Capacity</text>
+          <text x="716" y="89" font-size="11.5" fill="#A9B1C9">Does it all fit?</text>
+
+          <rect x="700" y="200" width="200" height="62" rx="8" fill="#12172A" stroke="#4FD1A5" stroke-width="1.5"/>
+          <text x="716" y="224" font-size="14" fill="#F0F3FA" font-weight="600">Goal pacing</text>
+          <text x="716" y="243" font-size="11.5" fill="#A9B1C9">Is each goal on track?</text>
+
+          <rect x="700" y="304" width="200" height="62" rx="8" fill="#12172A" stroke="#303956"/>
+          <text x="716" y="328" font-size="14" fill="#F0F3FA" font-weight="600">Updates → family</text>
+          <text x="716" y="347" font-size="11.5" fill="#A9B1C9">Signed off, then sent</text>
+
+          <!-- arrows: setup -> week -->
+          <path d="M 210 72 L 275 72 L 275 112 L 340 112" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <path d="M 210 138 L 340 138" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <text x="228" y="103" font-size="11" fill="#717A96">fill it up</text>
+
+          <!-- goals -> week -->
+          <path d="M 210 218 L 275 218 L 275 160 L 340 160" fill="none" stroke="#8B85FF" stroke-width="1.4" marker-end="url(#ar)"/>
+          <text x="222" y="192" font-size="11" fill="#8B85FF">reserve hours</text>
+
+          <!-- tasks -> goals (link) -->
+          <path d="M 340 231 L 215 231" fill="none" stroke="#8B85FF" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+          <text x="240" y="285" font-size="11" fill="#8B85FF">each task can name a goal</text>
+
+          <!-- tasks -> checkin -->
+          <path d="M 435 262 L 435 300" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <text x="447" y="286" font-size="11" fill="#717A96">tick off</text>
+
+          <!-- week -> capacity -->
+          <path d="M 525 112 L 610 112 L 610 78 L 695 78" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+
+          <!-- checkin -> goal pacing (the hours path) -->
+          <path d="M 525 330 L 610 330 L 610 231 L 695 231" fill="none" stroke="#4FD1A5" stroke-width="2" marker-end="url(#ar-em)"/>
+          <text x="536" y="288" font-size="11.5" fill="#4FD1A5" font-weight="600">hours land here</text>
+
+          <!-- checkin -> updates -->
+          <path d="M 525 348 L 695 348" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <text x="556" y="366" font-size="11" fill="#717A96">confirm it</text>
+
+          <!-- capacity feedback -->
+          <path d="M 800 108 L 800 150 L 435 150" fill="none" stroke="#F0B95E" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+          <text x="600" y="168" font-size="11" fill="#F0B95E">warns you before it's too full</text>
+        </svg>
+      </div>
+      <figcaption>
+        <b>The green line is the one that matters.</b> Your check-in is the only thing that moves a
+        goal's pace bar — which is why a goal with no time logged against it stays flat no matter how
+        busy the week felt. Everything on the left is set up once; everything in the middle is what
+        you actually do.
+      </figcaption>
+    </figure>
+
+    <div class="pills">
+      <a href="#goals">Goals</a>
+      <a href="#week">Your week</a>
+      <a href="#adding">Adding work</a>
+      <a href="#prioritise">Prioritising</a>
+      <a href="#finalise">Agreeing the week</a>
+      <a href="#health">Is it going well?</a>
+      <a href="#focus">Focus blocks</a>
+      <a href="#fixups">Fixing mistakes</a>
+      <a href="#streak">Streak &amp; XP</a>
+      <a href="#track">Staying on track</a>
+      <a href="#help">Getting help</a>
+      <a href="#signoff">Signing off</a>
+      <a href="#parents">For parents</a>
+    </div>
+  </section>
+
+  <!-- ============ START HERE ============ -->
+  <section id="start">
+    <p class="label">Do these in order</p>
+    <h2>Setting it up, step by step</h2>
+    <p>
+      About twenty minutes, once. Some steps are yours, some are Mum's, and two are best done sitting
+      down together. Each one links to the section that explains it properly.
+    </p>
+
+    <div class="steps">
+      <div class="stepcard">
+        <div>
+          <h4>Sync the device <span class="who who-b">Both</span></h4>
+          <p>
+            Tap <b>This device only</b> in the header and sign in. <strong>Use the same email on
+            every device</strong> — phone, laptop, tablet. A different address gets you a different,
+            empty Genie, and that is the single most common thing to get wrong.
+          </p>
+        </div>
+      </div>
+
+      <div class="stepcard">
+        <div>
+          <h4>Set the parent passphrase <span class="who who-p">Mum</span></h4>
+          <p>
+            Switch to <b>Parent Mode</b> and choose it before Tejas starts using the app. Whoever
+            sets it first controls the portal. <a href="#parents">More on the portal →</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="stepcard">
+        <div>
+          <h4>Load your timetable <span class="who who-t">Tejas</span></h4>
+          <p>
+            Check the Odd/Even week lessons are right and fix anything that's changed.
+            <a href="#week">How the timetable works →</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="stepcard">
+        <div>
+          <h4>Check the fixed commitments <span class="who who-p">Mum</span></h4>
+          <p>
+            Cadets, drums, DofE and art support are already in there with their hours. Correct them
+            so the capacity number is honest. <a href="#week">Fixed commitments →</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="stepcard">
+        <div>
+          <h4>Write your goals, then argue about them <span class="who who-b">Both</span></h4>
+          <p>
+            They arrive as <b>drafts</b> on purpose. You write the wording and say what the hours
+            cost; Mum locks the ones you both agree. Until a goal is locked it counts towards
+            nothing. <a href="#goals">How goals work →</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="stepcard">
+        <div>
+          <h4>Put your first work in <span class="who who-t">Tejas</span></h4>
+          <p>
+            Homework, a test date, a missing lesson — there are three different ways in, and the
+            fastest is the <b>+</b> button. <a href="#adding">Three ways to add things →</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="stepcard">
+        <div>
+          <h4>Decide what this week actually holds <span class="who who-t">Tejas</span></h4>
+          <p>
+            Pull work into <b>This week</b> on the Plan tab. Anything you don't stops nagging you.
+            Then send the week for approval, so it stops being a wish and becomes a promise.
+            <a href="#prioritise">Prioritising →</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="stepcard">
+        <div>
+          <h4>Check in tonight, and every night <span class="who who-t">Tejas</span></h4>
+          <p>
+            Four taps. This is the one habit the whole app rests on — nothing else moves without it.
+            <a href="#streak">The streak →</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="stepcard">
+        <div>
+          <h4>Add the family WhatsApp <span class="who who-p">Mum</span></h4>
+          <p>
+            So the day's updates have somewhere to go once they're signed off.
+            <a href="#signoff">Signing off →</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GOALS ============ -->
+  <section id="goals">
+    <p class="label">The centre of everything</p>
+    <h2>Goals, and how tasks hook onto them</h2>
+
+    <p class="lead">
+      A goal isn't a wish. In Genie a goal is a promise with a <strong>price in hours per
+      week</strong> — and that price is the honest bit, because it's what gets counted against your
+      week and checked every Wednesday.
+    </p>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Subjects &amp; Goals</span></div>
+        <img loading="lazy" src="how-it-works/goals.jpg" alt="Three locked goals with SMART wording, weekly budgets of 3.5, 4 and 6 hours, pace bars, and notes reading Needs action, 2.9h expected by today.">
+      </div>
+      <figcaption>
+        Each goal says what it's <b>measured by</b> and what it costs. The bar is hours logged this
+        week; the pale tick is the share expected <i>by today</i>. Green means on pace, amber means
+        behind (never before Wednesday), rose means nothing logged and it's Friday.
+      </figcaption>
+    </figure>
+
+    <h3>The three stages a goal goes through</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Stage</th><th>What it means</th><th>Does it count?</th></tr></thead>
+        <tbody>
+          <tr><td>Draft</td><td>Yours. Write it, change it, delete it. Nobody's looking yet.</td><td>No</td></tr>
+          <tr><td>Sent for approval</td><td>You've offered it. Mum reads the wording and the hours.</td><td>No</td></tr>
+          <tr><td>Locked</td><td>You both agreed. Now it reserves its hours and gets checked.</td><td><b>Yes</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>How a task counts towards a goal</h3>
+    <p>
+      This is the bit worth understanding properly, because it's how the pace bar actually moves.
+      There are two ways time lands on a goal:
+    </p>
+    <div class="ways">
+      <div class="way w1">
+        <h4>By subject</h4>
+        <p>When you check in, you say which subject the minutes were for. Time on Maths counts towards any locked Maths goal automatically.</p>
+      </div>
+      <div class="way w2">
+        <h4>By naming the goal</h4>
+        <p>A task can be linked to a specific goal when you add it, under <b>More options</b>. Time booked to that goal counts to it directly.</p>
+      </div>
+      <div class="way w3">
+        <h4>Not at all</h4>
+        <p>If a goal has no subject set, nothing can attach to it — Genie says so on the goal rather than pretending it's on track.</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="note-l">The catch worth knowing</span>
+      <p>
+        <strong>Doing the work isn't enough — the check-in is what tells Genie you did it.</strong>
+        A goal can sit there looking untouched after a week where you worked hard, purely because
+        the minutes were never logged against a subject. Thirty seconds a night fixes it.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ YOUR WEEK ============ -->
+  <section id="week">
+    <p class="label">The shape of your week</p>
+    <h2>Lessons, cadets, drums — the stuff that's already booked</h2>
+
+    <p>
+      Before a single piece of homework, your week is already mostly spoken for. Genie needs to know
+      that, or the "you've got loads of time" maths is a lie. Two things describe it.
+    </p>
+
+    <h3>1. Your timetable</h3>
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Timetable</span></div>
+        <img loading="lazy" src="how-it-works/timetable.jpg" alt="The Timetable screen showing the Odd Week Monday schedule with five period blocks — Maths, English Language, Physics, History and Art — each with a room and edit controls.">
+      </div>
+      <figcaption>
+        Your Odd/Even rotation, day by day. <b>Add lessons</b> puts several in at once; the pencil
+        edits one; <b>Period times</b> at the top sets the default start and end times so new lessons
+        land in the right slot. Today's lessons also appear on Home without you going looking.
+      </figcaption>
+    </figure>
+
+    <p>
+      There's a quiet payoff to keeping this right: when you add homework, Genie <strong>guesses the
+      subject from the lesson you just had</strong>. One less thing to tap.
+    </p>
+
+    <h3>2. Fixed commitments</h3>
+    <p>
+      Air Cadets, drums, Bronze DofE and art support aren't homework — they're hours that are gone
+      whether you plan for them or not. They're set up once with their weekly hours, and they count
+      against your week from then on.
+    </p>
+
+    <p>
+      But real weeks aren't tidy. When an evening <strong>doesn't happen</strong> — a family dinner,
+      a mock, the unit standing down — tap <b>Not happening</b> next to it:
+    </p>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Logging a missed session</span></div>
+        <img loading="lazy" src="how-it-works/commitment-exception.jpg" alt="A dialog for Air Cadets Parade and Skills offering six reason chips, a status row, and a note reading 3h come off this week's scheduled load.">
+      </div>
+      <figcaption>
+        Three taps, about fifteen seconds. The hours come straight off this week and the reason is
+        recorded — so nobody has to reconstruct it on Sunday, and Genie stops telling you the week is
+        full when it isn't.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ ADDING ============ -->
+  <section id="adding">
+    <p class="label">Getting things in</p>
+    <h2>Three ways in, depending on where you are</h2>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>The + button</span></div>
+        <img loading="lazy" src="how-it-works/quick-add.jpg" alt="The Add something sheet with three modes — Homework, Key date and Lesson — subject chips with Maths pre-selected, a title box, and due-date chips reading Today, Tomorrow, In 3 days and Next week.">
+      </div>
+      <figcaption>
+        The <b>+</b> button is on every screen. Three modes: <b>Homework</b> (a thing to do),
+        <b>Key date</b> (a test or deadline) and <b>Lesson</b> (fixing your timetable). Notice Maths
+        is already picked — that's the timetable guess. Priority and linking to a goal live under
+        <b>More options</b>.
+      </figcaption>
+    </figure>
+
+    <div class="ways">
+      <div class="way w1">
+        <h4>The + button</h4>
+        <p>Fastest, from anywhere. Two taps if you accept the date and subject it guessed.</p>
+      </div>
+      <div class="way w2">
+        <h4>From your check-in</h4>
+        <p>Write "ask Mr Davies about Q14" in tonight's check-in and Genie turns it into a real task for tomorrow.</p>
+      </div>
+      <div class="way w3">
+        <h4>From a marked paper</h4>
+        <p>Log a test in the Proof Log and the questions you dropped marks on become fix-up tasks by themselves.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRIORITISE ============ -->
+  <section id="prioritise">
+    <p class="label">Deciding what actually happens</p>
+    <h2>Four columns, and only one of them counts</h2>
+
+    <p class="lead">
+      A single long list makes everything feel equally urgent and equally late, which is exactly the
+      pressure that makes people stop opening the app. So work sits in one of four columns, borrowed
+      from how sprints actually work.
+    </p>
+
+    <figure>
+      <div class="diagram">
+        <svg viewBox="0 0 900 300" role="img" aria-label="The Plan tab: a load bar reading committed hours against study time left, above four columns - This week, Next week, Future and Backlog - with the line that matters drawn between Next week and Future.">
+          <!-- load bar -->
+          <rect x="20" y="16" width="860" height="54" rx="8" fill="#171D33" stroke="#303956"/>
+          <text x="38" y="40" font-size="13.5" fill="#F0F3FA" font-weight="600">Committed 4 of 7</text>
+          <text x="168" y="40" font-size="12" fill="#A9B1C9">· 1h of 16h study time left this week</text>
+          <text x="862" y="40" font-size="12.5" fill="#4FD1A5" font-weight="600" text-anchor="end">Fits</text>
+          <rect x="38" y="52" width="824" height="5" rx="2.5" fill="#232B45"/>
+          <rect x="38" y="52" width="180" height="5" rx="2.5" fill="#4FD1A5"/>
+
+          <!-- four columns -->
+          <rect x="20" y="96" width="200" height="150" rx="8" fill="#12172A" stroke="#4FD1A5" stroke-width="1.5"/>
+          <text x="38" y="122" font-size="14" fill="#F0F3FA" font-weight="600">This week</text>
+          <text x="38" y="141" font-size="11.5" fill="#A9B1C9">What you have promised</text>
+          <text x="38" y="176" font-size="11.5" fill="#4FD1A5" font-weight="600">Counts towards the load</text>
+          <text x="38" y="195" font-size="11.5" fill="#A9B1C9">Nudges you about it</text>
+          <text x="38" y="214" font-size="11.5" fill="#A9B1C9">Goes into the baseline</text>
+
+          <rect x="238" y="96" width="200" height="150" rx="8" fill="#12172A" stroke="#303956"/>
+          <text x="256" y="122" font-size="14" fill="#F0F3FA" font-weight="600">Next week</text>
+          <text x="256" y="141" font-size="11.5" fill="#A9B1C9">The next sprint</text>
+          <text x="256" y="176" font-size="11.5" fill="#717A96">Scheduled, not promised</text>
+          <text x="256" y="195" font-size="11.5" fill="#717A96">Where you pull from</text>
+
+          <rect x="478" y="96" width="200" height="150" rx="8" fill="#12172A" stroke="#303956"/>
+          <text x="496" y="122" font-size="14" fill="#F0F3FA" font-weight="600">Future</text>
+          <text x="496" y="141" font-size="11.5" fill="#A9B1C9">Dated, further out</text>
+          <text x="496" y="176" font-size="11.5" fill="#717A96">Known about only</text>
+          <text x="496" y="195" font-size="11.5" fill="#717A96">Counts towards nothing</text>
+
+          <rect x="696" y="96" width="184" height="150" rx="8" fill="#12172A" stroke="#303956"/>
+          <text x="714" y="122" font-size="14" fill="#F0F3FA" font-weight="600">Backlog</text>
+          <text x="714" y="141" font-size="11.5" fill="#A9B1C9">Someday — no guilt</text>
+          <text x="714" y="176" font-size="11.5" fill="#717A96">Completely silent</text>
+
+          <!-- the line that matters -->
+          <line x1="458" y1="88" x2="458" y2="270" stroke="#F0B95E" stroke-width="1.6" stroke-dasharray="5 4"/>
+          <text x="448" y="286" font-size="11.5" fill="#F0B95E" font-weight="600" text-anchor="end">scheduled into a week</text>
+          <text x="468" y="286" font-size="11.5" fill="#F0B95E" font-weight="600">merely known about</text>
+        </svg>
+      </div>
+      <figcaption>
+        The bar at the top is the honest bit: <b>how many hours you've promised</b> against how many
+        you've actually got left after school, cadets and everything else. When it stops saying
+        <b>Fits</b>, you've taken on too much — and it says so <i>now</i>, not on Sunday night.
+      </figcaption>
+    </figure>
+
+    <p>
+      The middle used to be one column called <i>Next up</i>, and it was doing two jobs: "I'm doing
+      this next week" and "this is somewhere in the next month" are completely different promises,
+      and the week you're about to plan is the only one you can realistically pull from. So it split.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Column</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td>This week</td><td>A promise. Counts towards your load, goes into the week you get approved, and Genie will nudge you about it.</td></tr>
+          <tr><td>Next week</td><td>The next sprint. Scheduled, not yet promised — this is the shelf you pull from on Sunday.</td></tr>
+          <tr><td>Future</td><td>Dated, further out. Known about, counts towards nothing.</td></tr>
+          <tr><td>Backlog</td><td>Someday, no guilt. Completely silent until you move it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note good">
+      <span class="note-l">Moving something out is not failing</span>
+      <p>
+        Dragging a task out of <b>This week</b> is a normal thing to do, and Genie treats it that
+        way — it just asks, optionally, why. "Ran out of time", "mock prep took priority". That one
+        sentence is what turns <i>"you only did 3 of 6"</i> on Sunday into a conversation instead of
+        an argument.
+      </p>
+    </div>
+
+    <h3>A key date owns its work</h3>
+    <p>
+      Tests and deadlines live on this tab too, and the revision you plan for one is
+      <strong>nested underneath it</strong> — with its column and its hours, editable and removable.
+      Planning a mock used to spawn a separate task that wandered off into This week while the date
+      sat in Coming up: the same thing twice, in two lists, under two names, with neither admitting
+      the other existed. <b>Add work</b> also stays available afterwards, because one piece of
+      revision is rarely the whole answer.
+    </p>
+
+    <h3>Work that is aimed at nothing</h3>
+    <p>
+      A term of homework can be done conscientiously and still move no goal at all. So the planner
+      reports how many committed <strong>hours</strong> have no goal behind them — hours, not tasks,
+      because one unattached four-hour job matters more than three fifteen-minute ones — and offers
+      the link right where the gap shows.
+    </p>
+
+    <h3>What else the week holds</h3>
+    <p>
+      Study time is whatever is left after everything else, and "everything else" is more than the
+      recurring commitments. The week's other activities go in as <strong>counts</strong> rather than
+      rows — 4 days of school, 2 parade nights, 1 birthday party, a film — because that is how a week
+      gets described out loud. Five categories, because "busy" is not one thing:
+      <b>Academic, Extra-curricular, Career-focussed, Recreational, Fun</b>. A careers evening and a
+      birthday party both cost three hours and are not the same call, and a week with no Fun in it is
+      a finding rather than a triumph.
+    </p>
+    <p>
+      From midweek the check-in asks how many of each <em>actually happened</em> — one tap per count —
+      and hands the hours back when the answer is fewer. It doesn't ask on Monday, when nothing has
+      happened yet.
+    </p>
+  </section>
+
+  <!-- ============ FINALISING ============ -->
+  <section id="finalise">
+    <p class="label">Turning a plan into a promise</p>
+    <h2>The week gets agreed, not just written</h2>
+
+    <p class="lead">
+      Over-promising is invisible from inside your own week. Every single task looks reasonable on
+      its own; it's only the fortnight of them together that doesn't fit, and by then you're already
+      behind. So a week goes through three states.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>State</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td>Draft</td><td>Yours to move around. Nothing is fixed and nothing is being measured against it.</td></tr>
+          <tr><td>Awaiting approval</td><td>You've sent it. A parent reads it in the Portal, behind the passphrase.</td></tr>
+          <tr><td>Baselined</td><td>Agreed. <i>This</i> is what "did the week go to plan?" gets measured against on Sunday.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What has to be true before you can send it</h3>
+    <p>
+      A readiness checklist says exactly what's outstanding, phrased as the thing to do rather than
+      the thing that's wrong. Four of them block; two only warn.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Check</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Commit at least one piece of work</td><td>Blocks</td></tr>
+          <tr><td>Give every committed task an hours estimate</td><td>Blocks</td></tr>
+          <tr><td>Clear or move anything already overdue</td><td>Blocks</td></tr>
+          <tr><td>Plan work for key dates in the next 14 days</td><td>Blocks</td></tr>
+          <tr><td>Link committed work to the goal it serves</td><td>Warns</td></tr>
+          <tr><td>Check the load fits the time available</td><td>Warns</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <span class="note-l">Why the last two only warn</span>
+      <p>
+        A mock fortnight legitimately blows the ceiling, and refusing to let anyone plan such a week
+        just pushes the planning outside the app — onto paper, where nobody can see it. So the
+        overload is <strong>stated</strong>, a reason is asked for, and a parent decides. Same with
+        work that serves no goal: sometimes homework is just homework.
+      </p>
+    </div>
+
+    <h3>When school sets homework on a week you already agreed</h3>
+    <p>
+      It will. So pulling work into an approved week <strong>offers the swap first</strong>: pick what
+      comes out, see the trade in hours, and the change is recorded along with what it displaced.
+      Adding on top is still allowed, with a reason — because school doesn't check your plan before
+      setting work, and refusing outright would just send that work somewhere Genie can't see it.
+    </p>
+    <p>
+      What this buys is a truthful answer on Sunday: <em>was the plan wrong, or was it abandoned?</em>
+      Those two have completely different fixes, and without the baseline they look identical.
+    </p>
+  </section>
+
+  <!-- ============ WEEK HEALTH ============ -->
+  <section id="health">
+    <p class="label">One letter, on Home</p>
+    <h2>Is this week going well?</h2>
+
+    <p class="lead">
+      Every part of the answer already existed and none of it was ever added up. Goal pace lived on
+      one screen, the commitment count on another, whether the week had even been agreed on a third.
+      Each was honest alone, and none of them answered the question a parent actually asks on a
+      Wednesday evening.
+    </p>
+
+    <p>
+      So: <strong>red, amber or green, with a percentage</strong>, from six weighted signals —
+      effort against your goals, how many goals are at risk, the work promised this week, whether the
+      week was ever agreed, whether the goals are finalised, and the workload.
+    </p>
+
+    <div class="ways">
+      <div class="way w1">
+        <h4>Never a letter alone</h4>
+        <p>The six signals are always shown underneath it. A score nobody can take apart is a score nobody believes — and an unbelieved score still gets argued about.</p>
+      </div>
+      <div class="way w2">
+        <h4>Pro-rated by the day</h4>
+        <p>Nothing is judged against a full week's target on Tuesday morning. Two days in, it asks for two days' worth.</p>
+      </div>
+      <div class="way w3">
+        <h4>A missing thing counts once</h4>
+        <p>No approved goals is <i>one</i> problem, not three. The signals that depend on goals drop out of the average rather than each scoring zero.</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="note-l">Averaging cannot hide a failure</span>
+      <p>
+        A single red keeps the week off green however well everything else is going, and two reds
+        make it red whatever the arithmetic says. Averaging one genuine failure away is exactly how a
+        dashboard ends up reassuring people about the one thing that is actually wrong.
+      </p>
+    </div>
+
+    <h3>Behind, or impossible?</h3>
+    <p>
+      Two different questions that look the same from the inside. The <strong>burn-down</strong> says
+      what rate a goal now needs to finish on time; the <strong>capacity gauge</strong> says what the
+      week can actually hold. Separately neither is actionable. Together they tell you which of the
+      two you've got — and the remedies are opposite. <b>Behind</b> is fixed by more hours.
+      <b>Impossible</b> is fixed by fewer goals, a later target, or a lighter week. Telling someone to
+      try harder at something that does not fit is how a plan stops being believed.
+    </p>
+  </section>
+
+  <!-- ============ FOCUS ============ -->
+  <section id="focus">
+    <p class="label">Actually doing it</p>
+    <h2>25 minutes, then a proper break</h2>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Home · streak, focus block, today</span></div>
+        <img loading="lazy" src="how-it-works/home-focus.jpg" alt="The Home screen showing a 1 day streak with a heat-map grid, a Focus block timer set to 25 minutes with a Working on dropdown, today's schedule, and the Fix My Mistakes list.">
+      </div>
+      <figcaption>
+        Set <b>Working on</b> to a subject before you start and the timer logs itself when it
+        finishes — no separate check-in needed for that time. Leave it unset and, as it says, the
+        time counts towards nothing.
+      </figcaption>
+    </figure>
+
+    <p>
+      The break isn't a reward, it's part of the method. Genie also keeps an eye on the ratio: if
+      breaks start eating the sessions, it says so quietly rather than letting an hour of "revision"
+      turn into ten minutes of work.
+    </p>
+  </section>
+
+  <!-- ============ FIX UPS ============ -->
+  <section id="fixups">
+    <p class="label">The most valuable tab in the app</p>
+    <h2>Turning dropped marks into practice</h2>
+
+    <p class="lead">
+      This is the difference between revising and actually getting better. Every mark you dropped in
+      a Year 9 paper is sitting here as a specific thing to fix — not "revise Maths", but
+      <em>"scored 0/2 on proving event independence on the Venn diagram question"</em>.
+    </p>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Fix My Mistakes</span></div>
+        <img loading="lazy" src="how-it-works/fix-my-mistakes.jpg" alt="The Fix My Mistakes screen with subject filters and six quest cards, each showing a diagnostic deficit describing exactly which marks were lost and an XP value from 100 to 300.">
+      </div>
+      <figcaption>
+        Each one names the exact deficit and what it's worth. To claim the XP you need
+        <b>a score and proof</b> — a photo of your working, or a link to it. That rule exists so the
+        XP means something.
+      </figcaption>
+    </figure>
+
+    <p>
+      When a paper comes back, log it in the <strong>Proof Log</strong>: the score per question, what
+      kind of mistake each one was, and a photo of the paper. Genie turns the wrong ones into new
+      fix-ups automatically. That's the loop — mistake, practice, proof.
+    </p>
+  </section>
+
+  <!-- ============ STREAK & XP ============ -->
+  <section id="streak">
+    <p class="label">Why bother every day</p>
+    <h2>The streak, and turning it into something real</h2>
+
+    <p>
+      Checking in takes four taps: energy, tick what you did, drag the minutes, save. Do it and the
+      streak grows. <strong>Miss one day and nothing happens</strong> — one missed day is always
+      forgiven. Only two in a row resets it.
+    </p>
+
+    <p>
+      That rule is deliberate. Losing a three-week run over one bad Saturday punishes you hardest
+      exactly when coming back matters most.
+    </p>
+
+    <h3>XP is earned, then spent</h3>
+    <p>
+      Check-ins, homework, fix-ups and chores all pay XP. Bins and the dishwasher count — small
+      amounts, on purpose, so chores can't out-earn revision.
+    </p>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Rewards</span></div>
+        <img loading="lazy" src="how-it-works/rewards.jpg" alt="The Rewards screen showing 170 XP to spend, a progress bar reading 630 XP to go until a 1-Day Chores Pass, and reward cards from 50 XP up to 3,000 XP each with a Request Redemption button.">
+      </div>
+      <figcaption>
+        <b>Request Redemption</b> holds the XP and sends it to a parent to approve. It's held, not
+        spent — if they say no, or you change your mind, you get it back. The bar at the top always
+        shows the next thing within reach.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ STAYING ON TRACK ============ -->
+  <section id="track">
+    <p class="label">The one screen to check</p>
+    <h2>Are all the goals actually on track?</h2>
+
+    <p class="lead">
+      This is the question the whole app exists to answer, and it lives at the top of Home. You
+      shouldn't have to add anything up.
+    </p>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Home</span></div>
+        <img loading="lazy" src="how-it-works/home.jpg" alt="The Home screen: a countdown reading Summer 2027 255 days, goal pacing bars for three goals, a capacity panel showing 44.8 of 60 hours with 15.2h free, and a Today list with a task and a cadets session.">
+      </div>
+      <figcaption>
+        <b>Left:</b> every locked goal, its hours this week, and the pale tick showing what's expected
+        by today. <b>Right:</b> everything you've said yes to, and what's left. <b>Bottom:</b> the
+        three things for today. The little chart beside each goal is the <b>last four weeks</b> — that's
+        the one that catches a subject quietly sliding while everything else still looks fine.
+      </figcaption>
+    </figure>
+
+    <h3>When a goal needs more than a nudge</h3>
+    <p>
+      If a goal has been amber or rose for a while, the honest move isn't to feel bad about it — it's
+      to change something. You have three real options, and all of them are fine:
+    </p>
+
+    <div class="ways">
+      <div class="way w2">
+        <h4>Add an action</h4>
+        <p>Put a specific task in <b>This week</b> and link it to that goal. Vague intentions don't move bars; a named task on a named day does.</p>
+      </div>
+      <div class="way w3">
+        <h4>Change the price</h4>
+        <p>If 4 hrs/week was never realistic, edit the goal and say so. A parent re-locks it. An honest 2 beats a fictional 4.</p>
+      </div>
+      <div class="way w1">
+        <h4>Close it and open the next</h4>
+        <p>Finished, or overtaken by events? Mark it done. Genie will show the hours freeing up — then write the goal that replaces it.</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="note-l">Before you close one</span>
+      <p>
+        Closing a goal releases its hours back into your week, which is exactly when it's worth
+        asking: <strong>what's the next thing those hours should buy?</strong> The best time to write
+        the next goal is the moment you finish the last one, while you still remember what worked.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ GETTING HELP ============ -->
+  <section id="help">
+    <p class="label">You don't have to sort it alone</p>
+    <h2>Asking for help is built in, not a last resort</h2>
+
+    <p>
+      Some of this app is deliberately two-player. Goals are written by you and locked by a parent.
+      Rewards are requested by you and approved by them. The Sunday review is fifteen minutes with
+      both of you in front of one screen.
+    </p>
+
+    <p>And when you're stuck, there are three ways to say so without having to start the conversation cold:</p>
+
+    <div class="ways">
+      <div class="way w1">
+        <h4>A question from your check-in</h4>
+        <p>Write what you're stuck on. Genie offers to send it home as a proper message, with the subject and the question already in it.</p>
+      </div>
+      <div class="way w2">
+        <h4>A goal you want agreed</h4>
+        <p>Any draft goal can be sent for approval with its hours and its measure — so the conversation starts from something written down.</p>
+      </div>
+      <div class="way w3">
+        <h4>When the tank's empty</h4>
+        <p>If your energy's been low for a few days, Genie notices and offers to make the week smaller — and to say so for you.</p>
+      </div>
+    </div>
+
+    <div class="note good">
+      <span class="note-l">Worth saying plainly</span>
+      <p>
+        Nothing is ever sent behind your back. Every message is one you can read first, and it only
+        goes when you tap. The app never sends anything on its own.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ SIGNING OFF ============ -->
+  <section id="signoff">
+    <p class="label">End of the day · one minute</p>
+    <h2>Sign it off, and the asking stops</h2>
+
+    <p class="lead">
+      "Did you do your homework?" is only a question while the answer lives on one phone. Genie's
+      answer is the <strong>Updates</strong> tab.
+    </p>
+
+    <p>
+      Everything you change gets a quick confirmation first — it names the thing and what it'll do
+      (<code>+50 XP</code>), so a stray tap on a scrolling list can't quietly change your numbers:
+    </p>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Confirming a change</span></div>
+        <img loading="lazy" src="how-it-works/confirm.jpg" alt="A small confirmation sheet reading Mark this as done? Edexcel Paper 1 Past Paper Questions Venn and Trig, plus 50 XP, with Yes done and Cancel buttons.">
+      </div>
+      <figcaption>
+        The button ignores taps for a split second so a double-tap can't accept it by accident. If
+        you're too quick it tells you and waits.
+      </figcaption>
+    </figure>
+
+    <p>Then, at the end of the day, all of it in one place:</p>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Updates</span></div>
+        <img loading="lazy" src="how-it-works/updates.jpg" alt="The Updates tab listing two items waiting to confirm with a comment box reading Finished the Venn questions, Physics still to do tomorrow, and a green Confirm 2 updates and log to Drive button.">
+      </div>
+      <figcaption>
+        Untick anything you'd rather leave out. The comment goes with the whole batch — this is where
+        you get to say <i>why</i>, which is worth more than the tick list on its own.
+      </figcaption>
+    </figure>
+
+    <p>Confirming does three things at once:</p>
+    <div class="ways">
+      <div class="way w1">
+        <h4>Puts it on the record</h4>
+        <p>Each entry keeps the time it happened <i>and</i> the time you signed it off.</p>
+      </div>
+      <div class="way w2">
+        <h4>Saves a dated file</h4>
+        <p><code>Genie-Updates-2026-09-02-1830.md</code> — drop it in the Drive folder and it syncs.</p>
+      </div>
+      <div class="way w3">
+        <h4>Offers to send it</h4>
+        <p>The family group, or Mum and Dad directly. Nothing goes until you tap.</p>
+      </div>
+    </div>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Updates · after signing off</span></div>
+        <img loading="lazy" src="how-it-works/updates-after.jpg" alt="The Updates tab after confirming, showing a Send it on panel with Family group and Copy buttons and an Already confirmed list of four entries each stamped with a time, a Drive filename and a comment.">
+      </div>
+      <figcaption>
+        Everything signed off stays visible with the file it went into and the note you added.
+      </figcaption>
+    </figure>
+
+    <div class="note">
+      <span class="note-l">Two honest limits</span>
+      <p>
+        <strong>Genie can't post to WhatsApp by itself.</strong> No app can drop a message straight
+        into a group. It writes the message, opens WhatsApp with it ready, and you pick where it
+        goes — which is why the button says <i>Open in WhatsApp</i>, never <i>Send</i>.
+      </p>
+      <p>
+        <strong>And it saves the Drive file rather than uploading it.</strong> Put it in the GCSE
+        working folder and Drive for Desktop does the rest.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ FOR PARENTS ============ -->
+  <section id="parents">
+    <p class="label">For parents</p>
+    <h2>What's yours to set, and what you'll see</h2>
+
+    <p class="lead">
+      The Parent Portal sits behind a passphrase and holds the things that shouldn't be casually
+      changed. The working principle is simple: <strong>Tejas records what happened; you decide what
+      the week is allowed to contain.</strong>
+    </p>
+
+    <figure>
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><span>Parent Portal · Family</span></div>
+        <img loading="lazy" src="how-it-works/parent-portal.jpg" alt="The Parent Portal Family section showing student profile fields, a first exam morning date of 10 May 2027, family WhatsApp settings, a family group link, forwarding checkboxes, and the start of a Fixed commitments editor totalling 44 hours a week.">
+      </div>
+      <figcaption>
+        Grouped into <b>Family</b>, <b>Household</b>, <b>Links &amp; data</b> and <b>Handover</b> —
+        collapsed by default, because you usually come here to do one thing.
+      </figcaption>
+    </figure>
+
+    <h3>Your weekly rhythm</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>When</th><th>What</th></tr></thead>
+        <tbody>
+          <tr><td>Whenever it arrives</td><td>An update log lands in the family group. Read it, or don't — the point is you didn't have to ask.</td></tr>
+          <tr><td>When something's requested</td><td>Approve or decline a reward. Lock a goal you've both agreed. Baseline the week he's sent you. All take seconds.</td></tr>
+          <tr><td>Sunday, 15 minutes</td><td>The weekly review, together: last week, next week, anything waiting on you, then sign off.</td></tr>
+          <tr><td>Now and then</td><td>Run the change-history integrity check, and take a backup.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What only you can do</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Setting</th><th>What it changes</th></tr></thead>
+        <tbody>
+          <tr><td>Locking a goal</td><td>Until you lock it, a goal's hours count towards nothing. Locking is what makes it real — and it's the moment to push back on hours that aren't realistic.</td></tr>
+          <tr><td>Approving the week</td><td>A week sent for approval is read here and baselined — or sent back with a note. Until it is, "did the week go to plan?" has nothing to measure against.</td></tr>
+          <tr><td>Fixed commitments</td><td>What the week already contains. Dropping an activity here immediately frees the capacity it was using.</td></tr>
+          <tr><td>Chores &amp; rewards</td><td>What earns XP, and what XP is worth. Keep chore XP small so it can't out-earn revision.</td></tr>
+          <tr><td>WhatsApp &amp; forwarding</td><td>Where confirmed updates may go — the group, you directly, or nowhere. All optional.</td></tr>
+          <tr><td>Exam date</td><td>Drives the countdown on every screen.</td></tr>
+          <tr><td>Sanctions</td><td>Log a detention; it can freeze the reward shop until a fix-up quest is done.</td></tr>
+          <tr><td>Change history</td><td>Every change, hash-chained. If a row is edited outside the app, the integrity check finds it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note good">
+      <span class="note-l">About the reset</span>
+      <p>
+        <strong>Reset clears activity, never your setup.</strong> It empties check-ins, XP, streaks,
+        reward requests, logged absences and the update log — and leaves your WhatsApp numbers, the
+        family group, the exam date, the chore list, the fixed commitments, the reward catalogue and
+        your passphrase exactly as they were. The preview lists what survives before you commit.
+      </p>
+    </div>
+
+    <h3>If a button seems to do nothing</h3>
+    <p>
+      Close Genie in any other tab and reload. The app updates its local database when it changes,
+      and a browser won't do that while an old tab still holds it open. Genie now shows a banner when
+      that's happening rather than sitting there quietly.
+    </p>
+  </section>
+
+  <footer class="close">
+    <p>Do the small thing today. Then go and have your life.</p>
+    <small>
+      <a href="./">Open Genie</a> ·
+      <a href="https://drive.google.com/file/d/1LvhZ_3cmvE3l6J3zRTpRCKWSCg9F8mgw/view?usp=drive_link" target="_blank" rel="noopener noreferrer">Watch the film</a> ·
+      <a href="https://github.com/dilipcl/T2026GCSGenie">Source</a>
+      <br><br>
+      Current as of the four-sprint planner, week baselining and the week-health score.
+    </small>
+  </footer>
+
+</div>
+
+</body>
+</html>

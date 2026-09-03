@@ -4,6 +4,10 @@
 
 Offline-first in the browser, with optional sync across the family's devices. No school-portal integrations.
 
+📖 **[How Genie Works](https://dilipcl.github.io/T2026GCSGenie/how-it-works.html)** — the illustrated
+guide for the people actually using it. This README is the engineering account; that page is the one
+to send to a parent.
+
 > Data lives in IndexedDB on each device and works with no login at all. Signing in enables
 > [Dexie Cloud](https://dexie.org/cloud/) sync so a check-in on Tejas's phone reaches a parent's
 > laptop. The LLM API key is explicitly excluded from sync and never leaves the device it was
@@ -21,11 +25,11 @@ The interface is organised by **how often you actually use something**, not by h
 | :--- | :--- | :--- |
 | **Every day** | Home · My Work · Plan · Fix My Mistakes · Updates | Check what's due, log the day, tick things off, sign changes off |
 | **Weekly** | Proof Log · Rewards · Timetable · Subjects & Goals · Help & Careers · Report Bugs | Logging marked work, planning, review, spending XP, filing friction |
-
-Both tiers render the same way on either device: five daily tabs always visible, everything weekly behind one **More** menu. Desktop used to render all thirteen tabs in a single row with `overflow-x-auto` - about 1500px of tabs on a 1280px page, so the Parent Portal was reachable only by scrolling a bar that gave no sign it had more in it. The phone had already solved this; the desktop now shares the same state, so there is one menu with two presentations rather than two things to keep in step. The open weekly tab is pinned beside the menu button, because a bar that highlights nothing tells you nothing about where you are.
 | **Parent only** | Parent Portal | Audits, sanctions, backups, catalogue and profile setup |
 
-On mobile the daily sections are the bottom bar; the rest live behind **More**. On desktop they're separated by a `WEEKLY` divider.
+Both tiers render the same way on either device: five daily tabs always visible, everything weekly behind one **More** menu. Desktop used to render all thirteen tabs in a single row with `overflow-x-auto` - about 1500px of tabs on a 1280px page, so the Parent Portal was reachable only by scrolling a bar that gave no sign it had more in it. The phone had already solved this; the desktop now shares the same state, so there is one menu with two presentations rather than two things to keep in step. The open weekly tab is pinned beside the menu button, because a bar that highlights nothing tells you nothing about where you are.
+
+On mobile the daily sections are the bottom bar; on desktop they are the top bar. Either way the rest live behind **More**.
 
 Section names are deliberately plain — *My Work*, *Key Dates*, *Fix My Mistakes* — and **each page banner repeats its navigation label exactly**, so tapping a tab never lands on a page that appears to be something else. Exam boards, rotations and other real detail live in the subtitle. See spec §8.5.
 
@@ -655,6 +659,12 @@ npm run preview
 
 Deployment is automatic: pushing to `main` publishes to GitHub Pages via `.github/workflows`. The Vite `base` is set to `/T2026GCSGenie/` to match the repository name — change both together if the repo is renamed.
 
+`public/` is copied to the site root verbatim, which is where the user guide lives:
+`public/how-it-works.html` plus its screenshots in `public/how-it-works/`. It is a standalone page
+with no build step and no dependency on the app bundle — deliberately, so it still renders if the
+app fails to boot, which is exactly when somebody goes looking for instructions. Deployed at
+`/T2026GCSGenie/how-it-works.html`.
+
 ---
 
 ## Time budget
@@ -921,7 +931,7 @@ src/
 └── types/                             # shared type definitions
 ```
 
-### Five traps worth knowing about
+### Traps worth knowing about
 
 **Booleans cannot be indexed in IndexedDB.** Fields like `completed` and `isCompleted` appear in the Dexie schema strings but are never actually indexed, so `.where('completed').equals(0)` silently returns an empty array. Always filter booleans in memory: `.filter(t => !t.completed)`.
 
@@ -963,5 +973,14 @@ opening the dialog changes the hook count, React throws, and with no boundary th
 unmounts. The check-in did exactly this and blanked the app. `src/test/hookOrder.test.ts` now fails
 on any hook below an early return, and `ErrorBoundary` wraps the tab content and each modal so the
 next one costs a panel instead of the app.
+
+**A stored enum is an input, not a fact — especially on a database that syncs.** `bucket` is a
+string in a shared table, and a second device still running the previous build writes the *old*
+column name into it long after this one has upgraded. A migration only fixes the rows that existed
+at upgrade time; it cannot fix the ones that arrive afterwards. `columns[inferBucket(task)]` on one
+stale `LATER` returned `undefined`, `.push` threw, and the whole Plan tab rendered the error panel.
+Validate what comes out of the database (`isKnownBucket`), fall back to something every version
+agrees on — here, the due date — and keep a fallback on the lookup too. No stored string is worth a
+whole screen.
 
 **Never use `toISOString()` for "today".** It resolves in UTC, so during British Summer Time anything between 00:00 and 01:00 local returns the *previous* day — a check-in at 00:30 lands on yesterday and breaks the streak. Use the helpers in `src/utils/date.ts` (`todayISO`, `addDaysISO`, `daysUntil`, `formatFriendlyDate`, `formatCountdown`).

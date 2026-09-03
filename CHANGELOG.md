@@ -1,5 +1,35 @@
 # Changelog
 
+## November 2026 - One stale bucket name took down the whole planner
+
+Reported as "I don't see it in This week". `loadWeekCommitment` does
+`columns[inferBucket(task)].push(task)`, and one task still carried `LATER` - a
+column that stopped existing when the planner went to four sprints. The lookup
+returned undefined, and the Plan tab rendered the error panel instead of the
+plan.
+
+**Migrating on upgrade was never enough.** This database syncs. A second device
+still on the previous build writes `LATER` into a shared table long after this
+one has upgraded, and the row arrives naming a column that does not exist. So
+the stored value is now checked rather than trusted - `isKnownBucket` - and
+anything unrecognised falls back to the due date, which is the one piece of
+evidence every version of this app agrees on. The column lookup keeps a fallback
+too: no stored string is worth the entire screen.
+
+**And v17 mis-filed the work it did migrate.** It mapped the old `LATER`
+faithfully onto `FUTURE` whenever the date was inside the term, which was true
+to the label and wrong about the homework: four tasks due in two days went into
+"Future" because they had once been dropped in "Later this term" and nobody had
+moved them since. v17 now re-files by due date, and v18 repairs the databases
+that already ran the broken version and will never run it again.
+
+Work due inside the week is this week's, whatever column it is sitting in. That
+is the rule `moveTaskToBucket` already enforces in the other direction when it
+pulls a far-off due date back on commitment.
+
+The error boundary did its job here - the failure cost one tab rather than the
+app. It is still a screen that did not work.
+
 ## November 2026 - Sprints, and dates that own their work
 
 **Four columns, not three.** The middle bucket did two jobs. "Next up" meant

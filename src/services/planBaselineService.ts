@@ -172,7 +172,7 @@ export function readinessChecks(input: ReadinessInput): ReadinessCheck[] {
       id: 'HAS_COMMITMENT',
       label: 'Commit at least one piece of work',
       ok: committed.length > 0,
-      detail: committed.length > 0 ? undefined : 'This week is empty. Pull something in from Next up.',
+      detail: committed.length > 0 ? undefined : 'This week is empty. Pull something in from Next week or the Backlog.',
       blocking: true,
     },
     {

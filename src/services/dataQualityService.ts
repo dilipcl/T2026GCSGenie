@@ -165,7 +165,7 @@ function taskIssues(tasks: Task[], goals: Goal[]): DataIssue[] {
         problem: `“${task.title}” has never been planned into a bucket.`,
         consequence:
           'It counts towards no week, so the load meter and the weekly commitment both ignore it.',
-        remedy: 'Move it to This week, Next up or Later on the Plan tab.',
+        remedy: 'Move it to This week, Next week, Future or Backlog on the Plan tab.',
         autoFixable: true,
       });
     }

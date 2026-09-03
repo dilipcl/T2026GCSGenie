@@ -1009,9 +1009,37 @@ export interface ProofAttachment {
 | 9 | `commitments` and `commitmentExceptions` — fixed weekly load becomes data, and absences become loggable |
 | 10 | Backfills `examSeriesStartDate` onto an existing settings row |
 | 11 | `changeLog` — the record of confirmed changes |
+| 12 | `deviceRegistry` and `improvements` — the activity feed can name the device that acted, and friction has somewhere to be filed |
+| 13 | `driveSync` — how *this* device reaches Drive. A single row, never synced: it holds a live `FileSystemDirectoryHandle` and an OAuth token, both meaningless on another machine |
+| 14 | `activityComments` — keyed by `activityId`, the audit row rather than the record it describes, so a question outlives the task it was asked about |
+| 15 | `planBaselines` (keyed by the week's Monday) and `planAmendments`. Amendments are rows, not an array on the baseline: Dexie Cloud merges rows and does not merge an array inside one |
+| 16 | `plannedActivities` — what else the week is for, indexed on `weekStart` and `category` |
+| 17 | The middle of the planner splits in two. `NEXT_UP` and `LATER` are re-filed by due date into `THIS_WEEK` / `NEXT_WEEK` / `FUTURE` / `BACKLOG` |
+| 18 | Repairs the databases that ran the first, wrong version of v17. See below |
 
 `attachments` carries a compound index `[ownerType+ownerId]`, which is the only lookup that matters.
 Booleans are never indexed — see 8.6.
+
+**v17 shipped wrong, and v18 is the apology.** The first version of v17 mapped the old `LATER`
+faithfully onto `FUTURE` whenever the date fell inside the term. That was true to the old label and
+wrong about the work: homework due in two days went into "Future" because it had once been dropped
+in "Later this term" and nobody had moved it since. v17 has since been corrected to re-file by due
+date, but a database that already ran the broken version is past that point and will never run it
+again — so v18 exists purely to repair those installs, moving uncompleted work due inside the week
+back into `THIS_WEEK`.
+
+The rule both versions now follow is the one `moveTaskToBucket` already enforced in the opposite
+direction: **work due inside the week is this week's, whatever column it is sitting in.** The due
+date is the one piece of evidence every version of this app agrees on.
+
+**A migration is not enough on a database that syncs.** `bucket` is a stored string, and a second
+device still running the previous build will happily write `LATER` into a shared table long after
+this one has upgraded — the row arrives naming a column that no longer exists. `isKnownBucket`
+therefore *checks* the stored value rather than trusting it, and anything unrecognised falls back to
+the due date; the column lookup in `loadWeekCommitment` keeps its own fallback as well. Before that,
+one stale string cost the whole Plan tab: `columns[inferBucket(task)].push(task)` threw
+`Cannot read properties of undefined`, and the error boundary rendered the panel instead of the
+plan. See 8.6.
 
 The fields added by the August 2026 QA pass — `DailyCheckIn.studySubjectId` / `studyGoalId`,
 `RewardItem.isArchived`, and the student profile on `ParentSettings` — deliberately carry **no**
