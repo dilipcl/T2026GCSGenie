@@ -3,8 +3,12 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { TimetableSlotConfig } from '../../types';
 import { logFieldChanges } from '../../services/auditService';
+import {
+  applyPeriodTimeToLessons,
+  previewPeriodTimeChange,
+} from '../../services/periodTimeService';
 import { useFeedback } from '../shared/FeedbackProvider';
-import { Clock, ChevronDown, ChevronUp, Save } from 'lucide-react';
+import { Clock, ChevronDown, ChevronUp, Save, CalendarClock } from 'lucide-react';
 
 /**
  * The bell times behind the period chips.
@@ -12,16 +16,24 @@ import { Clock, ChevronDown, ChevronUp, Save } from 'lucide-react';
  * Editing a single lesson has always changed that lesson, but the period
  * *defaults* came from seedData - so a school moving Period 1 by ten minutes
  * meant every new lesson was added at the old time and quietly corrected by
- * hand each time. These are the defaults the Quick Add sheet offers; existing
- * lessons keep the times they were saved with, which is the right way round:
- * changing the bell schedule should not silently rewrite history.
+ * hand each time.
+ *
+ * Changing a default used to stop there, and that was the bug Tejas reported:
+ * he moved a period and every day kept the old time, because the lessons
+ * already on the timetable carry their own. "Apply to the lessons already on
+ * the timetable" is on by default now, because moving the bell and expecting
+ * the day to follow is the normal case, not the exception - and lessons
+ * somebody has given custom times are excluded from it and named, so the
+ * outlier a shortened Friday represents survives the change that caused it.
  */
 export const PeriodTimesPanel: React.FC = () => {
   const { toast } = useFeedback();
   const slots = useLiveQuery(() => db.timetableSlots.toArray(), [], []);
+  const entries = useLiveQuery(() => db.timetableEntries.toArray(), [], []);
 
   const [isOpen, setIsOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, { start: string; end: string }>>({});
+  const [applyToLessons, setApplyToLessons] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const ordered = [...slots].sort((a, b) => a.defaultStartTime.localeCompare(b.defaultStartTime));
@@ -32,20 +44,44 @@ export const PeriodTimesPanel: React.FC = () => {
   const setDraft = (slot: TimetableSlotConfig, patch: { start?: string; end?: string }) =>
     setDrafts((current) => ({ ...current, [slot.id]: { ...draftFor(slot), ...patch } }));
 
-  const dirtyCount = ordered.filter((slot) => {
+  const changedSlots = ordered.filter((slot) => {
     const draft = drafts[slot.id];
     return draft && (draft.start !== slot.defaultStartTime || draft.end !== slot.defaultEndTime);
-  }).length;
+  });
+  const dirtyCount = changedSlots.length;
+
+  /**
+   * How many lessons the pending edits would move, counted from the times on
+   * screen rather than from a query, so the number updates as the inputs do.
+   */
+  const impact = changedSlots.reduce(
+    (totals, slot) => {
+      for (const entry of entries) {
+        if (entry.slotName !== slot.name) continue;
+        if (entry.startTime === slot.defaultStartTime && entry.endTime === slot.defaultEndTime) {
+          totals.following += 1;
+        } else {
+          totals.outliers += 1;
+        }
+      }
+      return totals;
+    },
+    { following: 0, outliers: 0 }
+  );
 
   const handleSave = async () => {
     if (busy || dirtyCount === 0) return;
     setBusy(true);
 
     try {
-      for (const slot of ordered) {
+      let moved = 0;
+
+      for (const slot of changedSlots) {
         const draft = drafts[slot.id];
-        if (!draft) continue;
-        if (draft.start === slot.defaultStartTime && draft.end === slot.defaultEndTime) continue;
+
+        // Read before the default moves. Once the slot carries the new times,
+        // "still at the old times" no longer matches anything.
+        const lessons = applyToLessons ? await previewPeriodTimeChange(slot) : undefined;
 
         const fields = { defaultStartTime: draft.start, defaultEndTime: draft.end };
         await db.timetableSlots.update(slot.id, fields);
@@ -57,10 +93,22 @@ export const PeriodTimesPanel: React.FC = () => {
           after: fields as unknown as Record<string, unknown>,
           labels: { defaultStartTime: `${slot.name} starts`, defaultEndTime: `${slot.name} ends` },
         });
+
+        if (lessons) {
+          moved += await applyPeriodTimeToLessons(lessons, {
+            startTime: draft.start,
+            endTime: draft.end,
+          });
+        }
       }
 
       setDrafts({});
-      toast.success('Period times saved', 'New lessons will use these by default.');
+      toast.success(
+        'Period times saved',
+        moved > 0
+          ? `${moved} lesson${moved === 1 ? '' : 's'} moved to match.`
+          : 'New lessons will use these by default.'
+      );
     } catch (err) {
       console.error('Could not save period times:', err);
       toast.error('Could not save those times', 'Nothing was changed.');
@@ -129,9 +177,43 @@ export const PeriodTimesPanel: React.FC = () => {
             );
           })}
 
-          <p className="text-[10px] text-slate-500">
-            Lessons already on the timetable keep their own times - edit one directly to move it.
-          </p>
+          <label className="flex items-start gap-2.5 p-2.5 bg-slate-900/70 border border-slate-800 rounded-xl cursor-pointer">
+            <input
+              type="checkbox"
+              checked={applyToLessons}
+              onChange={(e) => setApplyToLessons(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-emerald-500 shrink-0"
+            />
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-white">
+                <CalendarClock className="w-3.5 h-3.5 text-emerald-400" />
+                Apply to lessons already on the timetable
+              </span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">
+                {dirtyCount === 0
+                  ? 'Every day using this period moves with it, on both odd and even weeks.'
+                  : `${impact.following} lesson${
+                      impact.following === 1 ? '' : 's'
+                    } across all days will move to match.`}
+                {impact.outliers > 0 && (
+                  <span className="text-amber-300/80">
+                    {' '}
+                    {impact.outliers} lesson{impact.outliers === 1 ? '' : 's'} with{' '}
+                    {impact.outliers === 1 ? 'its' : 'their'} own times stay put - edit{' '}
+                    {impact.outliers === 1 ? 'it' : 'them'} directly to move{' '}
+                    {impact.outliers === 1 ? 'it' : 'them'}.
+                  </span>
+                )}
+              </span>
+            </span>
+          </label>
+
+          {!applyToLessons && (
+            <p className="text-[10px] text-slate-500">
+              Only the default for new lessons changes. Lessons already on the timetable keep the
+              times they have.
+            </p>
+          )}
 
           <button
             onClick={handleSave}
