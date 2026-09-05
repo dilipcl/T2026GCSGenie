@@ -100,6 +100,32 @@ past due date whatever column it sat in, so work parked in the backlog or pulled
 into next week was announced as "now overdue" before anyone had agreed to do it.
 Only committed work can be late, because only a promise can be broken.
 
+### A check-in can be read back, not just counted
+
+Updates recorded that a check-in happened and summarised it in one line -
+energy, focus, a count of tasks, some minutes, the XP. That is a receipt, not
+an answer. It said two tasks were ticked without saying which, said 45 minutes
+of study without saying what was studied, and dropped the notes entirely - and
+the notes are the part somebody wrote down precisely so it would be read later.
+A question to ask a teacher tomorrow was written into an app that never showed
+it to anyone again.
+
+"See what was said" now opens the whole answer under the row: the work ticked
+off by name, what was studied and towards which goal, every note under its own
+heading, how the day itself was answered lesson by lesson, and anything raised
+for later - flagged when it has not yet been made into work. Folded away rather
+than always open, because a feed that prints everything is a feed nobody scans,
+and loaded only when opened.
+
+### Period times moved every day, and the screen said otherwise
+
+Changing a period with "apply to the lessons already on the timetable" ticked
+moved every lesson correctly, said so in the toast, and then showed the old
+times on every day underneath. The rows had moved; only the screen had not. The
+timetable read its lessons once when the tab opened and refreshed only for its
+own adds and deletes, and period times are a panel directly above it writing to
+the same table. It now reads live, so a lesson shows up however it was written.
+
 ### Fixing a mistake is just work, and a goal shows the work itself
 
 Fix My Mistakes was a tab of its own, which made putting something right look

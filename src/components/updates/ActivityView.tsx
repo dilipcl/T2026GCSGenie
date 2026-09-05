@@ -19,6 +19,7 @@ import { getDeviceId } from '../../utils/device';
 import { formatPastDate } from '../../utils/date';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { ActivityComments } from './ActivityComments';
+import { CheckInDetailPanel } from './CheckInDetailPanel';
 import {
   Search,
   Filter,
@@ -261,6 +262,13 @@ const ActivityRow: React.FC<{
               </span>
             )}
           </div>
+        )}
+
+        {/* A check-in's summary is a receipt - energy, focus, a count of
+            tasks, the XP. What was actually said, including the notes written
+            down to be read later, is one tap below it. */}
+        {item.entityType === 'Check-in' && item.entityId && (
+          <CheckInDetailPanel checkInId={item.entityId} />
         )}
 
         <AttachmentLinks item={item} />

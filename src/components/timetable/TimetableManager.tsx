@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { TimetableEntry, WeekType, DayOfWeek } from '../../types';
 import { QuickAddSheet } from '../shared/QuickAddSheet';
@@ -28,7 +29,18 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
   onEdit,
 }) => {
   const { confirm } = useFeedback();
-  const [entries, setEntries] = useState<TimetableEntry[]>([]);
+  /**
+   * Read live rather than loaded once.
+   *
+   * This was a `useState` filled by an effect that ran on mount, refreshed only
+   * by this screen's own add and delete. Period times sit in a panel directly
+   * above the grid and write to the same table, so moving a period left the
+   * days below showing the times they had before - on every day at once, while
+   * the toast said how many lessons had just moved. The rows had moved; only
+   * the screen had not. Anything that writes a lesson now shows up here,
+   * whoever wrote it.
+   */
+  const entries = useLiveQuery(() => db.timetableEntries.toArray(), [], []);
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MON');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -41,15 +53,6 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
     { id: 'SAT', label: 'Sat', fullLabel: 'Saturday' },
     { id: 'SUN', label: 'Sun', fullLabel: 'Sunday' },
   ];
-
-  const loadEntries = async () => {
-    const list = await db.timetableEntries.toArray();
-    setEntries(list);
-  };
-
-  useEffect(() => {
-    loadEntries();
-  }, []);
 
   const filteredEntries = entries
     .filter(
@@ -76,7 +79,6 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
       entityId: entry.id,
       oldValue: `${entry.activityName} (${entry.weekType} ${entry.dayOfWeek} ${entry.startTime}-${entry.endTime})`,
     });
-    loadEntries();
   };
 
   return (
@@ -222,7 +224,6 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
       <QuickAddSheet
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onSuccess={loadEntries}
         defaultMode="LESSON"
         defaultWeek={activeWeek}
         defaultDay={selectedDay}
