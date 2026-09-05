@@ -305,6 +305,7 @@ export const App: React.FC = () => {
             refreshKey={refreshKey}
             onAdd={() => setIsQuickAddOpen(true)}
             onEdit={(task: Task) => openEditor({ kind: 'TASK', record: task })}
+            onOpenLegacyFixups={() => setActiveTab('REMEDIATIONS')}
           />
         )}
 
@@ -374,8 +375,13 @@ export const App: React.FC = () => {
       </main>
 
       {/* Quick Add - reachable from every screen, since adding homework and key
-          dates is the most frequent action after checking in */}
-      {currentRole === 'STUDENT' && (
+          dates is the most frequent action after checking in.
+
+          A parent gets it too. It was student-only, which meant the person who
+          sets the goals, locks them and asks where the work is had no way to
+          add any from any screen - the button simply was not on the page. Only
+          the system agent is left out, having no screen to press it from. */}
+      {currentRole !== 'SYSTEM_AGENT' && (
         <button
           onClick={() => setIsQuickAddOpen(true)}
           aria-label="Add homework or a key date"

@@ -14,6 +14,8 @@ import {
   Trash2,
   PencilLine,
   Filter,
+  Wrench,
+  ArrowRight,
 } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { WeekCommitmentBanner } from './WeekCommitmentBanner';
@@ -23,12 +25,19 @@ interface TaskManagerViewProps {
   onEdit?: (task: Task) => void;
   refreshKey?: number;
   onAdd: () => void;
+  /**
+   * Opens the original Year 9 quests. They keep their own screen because they
+   * carry claimed XP and uploaded proof that a plain task has nowhere to put -
+   * but that screen is no longer a tab, so this is how it is reached.
+   */
+  onOpenLegacyFixups?: () => void;
 }
 
 export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
   refreshKey = 0,
   onAdd,
   onEdit,
+  onOpenLegacyFixups,
 }) => {
   const { confirm } = useFeedback();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -36,12 +45,21 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
   const [selectedSubject, setSelectedSubject] = useState<SubjectId | 'ALL'>('ALL');
   const [selectedPriority, setSelectedPriority] = useState<PriorityLevel | 'ALL'>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'COMPLETED'>('PENDING');
+  /**
+   * Homework and fix-ups are both tasks, so they live in one list - but "what
+   * have I got to do" and "what did I get wrong" are different questions, and
+   * a fix-up buried among thirty pieces of homework answers neither.
+   */
+  const [selectedKind, setSelectedKind] = useState<'ALL' | 'HOMEWORK' | 'FIXUP'>('ALL');
+  /** Open quests still on the old screen, so the pointer to it can be honest. */
+  const [legacyFixups, setLegacyFixups] = useState(0);
 
   const loadData = async () => {
     const tList = await db.tasks.orderBy('dueDate').toArray();
     const gList = await db.goals.toArray();
     setTasks(tList);
     setGoals(gList);
+    setLegacyFixups(await db.remediations.filter((r) => !r.isCompleted).count());
   };
 
   useEffect(() => {
@@ -100,6 +118,8 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
     if (selectedPriority !== 'ALL' && t.priority !== selectedPriority) return false;
     if (filterStatus === 'PENDING' && t.completed) return false;
     if (filterStatus === 'COMPLETED' && !t.completed) return false;
+    if (selectedKind === 'FIXUP' && !t.isRemediation) return false;
+    if (selectedKind === 'HOMEWORK' && t.isRemediation) return false;
     return true;
   });
 
@@ -170,6 +190,29 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
             ))}
           </div>
 
+          {/* Homework or fix-up. */}
+          <div className="flex rounded-xl bg-slate-900 border border-slate-800 p-0.5">
+            {(
+              [
+                { id: 'ALL', label: 'All' },
+                { id: 'HOMEWORK', label: 'Homework' },
+                { id: 'FIXUP', label: 'Fix-ups' },
+              ] as const
+            ).map((k) => (
+              <button
+                key={k.id}
+                onClick={() => setSelectedKind(k.id)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  selectedKind === k.id
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {k.label}
+              </button>
+            ))}
+          </div>
+
           {/* Priority Filter */}
           <select
             value={selectedPriority}
@@ -201,6 +244,30 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
           Showing {filteredTasks.length} of {tasks.length} tasks
         </span>
       </div>
+
+      {/* The original Year 9 quests.
+
+          They keep their own screen because they carry claimed XP and uploaded
+          proof that a plain task has nowhere to put. It is no longer a tab -
+          fixing a mistake is ordinary work and belongs here - so this is how
+          what is already recorded stays reachable. */}
+      {selectedKind === 'FIXUP' && legacyFixups > 0 && onOpenLegacyFixups && (
+        <button
+          type="button"
+          onClick={onOpenLegacyFixups}
+          className="w-full glass-card p-3 flex items-center justify-between gap-3 text-left hover:border-amber-500/40 transition-colors"
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <Wrench className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <span className="text-xs text-slate-300">
+              <strong className="text-white">{legacyFixups}</strong> older quest
+              {legacyFixups === 1 ? '' : 's'} from your Year 9 papers, with their working and
+              proof
+            </span>
+          </span>
+          <ArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        </button>
+      )}
 
       {/* Task Cards Grid */}
       <div className="space-y-3">
@@ -256,6 +323,13 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
                         {task.priority} Priority
                       </span>
 
+                      {task.isRemediation && (
+                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold uppercase">
+                          <Wrench className="w-2.5 h-2.5" />
+                          Fix-up
+                        </span>
+                      )}
+
                       {isOverdue && (
                         <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-700 font-bold uppercase">
                           Overdue
@@ -270,6 +344,12 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
                     >
                       {task.title}
                     </h4>
+
+                    {task.remediationSourceDoc && (
+                      <p className="text-[11px] text-amber-200/70 mt-0.5">
+                        From {task.remediationSourceDoc}
+                      </p>
+                    )}
 
                     {task.description && (
                       <p className="text-xs text-slate-400 mt-0.5">{task.description}</p>

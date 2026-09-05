@@ -35,8 +35,8 @@ const SCREENS: ScreenCard[] = [
   },
   {
     icon: '🔧',
-    name: 'Fix My Mistakes',
-    what: 'The exact marks you dropped in Year 9, turned into short practice quests. Do one, upload your working, claim the XP.',
+    name: 'Fix-ups',
+    what: 'Something you got wrong, set down as work to put it right - from a mock, a class test, marked homework, anywhere. Add one like any task and find them under Fix-ups in My Work.',
   },
   {
     icon: '📸',

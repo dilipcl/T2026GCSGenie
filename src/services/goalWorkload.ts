@@ -32,6 +32,13 @@ export interface GoalWork {
   committed: number;
   done: number;
   /**
+   * The work itself, worst-first: committed, then open, then done. A count
+   * alone told you a goal was short of work but never which work existed, so
+   * there was nothing to act on without leaving the page and searching My Work
+   * for tasks that might or might not name this goal.
+   */
+  tasks: Task[];
+  /**
    * A live goal with no work at all. The headline case: nothing has ever been
    * aimed at it, so no amount of effort elsewhere will move it.
    */
@@ -74,6 +81,7 @@ export async function goalWorkload(): Promise<GoalWork[]> {
 
     return {
       goal,
+      tasks: [...linked].sort(byUrgency),
       total: linked.length,
       open: open.length,
       committed: committed.length,
@@ -82,6 +90,19 @@ export async function goalWorkload(): Promise<GoalWork[]> {
       hasNoCommittedWork: live && linked.length > 0 && committed.length === 0,
     };
   });
+}
+
+/**
+ * Work in the order it is worth reading: what is promised this week, then what
+ * is waiting, then what is finished. Ties fall back to the due date, so a list
+ * of open work still reads as a run-up to a deadline.
+ */
+function byUrgency(a: Task, b: Task): number {
+  const rank = (task: Task) =>
+    task.completed ? 2 : task.bucket === 'THIS_WEEK' ? 0 : 1;
+  const byRank = rank(a) - rank(b);
+  if (byRank !== 0) return byRank;
+  return (a.dueDate ?? '').localeCompare(b.dueDate ?? '');
 }
 
 /**

@@ -15,7 +15,7 @@ import { GoalConsultationModal } from './GoalConsultationModal';
 import { GoalBurndownPanel } from './GoalBurndownPanel';
 import { ConceptLegend } from './ConceptLegend';
 import { goalWorkload, goalsMissingWork } from '../../services/goalWorkload';
-import { Target, Plus, ShieldCheck, Lock, Unlock, X, PencilLine, Send, ListTodo, AlertTriangle } from 'lucide-react';
+import { Target, Plus, ShieldCheck, Lock, Unlock, X, PencilLine, Send, ListTodo, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { InfoTip } from '../shared/InfoTip';
@@ -40,6 +40,8 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({
   const workload = useLiveQuery(() => goalWorkload(), []);
   const workByGoal = new Map((workload ?? []).map((row) => [row.goal.id, row]));
   const missingWork = goalsMissingWork(workload ?? []);
+  /** Which goal has its work list open. One at a time keeps the page scannable. */
+  const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
   const emptyGoals = missingWork.filter((row) => row.hasNoWork).length;
   /**
    * One line covering everything the banner is about to name. Counting only the
@@ -433,13 +435,20 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({
                   const work = workByGoal.get(g.id);
                   if (!work) return null;
 
+                  const isOpen = expandedGoalId === g.id;
+
                   return (
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span
-                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-semibold ${
+                    <div className="mb-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedGoalId(isOpen ? null : g.id)}
+                        disabled={work.total === 0}
+                        aria-expanded={isOpen}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-semibold transition-colors ${
                           work.hasNoWork
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            : 'bg-slate-800 text-slate-300 border border-slate-700'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-default'
+                            : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
                         }`}
                       >
                         <ListTodo className="w-3 h-3" />
@@ -448,7 +457,13 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({
                           : `${work.total} task${work.total === 1 ? '' : 's'} · ${
                               work.committed
                             } this week · ${work.done} done`}
-                      </span>
+                        {work.total > 0 &&
+                          (isOpen ? (
+                            <ChevronUp className="w-3 h-3" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3" />
+                          ))}
+                      </button>
 
                       {work.hasNoCommittedWork && (
                         <span className="text-[10px] text-amber-400">
@@ -466,6 +481,45 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({
                           Add work
                         </button>
                       )}
+                    </div>
+
+                    {/* The work itself. A count told you a goal was short of
+                        work but never which work existed, so there was nothing
+                        to act on without leaving the page and searching My Work
+                        for tasks that might or might not name this goal. */}
+                    {isOpen && work.tasks.length > 0 && (
+                      <ul className="mt-2 space-y-1 border-l border-slate-700 pl-2.5">
+                        {work.tasks.map((t) => (
+                          <li key={t.id} className="flex items-baseline gap-2 text-[11px]">
+                            <span
+                              className={`flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                t.completed
+                                  ? 'bg-emerald-500/15 text-emerald-400'
+                                  : t.bucket === 'THIS_WEEK'
+                                    ? 'bg-indigo-500/20 text-indigo-300'
+                                    : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {t.completed
+                                ? 'Done'
+                                : t.bucket === 'THIS_WEEK'
+                                  ? 'This week'
+                                  : 'Waiting'}
+                            </span>
+                            <span
+                              className={
+                                t.completed ? 'text-slate-500 line-through' : 'text-slate-200'
+                              }
+                            >
+                              {t.title}
+                            </span>
+                            {t.dueDate && !t.completed && (
+                              <span className="text-slate-500 flex-shrink-0">due {t.dueDate}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                     </div>
                   );
                 })()}

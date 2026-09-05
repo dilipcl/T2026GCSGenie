@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   Target,
   Calendar,
-  Wrench,
   Gift,
   HelpCircle,
   Lightbulb,
@@ -58,7 +57,12 @@ export const Navigation: React.FC<NavigationProps> = ({
     // Plan absorbs Key Dates: a deadline only means something next to the work
     // meant to meet it, and a sixth bottom-bar tab would not fit on a phone.
     { id: 'PLAN', label: 'Plan', shortLabel: 'Plan', icon: CalendarDays, tier: 'daily' },
-    { id: 'REMEDIATIONS', label: 'Fix My Mistakes', shortLabel: 'Fix Ups', icon: Wrench, tier: 'daily' },
+    // Fix My Mistakes was a tab of its own, which made putting something right
+    // look like a different kind of work from doing it in the first place. It
+    // is not: a fix-up has a subject, a due date and a place in the week like
+    // any other task, and it now lives in My Work behind a filter. The screen
+    // still exists for the original Year 9 quests and their proof - reached
+    // from there and from the dashboard, rather than from the bar.
     // Where changes get signed off. Daily, because an update that waits a week
     // to be confirmed is a week the family spent asking.
     { id: 'UPDATES', label: 'Updates', shortLabel: 'Updates', icon: ClipboardCheck, tier: 'daily' },

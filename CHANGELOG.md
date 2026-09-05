@@ -100,6 +100,26 @@ past due date whatever column it sat in, so work parked in the backlog or pulled
 into next week was announced as "now overdue" before anyone had agreed to do it.
 Only committed work can be late, because only a promise can be broken.
 
+### Fixing a mistake is just work, and a goal shows the work itself
+
+Fix My Mistakes was a tab of its own, which made putting something right look
+like a different kind of work from doing it in the first place. It is not: a
+fix-up has a subject, a due date and a place in the week like anything else. It
+was only ever separate because the first batch arrived together from one set of
+Year 9 papers - and that framing was baked into the app, so a mistake from an
+October mock, a class test or a teacher saying so out loud had nowhere to go.
+
+"Fix a mistake" is now a kind of task, added from the same sheet as everything
+else, with a free-text note of where it came from. My Work filters to Fix-ups
+when that is the question being asked. The original Year 9 quests keep their own
+screen, because they carry claimed XP and uploaded proof that a plain task has
+nowhere to put - it is reached from My Work and the dashboard rather than from
+the bar, and nothing already recorded moved.
+
+The add button is also no longer student-only. The person who sets the goals,
+locks them and asks where the work is had no way to add any: the button simply
+was not on the page in Parent view.
+
 ### A goal now says what work is behind it
 
 Goals and tasks could always be linked, but only ever in one direction: a task
@@ -115,9 +135,12 @@ breaking down, a goal whose tasks all sit in the backlog needs one pulling into
 the week. A goal that is completed or deferred is never nagged about; a warning
 list that cries wolf stops being read.
 
-Where a goal is short of work, "Add work" opens the add sheet with the task
-already aimed at it, so the link is made by the act of adding rather than by
-remembering a field afterwards.
+Tapping the count opens the work itself. A count told you a goal was short of
+work but never which work existed, so there was nothing to act on without
+leaving the page and searching My Work for tasks that might or might not name
+this goal. Where a goal is short of work, "Add work" opens the add sheet with
+the task already aimed at it, so the link is made by the act of adding rather
+than by remembering a field afterwards.
 
 That field was the other half of the problem. "Towards a goal" lived inside
 "More options" and was therefore never seen - a parent asked where tasks for a

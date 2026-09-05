@@ -98,6 +98,43 @@ describe('counting the work aimed at a goal', () => {
   });
 });
 
+describe('the work itself, not only the count', () => {
+  it('carries the linked tasks so they can be read without leaving the page', async () => {
+    await goal('g1');
+    await task({ linkedGoalId: 'g1', title: 'Past paper', bucket: 'THIS_WEEK' });
+
+    const [row] = await goalWorkload();
+
+    expect(row.tasks.map((t) => t.title)).toEqual(['Past paper']);
+  });
+
+  it('reads promised first, then waiting, then finished', async () => {
+    await goal('g1');
+    await task({ linkedGoalId: 'g1', title: 'done', bucket: 'THIS_WEEK', completed: true });
+    await task({ linkedGoalId: 'g1', title: 'waiting', bucket: 'BACKLOG' });
+    await task({ linkedGoalId: 'g1', title: 'promised', bucket: 'THIS_WEEK' });
+
+    const [row] = await goalWorkload();
+
+    expect(row.tasks.map((t) => t.title)).toEqual(['promised', 'waiting', 'done']);
+  });
+
+  it('orders work in the same bucket by when it is due', async () => {
+    await goal('g1');
+    await task({ linkedGoalId: 'g1', title: 'later', bucket: 'THIS_WEEK', dueDate: '2026-09-20' });
+    await task({ linkedGoalId: 'g1', title: 'sooner', bucket: 'THIS_WEEK', dueDate: '2026-09-08' });
+
+    const [row] = await goalWorkload();
+
+    expect(row.tasks.map((t) => t.title)).toEqual(['sooner', 'later']);
+  });
+
+  it('carries nothing for a goal with no work', async () => {
+    await goal('g1');
+    expect((await goalWorkload())[0].tasks).toEqual([]);
+  });
+});
+
 describe('goals that need work aiming at them', () => {
   it('flags a live goal with nothing behind it', async () => {
     await goal('g1');

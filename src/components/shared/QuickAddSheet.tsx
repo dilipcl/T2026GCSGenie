@@ -16,13 +16,20 @@ import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent, logFieldChanges } from '../../services/auditService';
 import { todayISO, addDaysISO, formatFriendlyDate } from '../../utils/date';
 import { suggestedSubjectId, isSchoolInSession } from '../../services/timetableContext';
-import { X, ListTodo, CalendarDays, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import {
+  Wrench, X, ListTodo, CalendarDays, Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { newId } from '../../utils/id';
 import { normaliseTitle, withTaskDefaults } from '../../services/dataQualityService';
 import { useFeedback } from './FeedbackProvider';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 
-export type AddMode = 'TASK' | 'REMINDER' | 'LESSON';
+/**
+ * A fix-up is a task, not a separate kind of record. Putting right something
+ * you got wrong is ordinary work: it has a subject, a due date and a place in
+ * the week like anything else, and it was only ever separate because the first
+ * batch of them arrived together from one set of Year 9 papers.
+ */
+export type AddMode = 'TASK' | 'FIXUP' | 'REMINDER' | 'LESSON';
 
 /**
  * An existing row this sheet is editing rather than creating.
@@ -123,6 +130,10 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   const [startTime, setStartTime] = useState('08:50');
   const [endTime, setEndTime] = useState('09:50');
   const [room, setRoom] = useState('');
+  /** Where the mistake came from. Free text: a fix-up can start anywhere. */
+  const [sourceDoc, setSourceDoc] = useState('');
+  /** Both modes write a task and share the whole form below. */
+  const isTaskMode = mode === 'TASK' || mode === 'FIXUP';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -135,6 +146,10 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
 
       if (editing.kind === 'TASK') {
         const t = editing.record;
+        // A fix-up must reopen as a fix-up, or editing one would quietly
+        // reclassify it as homework on save.
+        setMode(t.isRemediation ? 'FIXUP' : 'TASK');
+        setSourceDoc(t.remediationSourceDoc || '');
         setTitle(t.title);
         setDueDate(t.dueDate);
         setSubjectId(t.subjectId);
@@ -189,6 +204,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
       setNotes('');
       setEstimatedHours('');
       setLinkedGoalId(defaultGoalId ?? '');
+      setSourceDoc('');
       setShowMore(false);
       setIsSaving(false);
       setSelectedDays([defaultDay]);
@@ -253,7 +269,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   const canSubmit =
     mode === 'LESSON'
       ? effectiveLessonName.length > 0 && selectedDays.length > 0
-      : mode === 'TASK'
+      : isTaskMode
       ? title.trim().length > 0 && !!subjectId
       : title.trim().length > 0;
 
@@ -278,6 +294,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
         priority,
         estimatedHours: Number.isFinite(hours as number) ? hours : undefined,
         linkedGoalId: linkedGoalId || undefined,
+        remediationSourceDoc: mode === 'FIXUP' ? sourceDoc.trim() || undefined : undefined,
       };
       await db.tasks.update(editing.record.id, fields);
       await logFieldChanges({
@@ -291,9 +308,13 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
           dueDate: 'due date',
           estimatedHours: 'estimated hours',
           linkedGoalId: 'linked goal',
+          remediationSourceDoc: 'where it came from',
         },
       });
-      toast.success('Homework updated', formatFriendlyDate(dueDate));
+      toast.success(
+        mode === 'FIXUP' ? 'Fix-up updated' : 'Homework updated',
+        formatFriendlyDate(dueDate)
+      );
       return;
     }
 
@@ -359,7 +380,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
     try {
       if (editing) {
         await saveEdit();
-      } else if (mode === 'TASK') {
+      } else if (isTaskMode) {
         const task: Task = {
           id: newId('task'),
           subjectId: subjectId as SubjectId,
@@ -367,8 +388,9 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
           description: notes.trim() || undefined,
           dueDate,
           priority,
-          isHomework: true,
-          isRemediation: false,
+          isHomework: mode === 'TASK',
+          isRemediation: mode === 'FIXUP',
+          remediationSourceDoc: mode === 'FIXUP' ? sourceDoc.trim() || undefined : undefined,
           estimatedHours:
             estimatedHours.trim() === '' || !Number.isFinite(Number(estimatedHours))
               ? undefined
@@ -393,7 +415,9 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
           action: 'INSERT',
           entity: 'Task',
           entityId: task.id,
-          newValue: `${task.title} [Priority: ${priority}, Due: ${dueDate}]`,
+          newValue: `${task.title} [${
+            mode === 'FIXUP' ? 'Fix-up' : 'Homework'
+          }, Priority: ${priority}, Due: ${dueDate}]`,
         });
       } else if (mode === 'REMINDER') {
         const milestone: MilestoneReminder = {
@@ -492,10 +516,11 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
 
         {/* What kind of thing. Hidden while editing: an existing row cannot
             change from homework into a timetable lesson. */}
-        <div className={`grid grid-cols-3 gap-2 mb-4 ${editing ? 'hidden' : ''}`}>
+        <div className={`grid grid-cols-2 gap-2 mb-4 ${editing ? 'hidden' : ''}`}>
           {(
             [
               { id: 'TASK', label: 'Homework', hint: 'To do', icon: ListTodo },
+              { id: 'FIXUP', label: 'Fix a mistake', hint: 'Something you got wrong', icon: Wrench },
               { id: 'REMINDER', label: 'Key date', hint: 'Test, deadline', icon: CalendarDays },
               { id: 'LESSON', label: 'Lesson', hint: 'Timetable', icon: Clock },
             ] as const
@@ -572,7 +597,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
               </div>
             )}
 
-            {mode === 'TASK' && (
+            {isTaskMode && (
               <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
                 {schoolInSession
                   ? 'Pre-filled from the lesson happening now — tap to change.'
@@ -587,7 +612,9 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
               htmlFor="quick-add-title"
               className="block text-xs font-bold text-slate-300 uppercase mb-1.5"
             >
-              {mode === 'TASK'
+              {mode === 'FIXUP'
+                ? 'What do you need to put right?'
+                : mode === 'TASK'
                 ? 'What do you need to do?'
                 : mode === 'REMINDER'
                 ? "What's happening?"
@@ -601,7 +628,9 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
               type="text"
               autoFocus
               placeholder={
-                mode === 'TASK'
+                mode === 'FIXUP'
+                  ? 'e.g. Redo the quadratics I dropped marks on'
+                  : mode === 'TASK'
                   ? 'e.g. Maths past paper Q12-18'
                   : mode === 'REMINDER'
                   ? 'e.g. Chemistry required practical'
@@ -621,7 +650,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
             <div>
               <div className="flex items-baseline justify-between mb-1.5">
                 <label className="block text-xs font-bold text-slate-300 uppercase">
-                  {mode === 'TASK' ? 'Due' : 'When'}
+                  {isTaskMode ? 'Due' : 'When'}
                 </label>
                 <span className="text-[11px] text-indigo-300 font-semibold">
                   {formatFriendlyDate(dueDate)}
@@ -759,6 +788,33 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
             </>
           )}
 
+          {/* Where the mistake came from.
+
+              Free text on purpose. The first fix-ups all came from one set of
+              Year 9 papers, which is why they were a fixed list on a tab of
+              their own - but a mistake worth putting right can come from a
+              class test, a mock, marked homework, or a teacher saying so out
+              loud, and none of those are Year 9. Optional: not knowing where
+              it came from is no reason not to fix it. */}
+          {mode === 'FIXUP' && (
+            <div>
+              <label
+                htmlFor="quick-add-source"
+                className="block text-[11px] font-bold text-slate-300 uppercase mb-1.5"
+              >
+                Where did this come from?
+              </label>
+              <input
+                id="quick-add-source"
+                type="text"
+                placeholder="e.g. October mock, Q7 - or a lesson, a report, marked homework"
+                value={sourceDoc}
+                onChange={(e) => setSourceDoc(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white placeholder-slate-500"
+              />
+            </div>
+          )}
+
           {/* Which goal this serves.
 
               This lived inside "More options" and was therefore never seen -
@@ -767,7 +823,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
               towards no goal's weekly hours, so the goal it was meant to serve
               shows no progress and the planner nags about work that is
               genuinely happening. Hidden by default it was, in effect, off. */}
-          {mode === 'TASK' && selectableGoals.length > 0 && (
+          {isTaskMode && selectableGoals.length > 0 && (
             <div>
               <label
                 htmlFor="quick-add-goal"
@@ -896,7 +952,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                   is what lets a piece of homework belong to something bigger
                   than itself. Both were previously set-once-at-creation only,
                   and the goal link had no UI at all. */}
-              {mode === 'TASK' && (
+              {isTaskMode && (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label
@@ -943,7 +999,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
 
           {!canSubmit && !isSaving && (
             <p className="text-[11px] text-slate-500 text-center" role="status">
-              {mode === 'TASK' && !subjectId && title.trim()
+              {isTaskMode && !subjectId && title.trim()
                 ? 'Pick a subject to add this.'
                 : mode === 'LESSON' && selectedDays.length === 0
                 ? 'Tick at least one day.'
@@ -962,6 +1018,8 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                 ? 'Saving...'
                 : editing
                 ? 'Save changes'
+                : mode === 'FIXUP'
+                ? `Add fix-up (+${priority === 'HIGH' ? 60 : 50} XP when done)`
                 : mode === 'TASK'
                 ? `Add homework (+${priority === 'HIGH' ? 60 : 50} XP when done)`
                 : mode === 'REMINDER'
