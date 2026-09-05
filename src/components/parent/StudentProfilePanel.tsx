@@ -25,6 +25,7 @@ export const StudentProfilePanel: React.FC = () => {
   const [school, setSchool] = useState('');
   const [targetGrade, setTargetGrade] = useState(9);
   const [examDate, setExamDate] = useState('');
+  const [termStart, setTermStart] = useState('');
   const [numbers, setNumbers] = useState<{ id: string; label: string; e164: string }[]>([]);
   const [groupUrl, setGroupUrl] = useState('');
   const [forwarding, setForwarding] = useState<UpdateForwardingSettings>({
@@ -44,6 +45,7 @@ export const StudentProfilePanel: React.FC = () => {
     setSchool(settings.studentSchool || 'GCS');
     setTargetGrade(settings.studentTargetGrade ?? 9);
     setExamDate(settings.examSeriesStartDate || '2027-05-10');
+    setTermStart(settings.termStartDate || '');
     setNumbers(settings.parentWhatsAppNumbers?.length ? settings.parentWhatsAppNumbers : []);
     setGroupUrl(settings.familyGroupInviteUrl || '');
     setForwarding(
@@ -63,6 +65,7 @@ export const StudentProfilePanel: React.FC = () => {
         studentSchool: school.trim(),
         studentTargetGrade: Math.min(9, Math.max(1, Math.round(targetGrade))),
         examSeriesStartDate: examDate || undefined,
+        termStartDate: termStart || undefined,
         // Normalised on the way in, so a number typed as "07700 900123" opens
         // a chat rather than failing silently at WhatsApp's end.
         parentWhatsAppNumbers: numbers
@@ -90,6 +93,7 @@ export const StudentProfilePanel: React.FC = () => {
           studentSchool: 'school',
           studentTargetGrade: 'target grade',
           examSeriesStartDate: 'exam start date',
+          termStartDate: 'first odd week of term',
           familyGroupInviteUrl: 'family group link',
           updateForwarding: 'where updates are forwarded',
           // The numbers themselves are never written to the log - a change
@@ -207,6 +211,41 @@ export const StudentProfilePanel: React.FC = () => {
           />
           <p className="text-[10px] text-slate-500 mt-1">
             Drives the countdown at the top of the Home screen.
+          </p>
+        </div>
+
+        {/* The one date that makes odd/even weeks calculable.
+
+            Without it the week type is a toggle in the header and nothing else,
+            so anything reasoning about a day other than the one on screen - the
+            check-in asking what lessons a Tuesday held, a finished week being
+            scored - had to assume ODD and was wrong half the time. */}
+        <div>
+          <label
+            htmlFor="profile-term-start"
+            className="block text-[11px] font-semibold text-slate-300 mb-1"
+          >
+            First ODD week of term
+          </label>
+          <input
+            id="profile-term-start"
+            type="date"
+            value={termStart}
+            onChange={(e) => setTermStart(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white"
+          />
+          <p className="text-[10px] text-slate-500 mt-1">
+            {termStart ? (
+              <>
+                Odd and even weeks are worked out from here, so every day knows its
+                own timetable. Any day of that week will do.
+              </>
+            ) : (
+              <span className="text-amber-400">
+                Not set — every day is assumed to be an odd week, so the check-in
+                offers the wrong lessons every other week.
+              </span>
+            )}
           </p>
         </div>
       </div>

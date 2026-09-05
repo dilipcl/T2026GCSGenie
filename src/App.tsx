@@ -20,6 +20,7 @@ import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { ChangeLogCard } from './components/shared/ChangeLogCard';
 import { UpdatesSection } from './components/updates/UpdatesSection';
 import { touchThisDevice } from './services/deviceRegistryService';
+import { resolveWeekType } from './services/weekType';
 import { backupIfDue } from './services/driveBackupService';
 import { ImprovementsView } from './components/improvements/ImprovementsView';
 import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
@@ -47,6 +48,19 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NavTab>('DASHBOARD');
   const [currentRole, setCurrentRole] = useState<UserRole>('STUDENT');
   const [activeWeek, setActiveWeek] = useState<WeekType>('ODD');
+
+  /**
+   * Start on the week today actually is, once there is a term calendar to work
+   * it out from. The toggle stays usable for looking at the other week's
+   * timetable; what it can no longer do is decide which lessons the check-in
+   * offers, because that now comes from the calendar.
+   */
+  useEffect(() => {
+    resolveWeekType().then(setActiveWeek).catch(() => {
+      // No calendar, or settings unreadable. ODD is where it started, which is
+      // the same guess the app made before this existed.
+    });
+  }, []);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isParentPinOpen, setIsParentPinOpen] = useState(false);

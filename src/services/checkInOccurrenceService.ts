@@ -15,6 +15,7 @@ import {
 import { logAuditEvent } from './auditService';
 import { newId } from '../utils/id';
 import { addDaysISO, parseISODate, todayISO } from '../utils/date';
+import { resolveWeekType } from './weekType';
 
 /**
  * Recording what happened, one occurrence at a time.
@@ -175,7 +176,7 @@ export async function recordOccurrence(
     }
   }
 
-  const shape = await dayShape(date, await weekTypeFor(date));
+  const shape = await dayShape(date, await resolveWeekType(date));
   await settleDayBonus(date, shape);
 
   await logAuditEvent({
@@ -187,19 +188,6 @@ export async function recordOccurrence(
   });
 
   return row;
-}
-
-/**
- * The week type a date falls in.
- *
- * The app carries this as a toggle rather than deriving it from a calendar, so
- * a service that needs it for an arbitrary date has to ask. Until there is a
- * term calendar to read, ODD is the honest default - it is what the toggle
- * starts on, and getting it wrong costs a lesson list that is one week out
- * rather than anything that is recorded.
- */
-async function weekTypeFor(_date: string): Promise<WeekType> {
-  return 'ODD';
 }
 
 export async function occurrencesOn(date: string): Promise<CheckInOccurrence[]> {
@@ -227,9 +215,11 @@ export interface DayProgress {
  */
 export async function dayProgress(
   date: string,
-  weekType: WeekType = 'ODD'
+  fallbackWeekType: WeekType = 'ODD'
 ): Promise<DayProgress> {
-  const shape = await dayShape(date, weekType);
+  // The term calendar decides when it is set; what the caller passes is only
+  // what to fall back on until somebody has entered a term start date.
+  const shape = await dayShape(date, await resolveWeekType(date, fallbackWeekType));
   const answered = await occurrencesOn(date);
   const answeredKeys = new Set(answered.map((row) => row.occurrenceKey));
 

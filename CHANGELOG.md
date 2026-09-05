@@ -51,6 +51,29 @@ paid separately and at a lower rate, so hoovering up easy items never beats
 keeping the actual commitment. Only a week that was actually agreed can earn
 any of it.
 
+### Odd and even weeks are worked out, not toggled
+
+The week type was a switch in the header and nothing else, so anything reasoning
+about a day other than the one on screen had to assume ODD - and was wrong half
+the time. The check-in offering Tuesday's lessons is the case that matters:
+nothing recorded was wrong, but the rows offered could be, which comes to the
+same thing for whoever is ticking them off.
+
+A fortnightly timetable is a strict alternation, so one date settles every other
+date. **First ODD week of term** in the student profile is that date; any day of
+that week will do. An even number of whole weeks after it is odd, an odd number
+is even, and it runs backwards for weeks before term as readily as forwards.
+The week count is rounded rather than floored, because the end of British Summer
+Time puts an extra hour into one fortnight a year and 25.96 weeks must not read
+as 25.
+
+The calendar is authoritative once set, and the header toggle becomes the
+fallback rather than a second opinion - two sources that can disagree is worse
+than either alone, since the check-in would offer one week's lessons while the
+review scored them against the other, and nothing on screen would say which had
+been believed. Left unset, everything behaves exactly as it did before, and the
+profile says so plainly rather than quietly guessing.
+
 ### The plan can be walked through, and says which week it means
 
 Plan was hard-wired to the current week, which made the most useful question in

@@ -868,6 +868,21 @@ export interface ParentSettings {
    */
   examSeriesStartDate?: string;
   /**
+   * The Monday of the first ODD week of term, as a local YYYY-MM-DD.
+   *
+   * The odd/even timetable was a manual toggle in the header, which meant
+   * nothing in the app could work out the week type for a date it was not
+   * currently showing. Anything reasoning about another day - the check-in
+   * asking what lessons a Tuesday held, a week being looked back at - had to
+   * assume ODD and was simply wrong half the time.
+   *
+   * One date fixes it, because the pattern is a strict fortnightly alternation:
+   * an even number of whole weeks after this Monday is ODD, an odd number is
+   * EVEN. Left unset it stays a toggle, which is the honest fallback rather
+   * than a guess dressed up as a calculation.
+   */
+  termStartDate?: string;
+  /**
    * Where a shared update goes. E.164 including the country code, because
    * that is what wa.me requires - "07..." silently fails to resolve.
    *

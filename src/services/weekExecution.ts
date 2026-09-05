@@ -3,6 +3,7 @@ import { Task, WeekPlanBaseline } from '../types';
 import { loadBaseline } from './planBaselineService';
 import { occurrencesBetween } from './checkInOccurrenceService';
 import { dayShape } from './dayPlan';
+import { resolveWeekType } from './weekType';
 import { addDaysISO, parseISODate, todayISO } from '../utils/date';
 
 /**
@@ -111,7 +112,14 @@ export async function weekExecution(weekStart: string): Promise<WeekExecution> {
     return iso >= weekStart && iso <= weekEnd;
   }).length;
 
-  const shapes = await Promise.all(datesOf(weekStart).map((date) => dayShape(date)));
+  /**
+   * Each day resolved against the term calendar rather than assumed ODD. The
+   * expected count is the denominator of the evidence score, so guessing the
+   * week type here would mark a week against a timetable it never had.
+   */
+  const shapes = await Promise.all(
+    datesOf(weekStart).map(async (date) => dayShape(date, await resolveWeekType(date)))
+  );
   const occurrencesExpected = shapes.reduce((sum, shape) => sum + shape.occurrences.length, 0);
   const answered = await occurrencesBetween(weekStart, weekEnd);
   const occurrencesAnswered = answered.length;
