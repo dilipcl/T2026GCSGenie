@@ -20,6 +20,17 @@ import { useSyncExternalStore } from 'react';
 export type DatabaseStatus =
   | { state: 'OPENING' }
   | { state: 'OPEN' }
+  /**
+   * Opening has neither succeeded nor failed for long enough that something is
+   * wrong. This is the state the app was missing, and it is the one that
+   * actually bit the family: `open()` can hang instead of rejecting - waiting
+   * on a blocked upgrade, or on a `ready` handler that is itself waiting on
+   * something that waits on the open database - and a promise that never
+   * settles reaches no `catch`. The app renders, every screen shows its
+   * loading placeholder for ever, and nothing is logged. Without a deadline
+   * there is no moment at which anyone can be told.
+   */
+  | { state: 'STALLED' }
   /** An older tab is holding the previous version open. */
   | { state: 'BLOCKED' }
   /** This tab stepped aside so a newer version could upgrade. */
@@ -36,6 +47,9 @@ export function setDatabaseStatus(next: DatabaseStatus): void {
   if (next.state === 'OPEN' && (current.state === 'BLOCKED' || current.state === 'SUPERSEDED')) {
     return;
   }
+  // Only a still-opening database can go on to stall. Once it has opened, or
+  // named a reason it could not, the watchdog firing late has nothing to add.
+  if (next.state === 'STALLED' && current.state !== 'OPENING') return;
   current = next;
   for (const listener of listeners) listener();
 }
@@ -51,4 +65,26 @@ function subscribe(listener: () => void): () => void {
 
 export function useDatabaseStatus(): DatabaseStatus {
   return useSyncExternalStore(subscribe, getDatabaseStatus, getDatabaseStatus);
+}
+
+/**
+ * How long to let `open()` run before saying so on screen.
+ *
+ * Generous on purpose. A cold phone doing a first sync is slow, and crying
+ * wolf at five seconds would train the family to ignore the one message that
+ * matters. Saying nothing at all, which is what the app did before, was the
+ * worse end of the same trade.
+ */
+const STALL_AFTER_MS = 12_000;
+
+/**
+ * Starts the deadline on opening the database.
+ *
+ * Reaching it is not itself a failure - a slow open that later succeeds clears
+ * the state and the notice disappears - so this only ever adds an explanation
+ * where the app previously showed a spinner and left it there.
+ */
+export function startOpenWatchdog(timeoutMs: number = STALL_AFTER_MS): () => void {
+  const timer = setTimeout(() => setDatabaseStatus({ state: 'STALLED' }), timeoutMs);
+  return () => clearTimeout(timer);
 }

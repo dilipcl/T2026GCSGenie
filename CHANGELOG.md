@@ -1,5 +1,38 @@
 # Changelog
 
+## September 2026 - The app went quiet, and could not say why
+
+Every screen empty. No XP, no subjects, "0 of 0 tasks", and Parent Mode stuck on
+"reading the parent lock" for ever. Nothing in the console, because nothing had
+gone wrong in a way that throws.
+
+`db.open()` can hang rather than reject - waiting behind a blocked upgrade, or
+behind a `ready` handler that is itself waiting on something that waits on the
+open database. A promise that never settles reaches no `catch`. Every screen
+reads IndexedDB, so every screen sat on its loading placeholder, and the
+placeholders are all zeroes and dashes. The app looked exactly like an app whose
+data had been deleted.
+
+That appearance is the dangerous part. The natural response to it is to clear
+the browser's site data and start over, which is the one action in the whole
+situation that genuinely destroys anything.
+
+So opening now has a deadline. Twelve seconds without either outcome is reported
+as `STALLED` - generously long, because crying wolf at five seconds on a cold
+phone would train everyone to ignore the one message that matters. Reaching it
+is not a failure in itself; a slow open that later succeeds clears it and the
+notice disappears.
+
+What the notice says is the point. It leads with the fact that nothing has been
+deleted, and then proves it: **Check my data** counts the rows straight out of
+IndexedDB, without going through the part that is stuck, and reports what it
+found. **Save a copy** writes the whole database to a JSON file by the same
+route, so a backup can be taken while the app itself cannot open - carrying the
+same exclusions an ordinary backup applies, because a file written mid-panic is
+the one most likely to be mailed around. Then the steps, safest first, and a
+plain statement of which button not to press.
+
+
 ## September 2026 - Four things Tejas reported, and what each one turned out to be
 
 The first bug reports filed from inside the app rather than over someone's
@@ -20,10 +53,19 @@ and the starter tasks all behaved the same way.
 `seedLedger` (schema v19) records every seed id the database has been offered.
 Absent-and-unrecorded is genuinely new and gets inserted; absent-and-recorded
 has been offered before, and what happened to it afterwards was somebody's
-decision. The table syncs, because a deletion on the phone that left no record
-here would be undone by the laptop's next seeding run - the same bug wearing a
-second device. Edits to seeded rows are still never overwritten, which is why
-this stays an insert-only pass rather than becoming a `bulkPut`.
+decision. Edits to seeded rows are still never overwritten, which is why this
+stays an insert-only pass rather than becoming a `bulkPut`.
+
+The ledger is device-local rather than synced. It was synced at first, on the
+reasoning that a deletion on the phone which left no record here would be undone
+by the laptop's next seeding run. That is a real risk, and it is the smaller
+one: the ledger is written from the `ready` handler, which Dexie awaits before
+`open()` resolves, and a write to a *synced* table goes through dexie-cloud to
+be stamped with `owner` and `realmId` - work that waits on an open database.
+Ready waits for the write, the write waits for open, open waits for ready. Each
+device now records what it has offered, so a synced deletion still stays deleted
+anywhere that already recorded the row; only a device that has never seen it
+would offer it again.
 
 A database that arrives with content and an empty ledger predates v19: it has
 been seeded on every load for months, so anything missing from it is missing on

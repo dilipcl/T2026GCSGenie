@@ -51,7 +51,7 @@ import {
   RETITLED_REWARDS,
   INITIAL_COMMITMENTS,
 } from './seedData';
-import { setDatabaseStatus } from './databaseStatus';
+import { setDatabaseStatus, startOpenWatchdog } from './databaseStatus';
 
 /**
  * The Dexie Cloud database backing sync. This is a public endpoint, not a
@@ -566,9 +566,23 @@ export class GCSEGenieDatabase extends Dexie {
      * report the outcome.
      */
     if (IS_BROWSER) {
+      /**
+       * The deadline starts before the call, because the failure being guarded
+       * against is the one where neither handler below ever runs. `open()` can
+       * hang rather than reject - behind a blocked upgrade, or behind a `ready`
+       * handler waiting on something that waits on the open database - and a
+       * promise that never settles reaches no `catch`. Without this the app sat
+       * on its loading placeholders indefinitely with nothing logged.
+       */
+      const settled = startOpenWatchdog();
+
       this.open()
-        .then(() => setDatabaseStatus({ state: 'OPEN' }))
+        .then(() => {
+          settled();
+          setDatabaseStatus({ state: 'OPEN' });
+        })
         .catch((error: unknown) => {
+          settled();
           const message = error instanceof Error ? error.message : String(error);
           console.error('Could not open the database:', error);
           setDatabaseStatus({ state: 'FAILED', message });
