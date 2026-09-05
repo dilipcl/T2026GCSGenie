@@ -69,6 +69,22 @@ Two checks warn rather than block: a week over its headroom, and work that is no
 A mock fortnight legitimately blows the ceiling, and refusing to let anyone plan such a week only
 pushes the planning outside the app. It is stated, a reason is asked for, and the parent decides.
 
+**This week or next.** A picker above the checklist chooses which week is being finalised, and the
+checklist, the timeline and the send button all follow it. It opens on next week from Friday
+onwards. Until this existed the planner could only ever finalise the week it was inside, so from
+Saturday the only week on offer was the one about to end — there was no way to agree the week about
+to start. The two horizons map onto the planner's own `THIS_WEEK` and `NEXT_WEEK` columns rather
+than introducing a second notion of a week, and each keeps its own baseline row.
+
+**Gates, with dates.** The Plan tab opens on a four-gate timeline — plan the week, get it agreed,
+do the work, close the week — each showing its **planned** window beside the date it **actually**
+happened. Windows are derived from the week's own Monday (`src/services/planGates.ts`), so no
+schedule is maintained anywhere: planning opens the Saturday before and is due Monday, approval is
+due Tuesday, the week runs Monday to Sunday. A gate reads `Open now`, `Due today`, `Late` while the
+week is live, or `Missed` once it has finished, and one passed late keeps showing how late it was
+after the tick goes green. Without this a week could sit in draft indefinitely with nothing
+anywhere suggesting that was unusual, which is precisely how a week gets lost.
+
 **Changing an agreed week.** After approval, pulling work in offers the swap first — pick what comes
 out, see the trade in hours, and the change is recorded with what it displaced. Adding on top stays
 available with a reason, because school does not check the plan before setting homework and refusing
@@ -252,9 +268,29 @@ That sheet is a reflex guard, not a review. The review lives on the **Updates** 
 
 Each entry keeps both the time it happened and the time it was confirmed. Nothing reaches the family until it has been re-confirmed.
 
+### To do - everything outstanding, in one list
+
+The Updates tab opens on **To do**, which reads across every other screen:
+outstanding plan steps, work overdue or due today, today's check-in, active
+fix-up quests, reward requests and goals awaiting a parent, and changes waiting
+to be signed off. Rows are sorted by urgency rather than by source, and each one
+is a link to the screen where the thing is actually done.
+
+`loadOutstanding(role)` in `src/services/outstandingService.ts` filters by who
+can act: a student never sees a reward request only a parent can approve, and
+vice versa. Each source is read independently and a source that throws costs its
+own row rather than the whole list - an inbox that renders nothing because one
+table is mid-upgrade is worse than one missing a line, because the reader cannot
+tell the two apart.
+
+This pane exists because the tab used to lead with the change log alone, and so
+reported "nothing pending" while the week sat unfinalised, two pieces of work
+ran overdue and a reward waited on a parent. Every one of those lived on its own
+tab and nothing joined them up.
+
 ### All activity - every change, by whom
 
-The Updates tab has two panes. **Sign off & send** is the original screen: read
+The Updates tab's other panes. **Sign off & send** is the original screen: read
 back what you did, put it on the record, forward it to the family. **All
 activity** is the complete record - every insert, update and delete.
 
@@ -528,6 +564,26 @@ revision and career links; the bell times behind the period chips; and the stude
 
 Every field-level change writes its own row to the change history — *weekly hours: 2 → 4*, not
 "goal updated". A summary row satisfies the letter of an audit trail and tells nobody anything.
+
+**Deletions stick.** Seeding used to insert any starter row whose primary key was absent, on every
+load, which made deleting seeded content impossible — delete the Art topics, refresh, and they were
+all back. `seedLedger` (schema v19) records every seed id the database has been offered, so an
+absent key now means one of two things told apart by the ledger: unrecorded is genuinely new and
+gets inserted, recorded has been offered before and whatever happened to it afterwards was somebody's
+decision. The table syncs, because a deletion on the phone that left no record would be undone by the
+laptop's next seeding run. A database arriving with content but no ledger predates v19, so its whole
+current seed set is marked as already-offered and nothing is inserted - existing installs do not get
+one final resurrection at the moment of upgrade. That is decided on every open rather than in a
+one-shot migration, so a device restored from a backup settles itself rather than re-seeding for
+ever.
+
+**Period times carry their lessons.** Changing a bell time used to move only the default offered to
+*new* lessons, so a school moving Period 1 left every day on the old time. **Apply to lessons
+already on the timetable** is ticked by default and moves every day using that period, on both
+weeks. Which lessons move is decided by the *old* default, not the new one: a lesson still sitting
+at the period's current times is following it and moves, while one already given its own times is an
+outlier — a shortened Friday, a double period — and is left alone and counted separately on screen,
+because moving it would destroy the edit that made it an outlier.
 
 ### Goals: draft → discussion → locked
 A goal is written the SMART way with a weekly hour budget and, optionally, the subject it belongs
@@ -915,6 +971,9 @@ src/
 │   ├── auditService.ts                # hash-chained change log + field-level diffs
 │   ├── burnoutEngine.ts               # weekly time budget
 │   ├── planBaselineService.ts         # readiness, approval, amendments, goal drift
+│   ├── planGates.ts                   # the four gates, planned window vs actual date
+│   ├── outstandingService.ts          # every screen's unfinished business, in one list
+│   ├── periodTimeService.ts           # moving a bell time, and the lessons that follow it
 │   ├── sanctionService.ts             # the three tiers and the escalation window
 │   ├── activityPlanService.ts         # what else the week holds, by category
 │   ├── headlineMetrics.ts             # the Home ticker's facts, assembled once

@@ -519,6 +519,50 @@
       week and checked every Wednesday.
     </p>
 
+    <h3>Subject, topic, goal — three different things</h3>
+    <p>
+      The Subjects &amp; Goals screen holds all three, and they're easy to run together. A strip at
+      the top of the screen names them with a live count of each; here they are in full.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Thing</th><th>What it is</th><th>Where you edit it</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Subject</b></td>
+            <td>A course you sit an exam in — Maths, History, Computer Science.</td>
+            <td>One card each in the grid.</td>
+          </tr>
+          <tr>
+            <td><b>Topic</b></td>
+            <td>A chunk of a subject's syllabus — "Sine &amp; Cosine Rules". What there is to learn.</td>
+            <td>Tap a subject card to add, rename, tick off or delete them.</td>
+          </tr>
+          <tr>
+            <td><b>Goal</b></td>
+            <td>A promise with hours behind it — "4h a week on Maths". How much time you're putting in.</td>
+            <td>The list at the bottom. Proposed by you, agreed by a parent.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      A subject holds its topics. A goal can point at a subject, but it isn't the same thing: ticking
+      off every Maths topic doesn't move a goal's hours, and logging four hours doesn't tick off a
+      topic. They answer different questions.
+    </p>
+
+    <div class="note">
+      <span class="note-l">Deleting a topic keeps it deleted</span>
+      <p>
+        It didn't used to. Starter content was re-added on every load, so a topic you deleted came
+        straight back on the next refresh. Genie now remembers what it has already offered you: your
+        deletions stick, on every device, while genuinely new starter content still arrives.
+      </p>
+    </div>
+
     <figure>
       <div class="shot">
         <div class="shot-bar"><i></i><i></i><i></i><span>Subjects &amp; Goals</span></div>
@@ -591,10 +635,25 @@
       </div>
       <figcaption>
         Your Odd/Even rotation, day by day. <b>Add lessons</b> puts several in at once; the pencil
-        edits one; <b>Period times</b> at the top sets the default start and end times so new lessons
-        land in the right slot. Today's lessons also appear on Home without you going looking.
+        edits one; <b>Period times</b> at the top sets the bell times. Today's lessons also appear on
+        Home without you going looking.
       </figcaption>
     </figure>
+
+    <div class="note">
+      <span class="note-l">Changing a period time changes every day that uses it</span>
+      <p>
+        If school moves Period 1 by ten minutes, open <b>Period times</b>, change it once and save.
+        <b>Apply to lessons already on the timetable</b> is ticked by default, so every day using
+        that period moves with it — both odd and even weeks — and the panel tells you how many
+        lessons that is before you save.
+      </p>
+      <p>
+        Lessons you've already given <em>their own</em> times are left alone and counted separately,
+        so a shortened Friday survives a change to the rest of the week. Edit one of those directly
+        to move it. Untick the box and only the default for new lessons changes.
+      </p>
+    </div>
 
     <p>
       There's a quiet payoff to keeping this right: when you add homework, Genie <strong>guesses the
@@ -803,6 +862,53 @@
           <tr><td>Baselined</td><td>Agreed. <i>This</i> is what "did the week go to plan?" gets measured against on Sunday.</td></tr>
         </tbody>
       </table>
+    </div>
+
+    <h3>Which week you're agreeing</h3>
+    <p>
+      A picker above the checklist chooses between <strong>This week</strong> and
+      <strong>Next week</strong>, and everything below it — the checklist, the timeline, the send
+      button — follows that choice. From Friday it opens on next week, because by then the week in
+      front of you is the one worth planning.
+    </p>
+    <p>
+      The two weeks are agreed separately and keep separate baselines, so you can settle next week
+      on Saturday without touching the one that's ending.
+    </p>
+
+    <h3>Each step has a date it should be through by</h3>
+    <p>
+      A week used to be able to sit in draft indefinitely with nothing on any screen suggesting that
+      was unusual — which is exactly how a week gets lost while you're still learning the app. So the
+      Plan tab now opens with a timeline of four gates. Each one shows the date it's
+      <strong>planned</strong> for and the date it <strong>actually</strong> happened, side by side.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Gate</th><th>Planned window</th><th>What passing it means</th></tr></thead>
+        <tbody>
+          <tr><td>Plan the week</td><td>Saturday before → Monday</td><td>Work picked and estimated, sent for approval.</td></tr>
+          <tr><td>Get it agreed</td><td>Sunday before → Tuesday</td><td>A parent approves it. Until then it isn't the baseline.</td></tr>
+          <tr><td>Do the work</td><td>Monday → Sunday</td><td>The week runs. Changes after approval are amendments.</td></tr>
+          <tr><td>Close the week</td><td>Sunday → Monday</td><td>Review what happened before planning the next one.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      A gate that's inside its window reads <em>Open now</em>, and <em>Due today</em> on its last
+      day. Past that, it's <em>Late</em> while the week is still live and <em>Missed</em> once the
+      week has finished. A gate you passed late still shows how late it was after the tick goes
+      green — the gap is the part worth seeing.
+    </p>
+
+    <div class="note">
+      <span class="note-l">Planning starts on the Saturday</span>
+      <p>
+        Not on the Monday. Asking anyone to plan a week on the morning it starts is asking for it not
+        to happen — the weekend before is when there's actually time to think about it.
+      </p>
     </div>
 
     <h3>What has to be true before you can send it</h3>
@@ -1091,6 +1197,33 @@
       answer is the <strong>Updates</strong> tab.
     </p>
 
+    <h3>To do — everything outstanding, in one list</h3>
+    <p>
+      The tab opens on <strong>To do</strong>, and it reaches across every other screen: an
+      unfinalised plan, work that's overdue or due today, today's check-in if you haven't done it,
+      fix-up quests still waiting. Each row says what it's about, names the specific things
+      involved, and is a link — tap it and you land on the screen where that gets done.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Label</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td>Overdue</td><td>Already past its date. Top of the list, always.</td></tr>
+          <tr><td>Today</td><td>Due today, or waiting on you today.</td></tr>
+          <tr><td>This week</td><td>Wants doing before the week is out.</td></tr>
+          <tr><td>Waiting</td><td>Sitting with somebody else — usually a parent.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      The list is split by who can actually act. In student mode you see your work and never a reward
+      request only a parent can approve; in parent mode it's the reverse. If it's empty, it's
+      genuinely empty.
+    </p>
+
+    <h3>Sign off &amp; send</h3>
     <p>
       Everything you change gets a quick confirmation first — it names the thing and what it'll do
       (<code>+50 XP</code>), so a stray tap on a scrolling list can't quietly change your numbers:

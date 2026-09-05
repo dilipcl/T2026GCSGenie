@@ -58,6 +58,27 @@ recomputed at approval: what a parent agrees to must be exactly what was on
 screen when it was sent, and approving a moving target is not approving
 anything.
 
+**A gate has a date, not just a state.** The three statuses said what a week
+*was* and never when each step should have happened, so a week could sit in
+draft indefinitely with nothing anywhere calling that unusual — which is exactly
+how one gets lost. `planGates.ts` derives four gates from the week's own Monday:
+planning opens the Saturday before and is due Monday, approval is due Tuesday,
+the week runs Monday to Sunday, the review closes it. Nothing is stored, so every
+week gets the same shape and no schedule is maintained anywhere.
+
+The planned window and the actual date are shown together, and a gate passed late
+keeps its lateness after it goes green: the gap is the only part that teaches
+anything. `MISSED` is distinguished from `LATE` by whether the week has finished,
+because a fortnight-old plan is finished rather than actionable and nagging about
+it teaches people to ignore the nag.
+
+**Two horizons, one board.** Finalisation was hard-wired to the current week, so
+from Saturday the only week on offer was the one about to end. `PlanHorizon`
+selects `THIS_WEEK` or `NEXT_WEEK`, and the readiness checks read the matching
+planner column rather than introducing a second notion of a week that would drift
+from the board underneath. Each horizon resolves to its own Monday and therefore
+its own baseline row, so both weeks can be agreed without collision.
+
 **Amendments are rows, not an array on the baseline.** Two devices can both add
 work to an approved week while offline. Dexie Cloud merges rows; it does not
 merge an array inside one, so the second device's amendment would silently
@@ -1016,9 +1037,35 @@ export interface ProofAttachment {
 | 16 | `plannedActivities` — what else the week is for, indexed on `weekStart` and `category` |
 | 17 | The middle of the planner splits in two. `NEXT_UP` and `LATER` are re-filed by due date into `THIS_WEEK` / `NEXT_WEEK` / `FUTURE` / `BACKLOG` |
 | 18 | Repairs the databases that ran the first, wrong version of v17. See below |
+| 19 | `seedLedger` — which starter rows this database has already been offered, so a deleted one stays deleted. See below |
 
 `attachments` carries a compound index `[ownerType+ownerId]`, which is the only lookup that matters.
 Booleans are never indexed — see 8.6.
+
+**v19 makes deletion possible.** Seeding inserted any starter row whose primary key was absent, on
+every load — deliberately, so that content added in a later app version reaches devices already in
+use. The unnoticed cost is that an absent key cannot distinguish *missing* from *deleted*, so no
+seeded row could ever be removed: deleting the Art topics and refreshing brought all of them back.
+
+`seedLedger` splits the two cases. It records `tableName:rowId` for every seed row the database has
+been offered, so absent-and-unrecorded is genuinely new and gets inserted, while absent-and-recorded
+has been offered before and whatever happened to it afterwards was somebody's decision. Seeding
+stays insert-only — a synced device already holds the seed rows, possibly with a ticked-off topic or
+a teacher note on them, and `bulkPut` would quietly undo real work.
+
+The table **syncs**. A deletion on the phone that left no record here would be undone by the
+laptop's next seeding run, which is the same bug wearing a second device.
+
+The backfill is decided on every open rather than in a one-shot `upgrade` callback. A database
+that arrives with content and an empty ledger has been seeded on every load for months, so anything
+missing from it is missing on purpose: the whole current seed set is marked as already-offered and
+nothing is inserted, which is what stops one final resurrection at the moment of upgrade. Rows added
+by later versions are outside that set and still arrive normally.
+
+Deciding it per open rather than per migration makes it self-healing — a device restored from a
+backup, or one that receives rows over sync before it has a ledger, settles itself the next time it
+starts instead of re-seeding for ever. It also keeps the write out of a version transaction, where
+dexie-cloud's `owner`/`realmId` stamping would be doing its work in an unusual context.
 
 **v17 shipped wrong, and v18 is the apology.** The first version of v17 mapped the old `LATER`
 faithfully onto `FUTURE` whenever the date fell inside the term. That was true to the old label and

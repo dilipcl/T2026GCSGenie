@@ -1,5 +1,121 @@
 # Changelog
 
+## September 2026 - Four things Tejas reported, and what each one turned out to be
+
+The first bug reports filed from inside the app rather than over someone's
+shoulder. Two were defects, one was a workflow that had no dates in it, and one
+was a screen answering a different question from the one being asked of it.
+
+### Deleted topics came back on the next refresh
+
+He deleted the Art topics, saved, reloaded, and they were all there again.
+
+Seeding inserted any starter row whose primary key was absent - on every load,
+by design, so that content added in a later version reaches devices already in
+use. The cost of that design was never noticed: an absent key cannot tell
+"missing" from "deleted", so no seeded row could ever be deleted. Topics were
+just where it got noticed. Subjects, rewards, milestones, the seeded timetable
+and the starter tasks all behaved the same way.
+
+`seedLedger` (schema v19) records every seed id the database has been offered.
+Absent-and-unrecorded is genuinely new and gets inserted; absent-and-recorded
+has been offered before, and what happened to it afterwards was somebody's
+decision. The table syncs, because a deletion on the phone that left no record
+here would be undone by the laptop's next seeding run - the same bug wearing a
+second device. Edits to seeded rows are still never overwritten, which is why
+this stays an insert-only pass rather than becoming a `bulkPut`.
+
+A database that arrives with content and an empty ledger predates v19: it has
+been seeded on every load for months, so anything missing from it is missing on
+purpose. The whole current seed set is marked as already-offered and nothing is
+inserted, which is what prevents one last resurrection at the moment of upgrade.
+Seed rows added by later versions are outside that set and still arrive normally.
+
+That decision is made on every open rather than in a one-shot migration, so a
+device restored from a backup - or one that receives rows over sync before it
+has a ledger - settles itself the next time it starts rather than re-seeding for
+ever.
+
+### A period time moved, and no day moved with it
+
+Correct, and useless. Period times were the defaults offered to *new* lessons;
+lessons already on the timetable carry their own start and end, so changing
+Period 1 changed nothing anybody could see. The original reasoning was that a
+bell-schedule change should not silently rewrite history - defensible in the
+abstract, and wrong about why anyone opens that panel. Nobody edits bell times
+as a historical record. They edit them because the school moved the bell.
+
+**Apply to lessons already on the timetable** is now ticked by default and moves
+every day using that period, across both odd and even weeks. Which lessons move
+is decided by the *old* default rather than the new one: a lesson still sitting
+at the period's current times is following it and moves, while one already given
+its own times is an outlier - a shortened Friday, a double period - and is left
+alone, counted separately, and named on screen before you save. Recomputing that
+split after writing the new default would match nothing at all, because the old
+times it filters on would already be gone.
+
+### The week's plan had states but no dates
+
+He was still learning the app, never finalised a week, and nothing anywhere said
+so. The planner knew Draft, Awaiting approval and Baselined, and knew nothing
+about *when* each should have happened - so a week could sit in draft
+indefinitely without any screen suggesting that was unusual.
+
+The Plan tab now opens on four gates: plan the week, get it agreed, do the work,
+close the week. Each shows the window it is **planned** for beside the date it
+**actually** happened. Windows are derived from the week's own Monday, so no
+schedule is maintained anywhere and every week gets the same shape. Planning
+opens on the Saturday before - asking a 14-year-old to plan the week on the
+morning it starts is asking for it not to happen.
+
+A gate reads `Open now` inside its window, `Due today` on the last day of it,
+`Late` past it while the week is still live, and `Missed` past it once the week
+has finished, which is the only state nobody can act on. A gate passed late keeps
+showing how late it was after the tick goes green; the gap is the part that
+teaches anything, and it disappears the moment the row goes green.
+
+**And next week could not be planned at all.** Finalisation was hard-wired to
+`weekStartISO()`, so from Saturday the only week on offer was the one about to
+end. A picker chooses `THIS_WEEK` or `NEXT_WEEK` and the checklist, the timeline
+and the send button all follow it; it opens on next week from Friday. The two
+horizons are the planner's own columns rather than a second, parallel notion of a
+week that would immediately drift from the board underneath, and each keeps its
+own baseline row so both weeks can be agreed without collision.
+
+### Updates said "nothing pending" while four things waited
+
+True about the change log, which is all that screen ever read, and useless as an
+answer to "what do I need to do?". The plan was unfinalised, work was overdue,
+and a reward request sat with a parent - each on its own tab, with nothing
+joining them up.
+
+The tab now opens on **To do**, which reads across every source and sorts by
+urgency rather than by origin: an inbox grouped by which screen a thing came from
+makes the reader do the sorting. Every row is a link to the screen where the
+thing is actually done - doing it belongs where the context is, and a second,
+thinner version of each control here would be a second place for the rules to
+drift.
+
+Rows are filtered by who can act, so a student never sees a reward approval and a
+parent never sees the homework. Each source is read independently and one that
+throws costs its own row rather than the whole list: an inbox rendering nothing
+because a table is mid-upgrade is worse than one missing a line, because the
+reader cannot tell the two apart.
+
+### Subject, topic, goal
+
+Reported as confusion rather than as a bug, and fairly. The Subjects & Goals
+screen stacks three things that differ in kind, are edited in three different
+places, and only one of which was ever named on the page.
+
+A strip at the top names all three with a live count of each, and says the part
+that was only ever implicit: topics are what there is to learn, goals are how
+much time is going in, a subject holds its topics, and a goal can point at a
+subject without being one. A strip rather than a redesign - the grid, the modal
+and the goal ledger each work at the job they do, and what was missing was the
+sentence joining them, which reorganising three working sections would still
+leave unsaid.
+
 ## November 2026 - One stale bucket name took down the whole planner
 
 Reported as "I don't see it in This week". `loadWeekCommitment` does
