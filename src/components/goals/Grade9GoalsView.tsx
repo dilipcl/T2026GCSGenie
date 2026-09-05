@@ -12,6 +12,7 @@ import { logAuditEvent } from '../../services/auditService';
 import { SubjectDetailModal } from './SubjectDetailModal';
 import { GoalConsultationModal } from './GoalConsultationModal';
 import { GoalBurndownPanel } from './GoalBurndownPanel';
+import { ConceptLegend } from './ConceptLegend';
 import { Target, Plus, ShieldCheck, Lock, Unlock, X, PencilLine, Send } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { useChangeGuard } from '../shared/ChangeGuardProvider';
@@ -199,6 +200,11 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
           <span>Propose SMART Goal</span>
         </button>
       </div>
+
+      {/* Before anything else, because the rest of the screen assumes you know
+          the difference between a subject, a topic and a goal - and until this
+          strip existed, nothing on the page ever said what it was. */}
+      <ConceptLegend />
 
       {/* Above the subject grid on purpose. "Is the plan still adding up" is
           the question the goals list cannot answer - it shows status per goal,
