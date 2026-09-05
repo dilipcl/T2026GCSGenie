@@ -309,7 +309,9 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'UPDATES' && <UpdatesSection currentRole={currentRole} />}
+        {activeTab === 'UPDATES' && (
+          <UpdatesSection currentRole={currentRole} onOpenTab={setActiveTab} />
+        )}
 
         {activeTab === 'IMPROVEMENTS' && <ImprovementsView currentRole={currentRole} />}
 
