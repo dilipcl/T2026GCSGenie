@@ -1,9 +1,10 @@
 import { db } from '../db';
 import { NavTab } from '../components/layout/Navigation';
 import { UserRole } from '../types';
-import { todayISO } from '../utils/date';
+import { formatShortDate, todayISO } from '../utils/date';
 import { readFinalisationState } from './planBaselineService';
 import { pendingConfirmation } from './changeLogService';
+import { daysNeedingBackfill } from './checkInOccurrenceService';
 
 /**
  * One list of everything still waiting on somebody.
@@ -140,8 +141,24 @@ async function taskItems(): Promise<OutstandingItem[]> {
   const today = todayISO();
   const open = (await db.tasks.toArray()).filter((t) => !t.completed);
 
-  const overdue = open.filter((t) => t.dueDate < today);
-  const dueToday = open.filter((t) => t.dueDate === today);
+  /**
+   * Only work that was actually promised can be late.
+   *
+   * This filtered every open task by due date regardless of bucket, so planning
+   * ahead was punished: a piece of work pulled into next week's column, or
+   * parked in the backlog with an old date on it, was reported as "now overdue"
+   * before anybody had agreed to do it. Being ahead of the plan should never
+   * read as being behind it.
+   *
+   * NEXT_WEEK, FUTURE and BACKLOG are intentions. THIS_WEEK is the promise, and
+   * a promise is the only thing that can be broken. An older row with no bucket
+   * at all is treated as committed, because that is what it meant before the
+   * buckets existed.
+   */
+  const committed = open.filter((t) => t.bucket === undefined || t.bucket === 'THIS_WEEK');
+
+  const overdue = committed.filter((t) => t.dueDate < today);
+  const dueToday = committed.filter((t) => t.dueDate === today);
 
   const items: OutstandingItem[] = [];
 
@@ -176,11 +193,11 @@ async function taskItems(): Promise<OutstandingItem[]> {
 
 async function checkInItems(): Promise<OutstandingItem[]> {
   const today = todayISO();
-  const done = await db.checkIns.where('date').equals(today).count();
-  if (done > 0) return [];
+  const items: OutstandingItem[] = [];
 
-  return [
-    {
+  const done = await db.checkIns.where('date').equals(today).count();
+  if (done === 0) {
+    items.push({
       id: 'checkin:today',
       title: 'Do today’s check-in',
       detail: 'Two minutes. It is what keeps the streak alive and sets tomorrow’s first task.',
@@ -188,8 +205,34 @@ async function checkInItems(): Promise<OutstandingItem[]> {
       owner: 'STUDENT',
       tab: 'DASHBOARD',
       action: 'Go to Home',
-    },
-  ];
+    });
+  }
+
+  /**
+   * Days behind us that were never answered.
+   *
+   * Named rather than counted, and offered as work rather than as a telling-off.
+   * A day can still be checked in after the fact - the answer is just as true on
+   * Thursday as it was on Tuesday - and a plan cannot be repaired from evidence
+   * nobody ever recorded. The only thing lost by answering late is the
+   * same-day bonus, which is never taken back, only not earned.
+   */
+  const behind = await daysNeedingBackfill(today);
+  if (behind.length > 0) {
+    const dates = behind.map((day) => formatShortDate(day.date));
+    items.push({
+      id: 'checkin:backfill',
+      title: `${behind.length} day${behind.length === 1 ? '' : 's'} still to check in`,
+      detail: `${namesOf(dates)} — still worth doing; only the same-day bonus has gone.`,
+      urgency: 'SOON',
+      owner: 'STUDENT',
+      tab: 'DASHBOARD',
+      action: 'Catch up',
+      count: behind.length,
+    });
+  }
+
+  return items;
 }
 
 async function remediationItems(): Promise<OutstandingItem[]> {

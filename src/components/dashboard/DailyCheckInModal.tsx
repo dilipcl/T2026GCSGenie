@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../db';
-import { Task, CheckInSession, ParentSettings, SubjectId } from '../../types';
+import { Task, CheckInSession, ParentSettings, SubjectId, WeekType } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
@@ -24,27 +24,40 @@ import { WhatsAppShare } from '../shared/WhatsAppShare';
 import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { messageContext, questionMessage } from '../../services/whatsappService';
 import {
-  ACTIVITY_CATEGORIES,
   confirmAttendance,
-  expectedHours,
-  plannedHours,
   readActivityLoad,
   shouldAskAboutActivities,
 } from '../../services/activityPlanService';
 import { PlannedActivity } from '../../types';
 import { currentWeek } from '../../services/weekWindow';
+import { DayOccurrenceChecklist } from './DayOccurrenceChecklist';
 
 interface DailyCheckInModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  /** Which timetable week to read the day from. */
+  weekType?: WeekType;
+  /** Opens straight onto a past day, from the "still to check in" nudge. */
+  initialDate?: string;
 }
 
 export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  weekType = 'ODD',
+  initialDate,
 }) => {
+  /**
+   * The day being answered, which is not always today.
+   *
+   * A check-in written on Thursday about Tuesday is still the truth about
+   * Tuesday, and the plan needs it more than it needs a tidy timestamp - so
+   * choosing an earlier day is a first-class action here rather than something
+   * only a repair script could do.
+   */
+  const [checkInDate, setCheckInDate] = useState(initialDate ?? todayISO());
   const [session, setSession] = useState<CheckInSession>('EVENING');
   const [energy, setEnergy] = useState<1 | 2 | 3 | 4 | 5>(4);
   const [focus, setFocus] = useState<'LOW' | 'NORMAL' | 'HIGH'>('NORMAL');
@@ -457,72 +470,30 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
             ))}
           </div>
 
-          {/* Did the week go as planned?
+          {/* What the day was actually made of.
 
-              Only what has not been answered, only from midweek, and gone
-              entirely once every row has a reply. A question with a known
-              answer is the fastest way to train someone to skim past the whole
-              form - which costs the check-in, not just this step. */}
-          {activities.length > 0 && (
-            <div className="p-3 rounded-xl bg-cyan-950/25 border border-cyan-500/40 space-y-2">
-              <p className="text-[11px] font-bold text-cyan-100">
-                Did these happen? Anything that did not gives you the time back.
-              </p>
-
-              {activities.map((activity) => {
-                const meta = ACTIVITY_CATEGORIES[activity.category];
-                const answered = attendance[activity.id];
-                return (
-                  <div key={activity.id} className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm leading-none">{meta.icon}</span>
-                    <span className="text-[11px] text-white font-semibold min-w-0 flex-1 truncate">
-                      {activity.label}
-                      <span className="text-slate-400 font-normal">
-                        {' '}
-                        · {activity.plannedOccasions} × {activity.hoursEach}h
-                      </span>
-                    </span>
-
-                    {/* One button per possible count, up to the plan. Typing a
-                        number here would be a keyboard on a phone for an answer
-                        that is almost always "all of them" or "none". */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {Array.from({ length: activity.plannedOccasions + 1 }, (_, n) => n).map(
-                        (n) => (
-                          <button
-                            type="button"
-                            key={n}
-                            onClick={() =>
-                              setAttendance((prev) => ({ ...prev, [activity.id]: n }))
-                            }
-                            className={`w-7 h-7 rounded-lg text-[11px] font-bold border transition-colors ${
-                              answered === n
-                                ? 'bg-cyan-600 text-white border-cyan-400'
-                                : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
-                            }`}
-                          >
-                            {n}
-                          </button>
-                        )
-                      )}
-                    </div>
-
-                    {typeof answered === 'number' && answered < activity.plannedOccasions && (
-                      <span className="text-[10px] text-emerald-300 font-semibold w-full">
-                        +
-                        {Math.round(
-                          (plannedHours(activity) -
-                            expectedHours({ ...activity, actualOccasions: answered })) *
-                            10
-                        ) / 10}
-                        h back this week
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+              This used to be one question per week - "did these happen?"
+              against a list carrying a count - which could record that the week
+              went badly but never which part of it did. Air Cadets runs Tuesday
+              and Friday, and "1 of 2" is not something a plan can act on. Every
+              row here is one dated occurrence, and each saves as it is tapped. */}
+          <div className="p-3 rounded-xl bg-cyan-950/25 border border-cyan-500/40 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-bold text-cyan-100">How did the day go?</p>
+              <label className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                <span>Day</span>
+                <input
+                  type="date"
+                  value={checkInDate}
+                  max={todayISO()}
+                  onChange={(e) => setCheckInDate(e.target.value || todayISO())}
+                  className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-white"
+                />
+              </label>
             </div>
-          )}
+
+            <DayOccurrenceChecklist date={checkInDate} weekType={weekType} />
+          </div>
 
           {/* Energy & Focus */}
           <div className="grid grid-cols-2 gap-3">

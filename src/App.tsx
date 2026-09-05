@@ -392,6 +392,7 @@ export const App: React.FC = () => {
         isOpen={isCheckInOpen}
         onClose={() => setIsCheckInOpen(false)}
         onSuccess={refreshData}
+        weekType={activeWeek}
       />
       </ErrorBoundary>
 

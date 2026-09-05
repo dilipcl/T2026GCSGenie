@@ -488,6 +488,61 @@ export interface PlannedActivity {
   createdBy: UserRole;
 }
 
+/**
+ * One thing that was due to happen on one date, and what became of it.
+ *
+ * The check-in used to be one row per day per session, which could record that
+ * Tuesday went badly but never which part of it did. Air Cadets runs Tuesday
+ * and Friday; "1 of 2 happened" is not a fact anybody can act on, because the
+ * plan needs to know which one to move.
+ *
+ * `id` is `${date}__${occurrenceKey}` by construction and never generated -
+ * the same reasoning as ChoreCompletion and CommitmentException. The same
+ * lesson answered on the phone and the laptop while offline must merge into one
+ * row on sync rather than paying its XP twice.
+ */
+export type OccurrenceOutcome = 'HAPPENED' | 'PARTIAL' | 'MISSED';
+
+export interface CheckInOccurrence {
+  id: string;
+  /** Local ISO date of the occurrence itself, not of the answer. */
+  date: string;
+  /** Identifies the thing within its day - see `dayPlan.ts`. */
+  occurrenceKey: string;
+  kind: 'LESSON' | 'COMMITMENT' | 'STUDY' | 'WORK';
+  label: string;
+  subjectId?: SubjectId;
+  commitmentId?: string;
+  taskId?: string;
+  outcome: OccurrenceOutcome;
+  minutes?: number;
+  notes?: string;
+  /**
+   * Something to do about it, which becomes real work rather than a note
+   * nobody reads again. Set when the answer raises one.
+   */
+  followUp?: string;
+  /** The task the follow-up became, once it has been raised. */
+  followUpTaskId?: string;
+  /** What this row itself is worth. */
+  xpAwarded: number;
+  /**
+   * The day-level bonuses - answering everything, and answering on the day.
+   *
+   * Held on exactly one row per date and recomputed whenever any row of that
+   * date is written, so a bonus can never be paid twice by two rows both
+   * believing they completed the day.
+   */
+  dayBonusXp?: number;
+  /**
+   * The date this answer was written, which is not always the date it is
+   * about. Promptness is paid from the difference; lateness is never charged.
+   */
+  loggedOnDate: string;
+  loggedAt: number;
+  loggedBy: UserRole;
+}
+
 export interface FixedCommitment {
   id: string;
   label: string;

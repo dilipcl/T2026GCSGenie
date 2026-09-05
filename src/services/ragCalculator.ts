@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { RAGStatus, SubjectId, isNonExamSubject } from '../types';
+import { closedWeekBonuses } from './weekExecution';
 
 export interface SubjectRAGResult {
   subjectId: SubjectId;
@@ -187,7 +188,30 @@ export async function calculateTotalXP(): Promise<XPLedger> {
     .filter((r) => r.status === 'PENDING')
     .reduce((sum, r) => sum + (r.costXP || 0), 0);
 
-  const totalEarned = checkInXP + taskXP + remXP + choreXP;
+  /**
+   * Check-in occurrences: answering what the day was actually made of.
+   *
+   * Each row carries its own small value plus, on exactly one row per date, the
+   * day-level bonuses for answering everything and for answering on the day.
+   * Both are already settled by `checkInOccurrenceService`, so summing here
+   * cannot double-pay.
+   */
+  const occurrences = await db.checkInOccurrences.toArray();
+  const occurrenceXP = occurrences.reduce(
+    (sum, row) => sum + (row.xpAwarded || 0) + (row.dayBonusXp || 0),
+    0
+  );
+
+  /**
+   * Week execution: the bonus a finished week earns for keeping its promise,
+   * plus what was pulled from the backlog on top.
+   *
+   * Never negative - a badly executed week forfeits the bonus rather than
+   * costing XP already banked. See `weekExecution.ts` for why.
+   */
+  const executionXP = await closedWeekBonuses();
+
+  const totalEarned = checkInXP + taskXP + remXP + choreXP + occurrenceXP + executionXP;
   const trueBalance = totalEarned - penaltyXP - redeemedXP - reservedXP;
 
   return {

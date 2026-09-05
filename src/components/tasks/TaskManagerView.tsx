@@ -16,6 +16,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { WeekCommitmentBanner } from './WeekCommitmentBanner';
 
 interface TaskManagerViewProps {
   /** Opens the shared add sheet loaded with this task. */
@@ -107,6 +108,14 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* The promise, before the list.
+
+          My Work was a flat list of every open task, which answers "what
+          exists" and never "am I keeping the promise". Only the second question
+          is what finalising a week is for, and it belongs above the list rather
+          than somewhere the list eventually implies. */}
+      <WeekCommitmentBanner />
+
       {/* Header Banner */}
       <div className="glass-card p-6 bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 border-indigo-500/30 flex flex-wrap items-center justify-between gap-4">
         <div>

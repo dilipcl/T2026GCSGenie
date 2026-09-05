@@ -33,6 +33,7 @@ import {
   PlanAmendment,
   PlannedActivity,
   SeedLedgerEntry,
+  CheckInOccurrence,
 } from '../types';
 import {
   INITIAL_SUBJECTS,
@@ -146,6 +147,7 @@ export class GCSEGenieDatabase extends Dexie {
   planAmendments!: Table<PlanAmendment, string>;
   plannedActivities!: Table<PlannedActivity, string>;
   seedLedger!: Table<SeedLedgerEntry, string>;
+  checkInOccurrences!: Table<CheckInOccurrence, string>;
 
   constructor() {
     super('GCSEGenieDB', IS_BROWSER ? { addons: [dexieCloud] } : {});
@@ -476,6 +478,26 @@ export class GCSEGenieDatabase extends Dexie {
      * simpler and directly testable a moment later.
      */
     this.version(19).stores({ seedLedger: 'id' });
+
+    /**
+     * v20 records the day one occurrence at a time.
+     *
+     * The check-in asked one question per day per session, so it could record
+     * that Tuesday went badly but never which part of it did. Air Cadets runs
+     * Tuesday and Friday, and "1 of 2 happened" is not something a plan can act
+     * on - it cannot tell you which one to move.
+     *
+     * Indexed on `date` because every read is "what about this day", and on
+     * `taskId` so a piece of work can find the check-in that raised it. The
+     * primary key is built from the date and the occurrence rather than
+     * generated, so the same lesson answered offline on two devices merges into
+     * one row instead of paying twice.
+     *
+     * Schema only. `DailyCheckIn` is untouched and keeps working: the daily
+     * mood, energy and study minutes are still one row per session, and this
+     * table sits beside it answering a different question.
+     */
+    this.version(20).stores({ checkInOccurrences: 'id, date, kind, taskId' });
 
     /**
      * What happens when the database cannot open.

@@ -221,3 +221,44 @@ describe('loadOutstanding — resilience', () => {
     expect(nonPlan).toEqual([]);
   });
 });
+
+describe('only a promise can be broken', () => {
+  /**
+   * Overdue used to be every open task with a past due date, whatever column it
+   * sat in. Planning ahead was therefore punished: work parked in the backlog
+   * with an old date, or pulled into next week's column, was announced as "now
+   * overdue" before anyone had agreed to do it.
+   */
+  const yesterday = () => addDaysISO(-1, new Date());
+
+  it('reports committed work that has slipped', async () => {
+    await db.tasks.add(task({ bucket: 'THIS_WEEK', dueDate: yesterday() }));
+
+    const items = await loadOutstanding('STUDENT');
+    expect(items.find((i) => i.id === 'tasks:overdue')?.count).toBe(1);
+  });
+
+  it('leaves next week alone', async () => {
+    await db.tasks.add(task({ bucket: 'NEXT_WEEK', dueDate: yesterday() }));
+
+    const items = await loadOutstanding('STUDENT');
+    expect(items.find((i) => i.id === 'tasks:overdue')).toBeUndefined();
+  });
+
+  it('leaves the backlog alone', async () => {
+    await db.tasks.add(task({ bucket: 'BACKLOG', dueDate: yesterday() }));
+    await db.tasks.add(task({ bucket: 'FUTURE', dueDate: yesterday() }));
+
+    const items = await loadOutstanding('STUDENT');
+    expect(items.find((i) => i.id === 'tasks:overdue')).toBeUndefined();
+  });
+
+  it('still treats a bucketless older row as committed', async () => {
+    // That is what it meant before the buckets existed, and reclassifying it
+    // silently would drop real slippage off the list.
+    await db.tasks.add(task({ bucket: undefined, dueDate: yesterday() }));
+
+    const items = await loadOutstanding('STUDENT');
+    expect(items.find((i) => i.id === 'tasks:overdue')?.count).toBe(1);
+  });
+});

@@ -15,7 +15,7 @@ import {
 } from '../../services/activityPlanService';
 import { CommitmentOccasion, occasionsOn } from '../../services/commitmentService';
 import { CommitmentExceptionModal } from '../commitments/CommitmentExceptionModal';
-import { addDaysISO, parseISODate, formatFriendlyDate } from '../../utils/date';
+import { addDaysISO, parseISODate, formatFriendlyDate, formatShortDate } from '../../utils/date';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { InfoTip } from '../shared/InfoTip';
 import { CalendarRange, Plus, Trash2, Check, SlidersHorizontal, Undo2 } from 'lucide-react';
@@ -92,7 +92,16 @@ export const WeekActivitiesPanel: React.FC<Props> = ({ weekStart, weekType }) =>
         <div className="min-w-0">
           <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
             <CalendarRange className="w-4 h-4 text-cyan-400" />
-            <span>What else this week holds</span>
+            {/* Named by its dates rather than "this week", because the panel
+                can now be pointed at any week. A relative word on a screen you
+                can navigate is a label that lies as soon as you use it. */}
+            <span>
+              What else the week holds
+              <span className="text-slate-500 font-normal">
+                {' '}
+                · {formatShortDate(weekStart)} – {formatShortDate(addDaysISO(6, parseISODate(weekStart)))}
+              </span>
+            </span>
             <InfoTip label="Why this matters">
               Study time is what is left after everything else. A party, a film and an afternoon
               with friends are real hours, and until they are written down the planner will happily

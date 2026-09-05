@@ -1,5 +1,83 @@
 # Changelog
 
+## September 2026 - The week becomes a promise, and check-ins become the evidence
+
+Plan, My Work and the check-in were three features that did not know about each
+other. You planned in one place, worked in another, and checked in against
+neither. Everything below follows from joining them up.
+
+### A check-in is now about a day, not a week
+
+It used to ask one question per week - "did these happen?" - against a list
+carrying a count. Air Cadets runs Tuesday and Friday, so the only available
+answer was "one of two", and the plan could never learn which one. A count is
+not evidence, and a plan that cannot tell Tuesday from Friday cannot react to
+either.
+
+The unit is now the occurrence: this lesson, on this date; this parade night, on
+this date. The day's timetable is the check-in - each period and activity a fast
+row that saves as it is tapped, rather than thirty separate check-ins a week
+nobody would ever complete. Ids are built from the date and the occurrence, so
+the same lesson answered on two devices offline merges into one row instead of
+paying twice.
+
+Days can be answered late. A check-in written on Thursday about Tuesday is still
+the truth about Tuesday, and the plan needs it more than it needs a tidy
+timestamp - so choosing an earlier day is a first-class action, and Updates now
+names the days still missing rather than only noting that one was. Promptness
+pays a bonus; lateness is never charged. Punishing a late answer only buys
+silence.
+
+The header carries the count and the XP together - "9 of 12 answered, 18 of a
+possible 41" - because that is a reason to finish the list, where "+2 XP" is
+not. Answering everything is where most of the value sits, by design.
+
+A note on a row can raise a follow-up, and a follow-up becomes real work in the
+week with its own XP. Left inside the check-in it was a note nobody read again.
+
+### A week that goes well pays; a week that goes badly forfeits
+
+Nothing is ever taken back. The lever is a bonus paid when a week closes, scaled
+by how much of the promise was kept, so a poor week earns little or none of it.
+Clawing back banked XP would punish twice, and a run of hard weeks would strip
+the rewards earned in the good ones - which is how a motivation system becomes a
+spiral. Genuine sanctions still exist and remain a deliberate, human decision.
+
+Two things are measured, because either alone can be gamed. Delivery is the
+fraction of committed work finished. Evidence is the fraction of the week's
+occurrences answered at all - without it, the cheapest route to a perfect
+delivery score is to stop recording anything. Work pulled from the backlog is
+paid separately and at a lower rate, so hoovering up easy items never beats
+keeping the actual commitment. Only a week that was actually agreed can earn
+any of it.
+
+### The plan can be walked through, and says which week it means
+
+Plan was hard-wired to the current week, which made the most useful question in
+the app unanswerable: how did last week actually go? Weeks now step backwards
+and forwards, and a finished one reports what it delivered and what it earned.
+
+Every week is named by its dates. "Next week" is ambiguous on a Sunday and means
+something different tomorrow; "8 Sep - 14 Sep" cannot be misread, which matters
+most when a parent and a student are meant to be looking at the same thing.
+
+How the week gets agreed moved to the top of the page, directly under the
+promise itself. It used to sit below three other panels - so the step the whole
+plan depends on, and the one that unlocks the execution bonus, was the easiest
+one to miss.
+
+### My Work shows the promise before the list
+
+It was a flat list of every open task, which answers "what exists" and never "am
+I keeping the promise". The agreed commitment now sits above the list, with
+progress against it and what it is worth.
+
+Planning ahead also stopped being punished. Overdue was every open task with a
+past due date whatever column it sat in, so work parked in the backlog or pulled
+into next week was announced as "now overdue" before anyone had agreed to do it.
+Only committed work can be late, because only a promise can be broken.
+
+
 ## September 2026 - The app went quiet, and could not say why
 
 Every screen empty. No XP, no subjects, "0 of 0 tasks", and Parent Mode stuck on

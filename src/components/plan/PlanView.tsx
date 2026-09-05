@@ -13,7 +13,7 @@ import {
 import { calculateBurnoutCapacity, safeStudyHours } from '../../services/burnoutEngine';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { recordChange } from '../../services/changeLogService';
-import { formatFriendlyDate, formatShortDate, formatCountdown, daysUntil, addDaysISO } from '../../utils/date';
+import { formatFriendlyDate, formatShortDate, formatCountdown, daysUntil, addDaysISO, parseISODate } from '../../utils/date';
 import {
   CalendarClock,
   ChevronLeft,
@@ -51,6 +51,7 @@ import {
 import { planGates } from '../../services/planGates';
 import { currentWeek } from '../../services/weekWindow';
 import { PlanGateTimeline } from './PlanGateTimeline';
+import { WeekNavigator } from './WeekNavigator';
 import { newId } from '../../utils/id';
 import { logAuditEvent } from '../../services/auditService';
 
@@ -86,6 +87,12 @@ const BUCKETS: { id: PlanBucket; label: string; blurb: string }[] = [
  * meaningful next to the work meant to meet it.
  */
 export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onEdit, onOpenReview, activeWeek }) => {
+  /**
+   * The week being looked at, which is not necessarily the week being planned.
+   * Finalising only ever applies to this week or next, but looking back at a
+   * finished one is how "how did that go" gets answered at all.
+   */
+  const [viewWeek, setViewWeek] = useState(weekStartISO());
   const { toast } = useFeedback();
   const [deferring, setDeferring] = useState<{ task: Task; bucket: PlanBucket } | null>(null);
 
@@ -431,49 +438,76 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onEdit, onOpenReview,
         )}
       </div>
 
-      {/* Before the checklist: study time is what is left after everything
-          else, so the week's other commitments have to be on the page before
-          "does this fit" means anything. */}
-      <WeekActivitiesPanel weekStart={weekStartISO()} weekType={activeWeek} />
+      {/* How this week gets agreed.
 
-      {/* Which week is being agreed. Two options rather than free navigation:
-          the planner's columns are This week and Next week, and a picker
-          offering weeks the board cannot show would be a promise the rest of
-          the screen could not keep. */}
-      <div className="glass-card p-3">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <span className="text-[11px] font-bold text-white">Finalising</span>
-          <span className="text-[10px] text-slate-500">
-            week of {formatShortDate(horizonWeek)}
-          </span>
+          Second on the page, directly under the promise itself, because it is
+          the step the whole plan depends on and it used to sit below the fold
+          under three other panels. A week that is never finalised earns no
+          execution bonus and has no baseline to measure against, so burying the
+          one control that starts it made the most important action the easiest
+          one to miss. */}
+      <div className="space-y-3">
+        <div className="glass-card p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            {/* Not "How this week gets agreed" - the gate timeline below already
+                carries that title, and two panels with one name is how a page
+                stops being readable. This one only chooses which week. */}
+            <span className="text-[11px] font-bold text-white">Which week you are agreeing</span>
+            <span className="text-[10px] text-slate-400">
+              {/* Named in full. "Next week" is ambiguous on a Sunday, and a date
+                  cannot be misread the way a relative word can. */}
+              {formatShortDate(horizonWeek)} – {formatShortDate(addDaysISO(6, parseISODate(horizonWeek)))}
+            </span>
+          </div>
+          <div className="flex gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+            {(['THIS_WEEK', 'NEXT_WEEK'] as PlanHorizon[]).map((option) => {
+              const monday = horizonWeekStart(option);
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setHorizon(option)}
+                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                    horizon === option
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {option === 'THIS_WEEK' ? 'This week' : 'Next week'}
+                  <span className="block text-[9px] font-normal opacity-70">
+                    {formatShortDate(monday)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="flex gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl">
-          {(['THIS_WEEK', 'NEXT_WEEK'] as PlanHorizon[]).map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setHorizon(option)}
-              className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
-                horizon === option
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {option === 'THIS_WEEK' ? 'This week' : 'Next week'}
-            </button>
-          ))}
-        </div>
+
+        <PlanGateTimeline gates={gates} />
+
+        <PlanFinalisationCard
+          checks={checks}
+          baseline={baseline}
+          amendments={amendments}
+          onSubmit={submitPlan}
+          horizon={horizon}
+        />
       </div>
 
-      <PlanGateTimeline gates={gates} />
+      {/* Any week, not just this one.
 
-      <PlanFinalisationCard
-        checks={checks}
-        baseline={baseline}
-        amendments={amendments}
-        onSubmit={submitPlan}
-        horizon={horizon}
+          Study time is what is left after everything else, so the week's other
+          commitments have to be on the page before "does this fit" means
+          anything. Being able to step back through weeks matters as much: the
+          question "how did that go" is asked about a week that has finished,
+          and until now there was no way to look at one. */}
+      <WeekNavigator
+        weekStart={viewWeek}
+        onChange={setViewWeek}
+        onToday={() => setViewWeek(weekStartISO())}
       />
+
+      <WeekActivitiesPanel weekStart={viewWeek} weekType={activeWeek} />
 
       {/* Work that is not aimed at anything.
 
