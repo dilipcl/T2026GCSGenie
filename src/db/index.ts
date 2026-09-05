@@ -522,7 +522,22 @@ export class GCSEGenieDatabase extends Dexie {
        * Device-local by nature: a folder handle and an OAuth token describe
        * this browser profile's access to Drive, not anything about the family.
        */
-      unsyncedTables: ['driveSync'],
+      /**
+       * `seedLedger` is unsynced because writing to it must never depend on the
+       * cloud being ready. It is written from the `ready` handler, which Dexie
+       * awaits before `open()` resolves; a synced table's write goes through
+       * dexie-cloud to be stamped with `owner` and `realmId`, and that work
+       * waits on an open database. Ready waits for the write, the write waits
+       * for open, open waits for ready - and every query in the app pends for
+       * ever behind it, with nothing thrown and nothing logged.
+       *
+       * The cost is that the ledger is per-device rather than shared, which is
+       * survivable: each device records what IT has offered, so a deletion that
+       * syncs across still stays deleted on a device that already recorded the
+       * row. Only a brand-new device, which has recorded nothing, would offer a
+       * deleted row again.
+       */
+      unsyncedTables: ['driveSync', 'seedLedger'],
       unsyncedProperties: {
         /**
          * The API key must never leave the device.
