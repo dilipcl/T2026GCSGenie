@@ -9,7 +9,7 @@ import {
 } from '../types';
 import { logAuditEvent } from './auditService';
 import { newId } from '../utils/id';
-import { daysBetween, startOfWeekISO, todayISO } from '../utils/date';
+import { addDaysISO, daysBetween, parseISODate, startOfWeekISO, todayISO } from '../utils/date';
 import { currentWeek } from './weekWindow';
 import { loadWeekCommitment, taskHours, WeekCommitment } from './planService';
 import { calculateBurnoutCapacity, safeStudyHours } from './burnoutEngine';
@@ -124,6 +124,27 @@ export function goalFocus(committed: Task[]): GoalFocus {
  */
 export const OFF_GOAL_ALERT_SHARE = 0.5;
 
+/**
+ * Which week is being finalised.
+ *
+ * The planner could only ever finalise the week it was currently inside, which
+ * meant that from Saturday onwards there was no way to plan the week about to
+ * start - the screen showed a week that was nearly over and offered to
+ * baseline that. Tejas hit exactly this: the plan on screen was last week's,
+ * and next week could not be touched.
+ *
+ * The two horizons map onto the planner's own columns, so "next week" is the
+ * NEXT_WEEK column rather than a second, parallel notion of a week that would
+ * immediately drift from the one the board shows.
+ */
+export type PlanHorizon = 'THIS_WEEK' | 'NEXT_WEEK';
+
+/** The Monday of the week a horizon refers to. */
+export function horizonWeekStart(horizon: PlanHorizon, on: string = todayISO()): string {
+  const thisWeek = weekStartISO(on);
+  return horizon === 'THIS_WEEK' ? thisWeek : addDaysISO(7, parseISODate(thisWeek));
+}
+
 export interface ReadinessInput {
   commitment: WeekCommitment;
   safeStudyHours: number;
@@ -131,6 +152,8 @@ export interface ReadinessInput {
   /** Every task, so milestone cover can be checked outside the committed column. */
   allTasks: Task[];
   today?: string;
+  /** Which column holds the work being committed. Defaults to this week's. */
+  horizon?: PlanHorizon;
 }
 
 /**
@@ -148,7 +171,9 @@ export interface ReadinessInput {
  */
 export function readinessChecks(input: ReadinessInput): ReadinessCheck[] {
   const today = input.today ?? todayISO();
-  const committed = input.commitment.columns.THIS_WEEK.filter((t) => !t.completed);
+  const committed = input.commitment.columns[input.horizon ?? 'THIS_WEEK'].filter(
+    (t) => !t.completed
+  );
 
   const missingEstimates = committed.filter(
     (t) => !(typeof t.estimatedHours === 'number' && t.estimatedHours > 0)
@@ -271,10 +296,11 @@ async function upsert(row: WeekPlanBaseline): Promise<void> {
 export async function submitForApproval(
   commitment: WeekCommitment,
   note?: string,
-  weekStart: string = weekStartISO()
+  weekStart: string = weekStartISO(),
+  horizon: PlanHorizon = 'THIS_WEEK'
 ): Promise<WeekPlanBaseline> {
   const existing = await loadBaseline(weekStart);
-  const committed = commitment.columns.THIS_WEEK.filter((t) => !t.completed);
+  const committed = commitment.columns[horizon].filter((t) => !t.completed);
 
   const row: WeekPlanBaseline = {
     id: weekStart,
@@ -564,20 +590,25 @@ export function finalisationNudge(
  * outstanding" from the same tables is how they drift apart, and a nudge that
  * contradicts the screen it sends you to is worse than no nudge at all.
  */
-export async function readFinalisationState(): Promise<{
+export async function readFinalisationState(horizon: PlanHorizon = 'THIS_WEEK'): Promise<{
   status: PlanBaselineStatus;
   checks: ReadinessCheck[];
   nudge?: FinalisationNudge;
+  weekStart: string;
+  baseline?: WeekPlanBaseline;
 }> {
+  const weekStart = horizonWeekStart(horizon);
+
   const [commitment, capacity, milestones, allTasks, baseline] = await Promise.all([
     loadWeekCommitment(),
     calculateBurnoutCapacity(),
     db.milestones.toArray(),
     db.tasks.toArray(),
-    loadBaseline(),
+    loadBaseline(weekStart),
   ]);
 
   const checks = readinessChecks({
+    horizon,
     commitment,
     // Through the engine's own helper, never re-derived here. The same sum
     // written out a second time drifts the moment the total gains a term -
@@ -593,6 +624,8 @@ export async function readFinalisationState(): Promise<{
   return {
     status,
     checks,
+    weekStart,
+    baseline,
     nudge: finalisationNudge(status, checks, currentWeek().weekday, baseline?.returnedNote),
   };
 }

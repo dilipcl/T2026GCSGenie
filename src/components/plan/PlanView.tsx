@@ -13,7 +13,7 @@ import {
 import { calculateBurnoutCapacity, safeStudyHours } from '../../services/burnoutEngine';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { recordChange } from '../../services/changeLogService';
-import { formatFriendlyDate, formatCountdown, daysUntil, addDaysISO } from '../../utils/date';
+import { formatFriendlyDate, formatShortDate, formatCountdown, daysUntil, addDaysISO } from '../../utils/date';
 import {
   CalendarClock,
   ChevronLeft,
@@ -44,8 +44,13 @@ import {
   readinessChecks,
   submitForApproval,
   weekStartISO,
+  horizonWeekStart,
   AmendmentPlan,
+  PlanHorizon,
 } from '../../services/planBaselineService';
+import { planGates } from '../../services/planGates';
+import { currentWeek } from '../../services/weekWindow';
+import { PlanGateTimeline } from './PlanGateTimeline';
 import { newId } from '../../utils/id';
 import { logAuditEvent } from '../../services/auditService';
 
@@ -87,8 +92,22 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onEdit, onOpenReview,
   const [bringingIn, setBringingIn] = useState<{ task: Task; plan: AmendmentPlan } | null>(null);
   const [planningFor, setPlanningFor] = useState<MilestoneReminder | null>(null);
 
+  /**
+   * Which week the finalisation controls act on.
+   *
+   * The board below always shows every column - that is what a planner is for -
+   * but "send this for approval" has to mean one specific week, and until now
+   * it could only ever mean the current one. From Saturday that is the week
+   * about to end, so there was no way to agree the week about to start.
+   */
+  const [horizon, setHorizon] = useState<PlanHorizon>(() =>
+    // Past Thursday, the week in front of you is the one worth planning.
+    currentWeek().weekday >= 5 ? 'NEXT_WEEK' : 'THIS_WEEK'
+  );
+
   const commitment = useLiveQuery(() => loadWeekCommitment(), []);
-  const baseline = useLiveQuery(() => loadBaseline(), []);
+  const horizonWeek = horizonWeekStart(horizon);
+  const baseline = useLiveQuery(() => loadBaseline(horizonWeek), [horizonWeek]);
   const amendments = useLiveQuery(() => amendmentsFor(), [], [] as PlanAmendment[]);
   const allTasks = useLiveQuery(() => db.tasks.toArray(), [], [] as Task[]);
   const goals = useLiveQuery(() => db.goals.toArray(), [], [] as Goal[]);
@@ -108,11 +127,13 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onEdit, onOpenReview,
 
   const headroom = Math.max(0, headroomHours);
   const checks = readinessChecks({
+    horizon,
     commitment,
     safeStudyHours: headroom,
     milestones,
     allTasks,
   });
+  const gates = planGates(horizonWeek, baseline);
   const focus = goalFocus(commitment.columns.THIS_WEEK);
 
   const move = async (task: Task, bucket: PlanBucket) => {
@@ -169,13 +190,16 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onEdit, onOpenReview,
   };
 
   const submitPlan = async (note?: string) => {
-    await submitForApproval(commitment, note, weekStartISO());
+    const label = horizon === 'THIS_WEEK' ? 'this week' : 'next week';
+    const committed = commitment.columns[horizon].filter((t) => !t.completed);
+
+    await submitForApproval(commitment, note, horizonWeek, horizon);
     await recordChange({
       category: 'PLAN',
-      summary: `Sent this week's plan for approval — ${commitment.committedCount} tasks, ${commitment.committedHours}h`,
+      summary: `Sent ${label}'s plan for approval — ${committed.length} tasks`,
       detail: note,
       entity: 'WeekPlanBaseline',
-      entityId: weekStartISO(),
+      entityId: horizonWeek,
     });
     toast.success('Sent for approval', 'A parent agrees it, and then it is the baseline.');
   };
@@ -412,11 +436,43 @@ export const PlanView: React.FC<PlanViewProps> = ({ onAdd, onEdit, onOpenReview,
           "does this fit" means anything. */}
       <WeekActivitiesPanel weekStart={weekStartISO()} weekType={activeWeek} />
 
+      {/* Which week is being agreed. Two options rather than free navigation:
+          the planner's columns are This week and Next week, and a picker
+          offering weeks the board cannot show would be a promise the rest of
+          the screen could not keep. */}
+      <div className="glass-card p-3">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className="text-[11px] font-bold text-white">Finalising</span>
+          <span className="text-[10px] text-slate-500">
+            week of {formatShortDate(horizonWeek)}
+          </span>
+        </div>
+        <div className="flex gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+          {(['THIS_WEEK', 'NEXT_WEEK'] as PlanHorizon[]).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setHorizon(option)}
+              className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                horizon === option
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {option === 'THIS_WEEK' ? 'This week' : 'Next week'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <PlanGateTimeline gates={gates} />
+
       <PlanFinalisationCard
         checks={checks}
         baseline={baseline}
         amendments={amendments}
         onSubmit={submitPlan}
+        horizon={horizon}
       />
 
       {/* Work that is not aimed at anything.

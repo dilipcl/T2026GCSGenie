@@ -93,6 +93,19 @@ export function formatFriendlyDate(iso: string): string {
   });
 }
 
+/**
+ * "5 Sep" - a plain calendar date, never a relative one.
+ *
+ * `formatFriendlyDate` answers "how soon?", which is right on a due date and
+ * wrong wherever two dates are being compared. The plan gates put a planned
+ * date beside the date something actually happened, and "Today – Monday" makes
+ * that comparison impossible to read: the reader cannot tell which is earlier,
+ * and the label changes meaning tomorrow.
+ */
+export function formatShortDate(iso: string): string {
+  return parseISODate(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 /** "in 12 days" / "in 3 weeks" - for milestones that are still a way off. */
 export function formatCountdown(iso: string): string {
   const diff = daysUntil(iso);

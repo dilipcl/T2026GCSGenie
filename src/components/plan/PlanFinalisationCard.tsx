@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PlanAmendment, WeekPlanBaseline } from '../../types';
 import {
+  PlanHorizon,
   ReadinessCheck,
   canSubmit,
   outstandingSteps,
@@ -21,6 +22,8 @@ interface Props {
   baseline?: WeekPlanBaseline;
   amendments: PlanAmendment[];
   onSubmit: (note?: string) => Promise<void>;
+  /** Which week these checks and this button are about. */
+  horizon?: PlanHorizon;
 }
 
 /**
@@ -42,7 +45,15 @@ export const PlanFinalisationCard: React.FC<Props> = ({
   baseline,
   amendments,
   onSubmit,
+  horizon = 'THIS_WEEK',
 }) => {
+  /**
+   * "this week" was hard-coded here while the card could only ever finalise the
+   * current week. Now that next week can be agreed in advance, the wording has
+   * to follow - a card headed "this week" that submits next week's plan is
+   * worse than one with no heading at all.
+   */
+  const weekLabel = horizon === 'THIS_WEEK' ? 'this week' : 'next week';
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -79,7 +90,7 @@ export const PlanFinalisationCard: React.FC<Props> = ({
       <div className="flex flex-wrap items-start justify-between gap-3 mb-3 pb-3 border-b border-slate-800">
         <div className="min-w-0">
           <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-            <span>Finalising this week</span>
+            <span>Finalising {weekLabel}</span>
             <InfoTip label="Why finalise">
               Until the week is agreed, "committed" only means "currently in the left-hand
               column" — it can drift all week and nobody would know. Once it is baselined, the
@@ -201,7 +212,7 @@ export const PlanFinalisationCard: React.FC<Props> = ({
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="This week is over your headroom — say why (mocks, coursework deadline…)"
+              placeholder={`${weekLabel === 'this week' ? 'This' : 'Next'} week is over your headroom — say why (mocks, coursework deadline…)`}
               className="w-full mb-2 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
             />
           )}
@@ -216,7 +227,7 @@ export const PlanFinalisationCard: React.FC<Props> = ({
               {sending
                 ? 'Sending…'
                 : ready
-                ? 'Send this week for approval'
+                ? `Send ${weekLabel} for approval`
                 : `${blocking.length} ${blocking.length === 1 ? 'step' : 'steps'} to go`}
             </span>
           </button>
