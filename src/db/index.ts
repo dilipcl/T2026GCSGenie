@@ -32,6 +32,7 @@ import {
   WeekPlanBaseline,
   PlanAmendment,
   PlannedActivity,
+  SeedLedgerEntry,
 } from '../types';
 import {
   INITIAL_SUBJECTS,
@@ -71,6 +72,37 @@ const IS_BROWSER = typeof window !== 'undefined';
 
 const CLOUD_DATABASE_URL =
   import.meta.env?.VITE_DEXIE_CLOUD_URL || 'https://z80xp4ajs.dexie.cloud';
+
+/**
+ * Every table that ships starter content, with the content it ships.
+ *
+ * One list rather than a sequence of calls, because two things now need to walk
+ * it in the same order and with the same names: the seeding pass, and the v19
+ * migration that records what seeding has already offered. A table named in one
+ * and not the other would either resurrect deleted rows or suppress new ones.
+ *
+ * Order matters. Subjects come before the topics that reference them.
+ */
+const SEED_TABLES: [string, { id: string }[]][] = [
+  ['subjects', INITIAL_SUBJECTS],
+  ['syllabusTopics', INITIAL_SYLLABUS_TOPICS],
+  ['remediations', INITIAL_REMEDIATION_ACTIONS],
+  ['milestones', INITIAL_MILESTONES],
+  ['timetableSlots', INITIAL_TIMETABLE_SLOTS],
+  ['timetableEntries', INITIAL_TIMETABLE_ENTRIES],
+  // INITIAL_REWARDS already spreads in MICRO_REWARDS - do not add both
+  ['rewards', INITIAL_REWARDS],
+  ['careerResources', INITIAL_CAREER_RESOURCES],
+  ['revisionLinks', INITIAL_FREE_REVISION_LINKS],
+  ['goals', INITIAL_GOALS],
+  ['tasks', INITIAL_TASKS],
+  ['commitments', INITIAL_COMMITMENTS],
+];
+
+/** Table and row id together, since row ids are only unique within a table. */
+export function seedLedgerKey(table: string, rowId: string): string {
+  return `${table}:${rowId}`;
+}
 
 /**
  * IMPORTANT: IndexedDB cannot index boolean values. Fields such as `completed`,
@@ -113,6 +145,7 @@ export class GCSEGenieDatabase extends Dexie {
   planBaselines!: Table<WeekPlanBaseline, string>;
   planAmendments!: Table<PlanAmendment, string>;
   plannedActivities!: Table<PlannedActivity, string>;
+  seedLedger!: Table<SeedLedgerEntry, string>;
 
   constructor() {
     super('GCSEGenieDB', IS_BROWSER ? { addons: [dexieCloud] } : {});
@@ -420,6 +453,30 @@ export class GCSEGenieDatabase extends Dexie {
         });
     });
 
+    /**
+     * v19 records which seed rows this database has already been offered.
+     *
+     * Until now seeding re-inserted anything whose primary key was absent,
+     * every single load. Deleting a seeded row therefore did nothing that
+     * survived a refresh - Tejas deleted the Art topics, saved, reloaded, and
+     * they were all back.
+     *
+     * Schema only, with no `upgrade` callback. Filling the ledger is left to
+     * `seedMissingRows`, which runs on an open database, for two reasons.
+     *
+     * It is self-healing. A migration runs once, and a device that misses it -
+     * restored from a backup, or arriving over sync with rows but no ledger -
+     * would seed from an empty ledger for ever after. Deciding on every open
+     * means any such device settles itself the next time it starts.
+     *
+     * And it avoids writing to a synced table from inside a version
+     * transaction. dexie-cloud intercepts writes to stamp `owner` and
+     * `realmId`; whether it copes mid-upgrade is not something worth finding
+     * out on the family's only copy of their data, when the same work is
+     * simpler and directly testable a moment later.
+     */
+    this.version(19).stores({ seedLedger: 'id' });
+
     this.on('ready', async () => {
       await this.seedMissingRows();
     });
@@ -505,42 +562,104 @@ export class GCSEGenieDatabase extends Dexie {
   }
 
   /**
-   * Inserts starter content, skipping anything already present.
+   * Inserts starter content this database has never been offered.
+   *
+   * Two rules, and the second is the one that took a bug to learn.
    *
    * Never uses put/bulkPut: on a device that has just synced, the seed rows
    * already exist and may carry edits - a ticked-off topic, a teacher note, a
    * manual RAG override. Overwriting them with pristine copies would quietly
    * undo real work.
+   *
+   * And never offers the same row twice. An absent primary key used to be read
+   * as "missing, put it back", which made deleting any seeded row impossible:
+   * it returned on the next load. The ledger records what has been offered, so
+   * absent-and-unrecorded (new in this version) inserts, while
+   * absent-and-recorded (deleted by somebody) stays gone.
    */
   private async seedMissingRows() {
-    const addMissing = async <T extends { id: string }>(table: Table<T, string>, rows: T[]) => {
+    const now = Date.now();
+    const everySeedKey = () =>
+      SEED_TABLES.flatMap(([name, rows]) =>
+        rows.map((row) => ({ id: seedLedgerKey(name, row.id), recordedAt: now }))
+      );
+
+    const existing = await this.seedLedger.toArray();
+
+    /**
+     * A database with no ledger is one of two things, and they need opposite
+     * treatment.
+     *
+     * Brand new: nothing has been offered, so everything should be. Or it
+     * predates v19, in which case it has been seeded on every load for months -
+     * so anything absent from it is absent because somebody deleted it, and
+     * re-offering the set now would resurrect exactly what this whole mechanism
+     * exists to keep buried.
+     *
+     * `hasContent` tells them apart. It is checked across several tables rather
+     * than one, so a family that has cleared a single table is not mistaken for
+     * a fresh install.
+     */
+    if (existing.length === 0 && (await this.hasContent())) {
+      await this.seedLedger.bulkPut(everySeedKey());
+      await this.backfillSettingsDefaults();
+      return;
+    }
+
+    const offered = new Set(existing.map((row) => row.id));
+    const record: SeedLedgerEntry[] = [];
+
+    const addMissing = async <T extends { id: string }>(
+      name: string,
+      table: Table<T, string>,
+      rows: T[]
+    ) => {
       // Deduplicate the input first. bulkGet only reports what is already in the
       // database, so a seed array containing the same id twice - which is easy
       // to produce by spreading one seed list into another - still reaches
       // bulkAdd twice and fails the whole batch with a ConstraintError.
       const unique = [...new Map(rows.map((r) => [r.id, r])).values()];
-      if (unique.length === 0) return;
+      const fresh = unique.filter((r) => !offered.has(seedLedgerKey(name, r.id)));
+      if (fresh.length === 0) return;
 
-      const found = await table.bulkGet(unique.map((r) => r.id));
-      const missing = unique.filter((_, i) => found[i] === undefined);
+      const found = await table.bulkGet(fresh.map((r) => r.id));
+      const missing = fresh.filter((_, i) => found[i] === undefined);
       if (missing.length) await table.bulkAdd(missing);
+
+      // Recorded whether or not it was inserted. A row already present has
+      // still been offered, and re-offering it after a later deletion is
+      // exactly the behaviour being fixed.
+      for (const row of fresh) record.push({ id: seedLedgerKey(name, row.id), recordedAt: now });
     };
 
-    await addMissing(this.subjects, INITIAL_SUBJECTS);
-    await addMissing(this.syllabusTopics, INITIAL_SYLLABUS_TOPICS);
-    await addMissing(this.remediations, INITIAL_REMEDIATION_ACTIONS);
-    await addMissing(this.milestones, INITIAL_MILESTONES);
-    await addMissing(this.timetableSlots, INITIAL_TIMETABLE_SLOTS);
-    await addMissing(this.timetableEntries, INITIAL_TIMETABLE_ENTRIES);
-    // INITIAL_REWARDS already spreads in MICRO_REWARDS - do not add both
-    await addMissing(this.rewards, INITIAL_REWARDS);
-    await addMissing(this.careerResources, INITIAL_CAREER_RESOURCES);
-    await addMissing(this.revisionLinks, INITIAL_FREE_REVISION_LINKS);
-    await addMissing(this.goals, INITIAL_GOALS);
-    await addMissing(this.tasks, INITIAL_TASKS);
-    await addMissing(this.commitments, INITIAL_COMMITMENTS);
+    for (const [name, rows] of SEED_TABLES) {
+      await addMissing(name, this.table(name) as Table<{ id: string }, string>, rows);
+    }
+
+    if (record.length) await this.seedLedger.bulkPut(record);
 
     await this.backfillSettingsDefaults();
+  }
+
+  /**
+   * Whether this database has been used, as opposed to just created.
+   *
+   * Only asked once, to decide whether an empty ledger means "new" or "older
+   * than the ledger". Several tables because any single one can legitimately be
+   * empty - a family that deleted every reward has not started again - and
+   * `auditLogs` is included because any real use of the app writes to it, even
+   * a session that added nothing.
+   */
+  private async hasContent(): Promise<boolean> {
+    const counts = await Promise.all([
+      this.subjects.count(),
+      this.timetableEntries.count(),
+      this.rewards.count(),
+      this.tasks.count(),
+      this.auditLogs.count(),
+    ]);
+
+    return counts.some((count) => count > 0);
   }
 
   /**

@@ -1115,6 +1115,30 @@ export interface ImprovementIdea {
 }
 
 /**
+ * A seed row this database has already been offered.
+ *
+ * Seeding inserts anything whose primary key is absent, which is right for a
+ * new install and wrong for every load after it: a topic deleted on purpose is
+ * absent, so the next refresh put it straight back. Deleting the Art topics and
+ * watching them return was the bug that made this table necessary.
+ *
+ * So "absent" stops meaning "missing" and starts meaning one of two things,
+ * told apart by whether the id is recorded here. Unrecorded is genuinely new -
+ * a row this version of the app added - and gets inserted. Recorded has been
+ * offered before, and whatever happened to it afterwards was somebody's
+ * decision; it is never inserted again.
+ *
+ * Synced, deliberately. A deletion on the phone that left no record here would
+ * be undone by the laptop's next seeding run, which is the same bug wearing a
+ * second device.
+ */
+export interface SeedLedgerEntry {
+  /** `tableName:rowId` - unique across tables that may share row ids. */
+  id: string;
+  recordedAt: number;
+}
+
+/**
  * How this device reaches Google Drive, and what it has managed so far.
  *
  * One row, id `active`, never synced. Two transports, because no single one
