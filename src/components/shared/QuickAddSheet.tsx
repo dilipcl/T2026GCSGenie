@@ -45,6 +45,12 @@ interface QuickAddSheetProps {
   defaultMode?: AddMode;
   defaultWeek?: WeekType;
   defaultDay?: DayOfWeek;
+  /**
+   * Opens a new task already aimed at a goal. Set when the sheet is opened from
+   * a goal that has no work behind it, so the link is made by the act of
+   * adding rather than by remembering to set a field afterwards.
+   */
+  defaultGoalId?: string;
   editing?: QuickAddEditing | null;
 }
 
@@ -83,6 +89,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   defaultMode = 'TASK',
   defaultWeek = 'ODD',
   defaultDay = 'MON',
+  defaultGoalId,
   editing = null,
 }) => {
   const { toast } = useFeedback();
@@ -98,6 +105,13 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   const [estimatedHours, setEstimatedHours] = useState('');
   const [linkedGoalId, setLinkedGoalId] = useState('');
   const [goals, setGoals] = useState<Goal[]>([]);
+  /**
+   * Goals worth aiming new work at: the live ones, plus whichever goal this
+   * task already names even if it has since been completed or deferred.
+   */
+  const selectableGoals = goals.filter(
+    (g) => (g.status !== 'COMPLETED' && g.status !== 'DEFERRED') || g.id === linkedGoalId
+  );
   const [showMore, setShowMore] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -174,7 +188,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
       setCategory('EXAM_MOCK');
       setNotes('');
       setEstimatedHours('');
-      setLinkedGoalId('');
+      setLinkedGoalId(defaultGoalId ?? '');
       setShowMore(false);
       setIsSaving(false);
       setSelectedDays([defaultDay]);
@@ -182,9 +196,10 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
       setRoom('');
     }
 
-    db.goals.toArray().then((list) =>
-      setGoals(list.filter((g) => g.status !== 'COMPLETED' && g.status !== 'DEFERRED'))
-    );
+    // Shelved goals are kept and filtered at render, so that editing a task
+    // aimed at one still shows the goal it names. Dropping them here left the
+    // select reading "Not linked" over a link that was still set.
+    db.goals.toArray().then(setGoals);
 
     db.timetableSlots.toArray().then((list) => {
       // Dexie returns rows in primary-key order, which puts "After School" first
@@ -204,7 +219,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
         setEndTime(first.defaultEndTime);
       }
     });
-  }, [isOpen, defaultMode, defaultWeek, defaultDay, editing]);
+  }, [isOpen, defaultMode, defaultWeek, defaultDay, defaultGoalId, editing]);
 
   // Escape closes, like every other dialog in the app. Must sit above the
   // early return - a hook cannot be called conditionally.
@@ -744,6 +759,44 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
             </>
           )}
 
+          {/* Which goal this serves.
+
+              This lived inside "More options" and was therefore never seen -
+              a parent asked where tasks for a goal were added, having used the
+              app for weeks. It is not a rare setting: an unlinked task counts
+              towards no goal's weekly hours, so the goal it was meant to serve
+              shows no progress and the planner nags about work that is
+              genuinely happening. Hidden by default it was, in effect, off. */}
+          {mode === 'TASK' && selectableGoals.length > 0 && (
+            <div>
+              <label
+                htmlFor="quick-add-goal"
+                className="block text-[11px] font-bold text-slate-300 uppercase mb-1.5"
+              >
+                Towards a goal
+              </label>
+              <select
+                id="quick-add-goal"
+                value={linkedGoalId}
+                onChange={(e) => setLinkedGoalId(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white"
+              >
+                <option value="">Not linked</option>
+                {selectableGoals.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.title}
+                  </option>
+                ))}
+              </select>
+              {!linkedGoalId && (
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Work with no goal counts towards no goal's hours, so the goal it was for
+                  shows no progress.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Everything below is rarely changed, so it starts folded away */}
           <button
             type="button"
@@ -863,27 +916,6 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                       onChange={(e) => setEstimatedHours(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white placeholder-slate-500"
                     />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="quick-add-goal"
-                      className="block text-[11px] font-bold text-slate-300 uppercase mb-1.5"
-                    >
-                      Towards a goal
-                    </label>
-                    <select
-                      id="quick-add-goal"
-                      value={linkedGoalId}
-                      onChange={(e) => setLinkedGoalId(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white"
-                    >
-                      <option value="">Not linked</option>
-                      {goals.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.title}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                 </div>
               )}

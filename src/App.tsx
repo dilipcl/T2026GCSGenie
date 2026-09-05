@@ -71,6 +71,8 @@ export const App: React.FC = () => {
    * copies of the same form.
    */
   const [quickAddEditing, setQuickAddEditing] = useState<QuickAddEditing | null>(null);
+  /** Set when the add sheet is opened from a goal that needs work aimed at it. */
+  const [quickAddGoalId, setQuickAddGoalId] = useState<string | undefined>(undefined);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [selectedQuestId, setSelectedQuestId] = useState<string | undefined>(undefined);
   // Shown once, on the very first launch. Read lazily so storage is touched
@@ -137,6 +139,9 @@ export const App: React.FC = () => {
   const closeQuickAdd = () => {
     setIsQuickAddOpen(false);
     setQuickAddEditing(null);
+    // Cleared too, or the next task added from anywhere would silently inherit
+    // the goal of whichever one was opened from the goals screen.
+    setQuickAddGoalId(undefined);
   };
 
   const handleSelectQuestFromDashboard = (questId: string) => {
@@ -337,7 +342,16 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'GOALS' && <Grade9GoalsView currentRole={currentRole} />}
+        {activeTab === 'GOALS' && (
+          <Grade9GoalsView
+            currentRole={currentRole}
+            onAddWorkForGoal={(goalId) => {
+              setQuickAddEditing(null);
+              setQuickAddGoalId(goalId);
+              setIsQuickAddOpen(true);
+            }}
+          />
+        )}
 
         {activeTab === 'TIMETABLE' && (
           <TimetableManager
@@ -393,6 +407,7 @@ export const App: React.FC = () => {
           activeTab === 'CALENDAR' ? 'REMINDER' : activeTab === 'TIMETABLE' ? 'LESSON' : 'TASK'
         }
         defaultWeek={activeWeek}
+        defaultGoalId={quickAddGoalId}
       />
       </ErrorBoundary>
 

@@ -100,6 +100,33 @@ past due date whatever column it sat in, so work parked in the backlog or pulled
 into next week was announced as "now overdue" before anyone had agreed to do it.
 Only committed work can be late, because only a promise can be broken.
 
+### A goal now says what work is behind it
+
+Goals and tasks could always be linked, but only ever in one direction: a task
+could name its goal, and nothing anywhere asked a goal what work it had. So a
+goal with nothing behind it looked exactly like a goal going well - it sat at
+the top of the page with a target date and a weekly hours figure, and not one
+piece of work had ever been aimed at it. It would still look that way in March.
+
+Every goal now carries its count - "6 tasks, 2 this week, 3 done" - which is how
+a goal being worked is told from a goal being watched. Two failures are named
+separately because they need different answers: a goal with no tasks needs
+breaking down, a goal whose tasks all sit in the backlog needs one pulling into
+the week. A goal that is completed or deferred is never nagged about; a warning
+list that cries wolf stops being read.
+
+Where a goal is short of work, "Add work" opens the add sheet with the task
+already aimed at it, so the link is made by the act of adding rather than by
+remembering a field afterwards.
+
+That field was the other half of the problem. "Towards a goal" lived inside
+"More options" and was therefore never seen - a parent asked where tasks for a
+goal were added, having used the app for weeks. Hidden by default it was, in
+effect, off, and an unlinked task counts towards no goal's hours: the goal it
+was meant to serve shows no progress, while the planner nags about work that is
+genuinely happening. It now sits in the open, and says as much when nothing is
+chosen.
+
 
 ## September 2026 - The app went quiet, and could not say why
 

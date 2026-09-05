@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { SubjectConfig, Goal, ParentSettings, UserRole } from '../../types';
 import { calculateSubjectRAG, SubjectRAGResult } from '../../services/ragCalculator';
@@ -13,16 +14,47 @@ import { SubjectDetailModal } from './SubjectDetailModal';
 import { GoalConsultationModal } from './GoalConsultationModal';
 import { GoalBurndownPanel } from './GoalBurndownPanel';
 import { ConceptLegend } from './ConceptLegend';
-import { Target, Plus, ShieldCheck, Lock, Unlock, X, PencilLine, Send } from 'lucide-react';
+import { goalWorkload, goalsMissingWork } from '../../services/goalWorkload';
+import { Target, Plus, ShieldCheck, Lock, Unlock, X, PencilLine, Send, ListTodo, AlertTriangle } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { InfoTip } from '../shared/InfoTip';
 
 interface Grade9GoalsViewProps {
+  /** Opens the add sheet with a new task already aimed at this goal. */
+  onAddWorkForGoal?: (goalId: string) => void;
   currentRole: UserRole;
 }
 
-export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole }) => {
+export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({
+  currentRole,
+  onAddWorkForGoal,
+}) => {
+  /**
+   * How much work is aimed at each goal.
+   *
+   * The link between goals and tasks only ever worked one way - a task could
+   * name its goal, and nothing asked a goal what work it had. So a goal with
+   * nothing behind it looked exactly like a goal going well.
+   */
+  const workload = useLiveQuery(() => goalWorkload(), []);
+  const workByGoal = new Map((workload ?? []).map((row) => [row.goal.id, row]));
+  const missingWork = goalsMissingWork(workload ?? []);
+  const emptyGoals = missingWork.filter((row) => row.hasNoWork).length;
+  /**
+   * One line covering everything the banner is about to name. Counting only the
+   * empty goals read as a miscount whenever parked ones were listed underneath.
+   */
+  const missingWorkHeadline =
+    emptyGoals === missingWork.length
+      ? `${emptyGoals} goal${emptyGoals === 1 ? ' has' : 's have'} no work behind ${
+          emptyGoals === 1 ? 'it' : 'them'
+        }`
+      : emptyGoals === 0
+        ? `${missingWork.length} goal${
+            missingWork.length === 1 ? ' has' : 's have'
+          } nothing in this week`
+        : `${missingWork.length} goals need work aiming at them`;
   const { toast, confirm } = useFeedback();
   const { confirmChange } = useChangeGuard();
   const [subjects, setSubjects] = useState<SubjectConfig[]>([]);
@@ -336,6 +368,30 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
           </div>
         )}
 
+        {/* Goals with nothing pointed at them.
+
+            The failure this catches is silent: a goal with no tasks sits at the
+            top of the page with a target date and a weekly hours figure, and
+            looks exactly like one that is going well. It will still look that
+            way in March. */}
+        {missingWork.length > 0 && (
+          <div className="mb-3 p-3 rounded-xl border border-amber-500/40 bg-amber-950/25">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <h4 className="text-[11px] font-bold text-amber-100">{missingWorkHeadline}</h4>
+                <p className="text-[10px] text-amber-100/80 mt-0.5">
+                  {missingWork
+                    .slice(0, 4)
+                    .map((row) => row.goal.title)
+                    .join(', ')}
+                  {missingWork.length > 4 && ` and ${missingWork.length - 4} more`}.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-3">
           {goals.map((g) => (
             <div
@@ -368,6 +424,51 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({ currentRole })
                     {g.status.replace(/_/g, ' ')}
                   </span>
                 </div>
+
+                {/* What work is actually aimed at this goal.
+
+                    "6 tasks, 2 this week" is how a goal being worked is told
+                    from one being watched. Both used to look identical. */}
+                {(() => {
+                  const work = workByGoal.get(g.id);
+                  if (!work) return null;
+
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-semibold ${
+                          work.hasNoWork
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            : 'bg-slate-800 text-slate-300 border border-slate-700'
+                        }`}
+                      >
+                        <ListTodo className="w-3 h-3" />
+                        {work.total === 0
+                          ? 'No work linked'
+                          : `${work.total} task${work.total === 1 ? '' : 's'} · ${
+                              work.committed
+                            } this week · ${work.done} done`}
+                      </span>
+
+                      {work.hasNoCommittedWork && (
+                        <span className="text-[10px] text-amber-400">
+                          nothing pulled into this week
+                        </span>
+                      )}
+
+                      {onAddWorkForGoal && (work.hasNoWork || work.hasNoCommittedWork) && (
+                        <button
+                          type="button"
+                          onClick={() => onAddWorkForGoal(g.id)}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Add work
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="text-xs text-slate-400 space-y-0.5">
                   <p>
