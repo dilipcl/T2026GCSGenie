@@ -477,10 +477,6 @@ export class GCSEGenieDatabase extends Dexie {
      */
     this.version(19).stores({ seedLedger: 'id' });
 
-    this.on('ready', async () => {
-      await this.seedMissingRows();
-    });
-
     /**
      * What happens when the database cannot open.
      *
@@ -580,6 +576,32 @@ export class GCSEGenieDatabase extends Dexie {
         .then(() => {
           settled();
           setDatabaseStatus({ state: 'OPEN' });
+          /**
+           * Seeding runs here, on an open database, and never from `ready`.
+           *
+           * Dexie awaits the `ready` handler before `open()` resolves, so
+           * anything that handler writes has to complete before the database is
+           * open. Almost every table this writes to is synced, and a write to a
+           * synced table goes through dexie-cloud to be stamped with `owner`
+           * and `realmId` - work that waits on an open database. Ready waits for
+           * the write, the write waits for open, open waits for ready.
+           *
+           * It deadlocked only when there was something to write, which is what
+           * made it so hard to see: the same device would start perfectly well
+           * all week and then hang on the one load that had a new default to
+           * fill in. Nothing was thrown and nothing was logged - every screen
+           * simply sat on its loading placeholder, which reads as an app whose
+           * data has been deleted.
+           *
+           * Nothing needs the seed rows before the first paint. Queries are
+           * live, so a row inserted a moment later arrives on screen by itself.
+           */
+          void this.seedMissingRows().catch((error: unknown) => {
+            // Worth reporting, never worth blocking on. A database that failed
+            // to seed still holds the family's own data, and refusing to open
+            // over it would be the more expensive failure by far.
+            console.error('Could not seed starter content:', error);
+          });
         })
         .catch((error: unknown) => {
           settled();

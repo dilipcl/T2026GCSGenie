@@ -6,12 +6,23 @@ Every screen empty. No XP, no subjects, "0 of 0 tasks", and Parent Mode stuck on
 "reading the parent lock" for ever. Nothing in the console, because nothing had
 gone wrong in a way that throws.
 
-`db.open()` can hang rather than reject - waiting behind a blocked upgrade, or
-behind a `ready` handler that is itself waiting on something that waits on the
-open database. A promise that never settles reaches no `catch`. Every screen
-reads IndexedDB, so every screen sat on its loading placeholder, and the
-placeholders are all zeroes and dashes. The app looked exactly like an app whose
+Seeding ran from Dexie's `ready` handler, which `open()` awaits before it
+resolves. Almost every table it writes to is synced, and a write to a synced
+table goes through dexie-cloud to be stamped with `owner` and `realmId` - work
+that waits on an open database. Ready waited for the write, the write waited for
+open, open waited for ready.
+
+It only deadlocked on a load that actually had something to write - a settings
+default to fill in, a seed row not yet offered - which is why the same device
+started perfectly well for a week and then hung. A promise that never settles
+reaches no `catch`, so nothing threw and nothing logged. Every screen reads
+IndexedDB, so every screen sat on its loading placeholder, and those
+placeholders are zeroes and dashes. The app looked exactly like an app whose
 data had been deleted.
+
+Seeding now runs after `open()` resolves, never from `ready`, and nothing waits
+on it. No row is needed before the first paint: the queries are live, so a row
+inserted a moment later arrives on screen by itself.
 
 That appearance is the dangerous part. The natural response to it is to clear
 the browser's site data and start over, which is the one action in the whole
