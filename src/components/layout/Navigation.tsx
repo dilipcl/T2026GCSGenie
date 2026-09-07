@@ -12,6 +12,7 @@ import {
   ListTodo,
   CalendarDays,
   ClipboardCheck,
+  BookOpen,
   FileCheck,
   MoreHorizontal,
   X,
@@ -23,6 +24,7 @@ export type NavTab =
   | 'CALENDAR'
   | 'PLAN'
   | 'UPDATES'
+  | 'RECORD'
   | 'PROOF'
   | 'GOALS'
   | 'TIMETABLE'
@@ -66,6 +68,14 @@ export const Navigation: React.FC<NavigationProps> = ({
     // Where changes get signed off. Daily, because an update that waits a week
     // to be confirmed is a week the family spent asking.
     { id: 'UPDATES', label: 'Updates', shortLabel: 'Updates', icon: ClipboardCheck, tier: 'daily' },
+    /**
+     * What actually happened, day by day, with the notes in full.
+     *
+     * `daily` rather than behind the More sheet, because the reason it is being
+     * built is that the material was too hard to find - and the fix for "hard
+     * to find" is not a fifth pane inside a tab that already has four.
+     */
+    { id: 'RECORD', label: 'Record', shortLabel: 'Record', icon: BookOpen, tier: 'daily' },
     // Logged when a marked paper comes back - a weekly rhythm, not a daily one
     { id: 'PROOF', label: 'Proof Log', shortLabel: 'Proof', icon: FileCheck, tier: 'weekly' },
     { id: 'REWARDS', label: 'Rewards', shortLabel: 'Rewards', icon: Gift, tier: 'weekly' },

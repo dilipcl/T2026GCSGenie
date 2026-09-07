@@ -19,6 +19,7 @@ import { ChangeGuardProvider } from './components/shared/ChangeGuardProvider';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { ChangeLogCard } from './components/shared/ChangeLogCard';
 import { UpdatesSection } from './components/updates/UpdatesSection';
+import { RecordView } from './components/record/RecordView';
 import { touchThisDevice } from './services/deviceRegistryService';
 import { resolveWeekType } from './services/weekType';
 import { backupIfDue } from './services/driveBackupService';
@@ -340,6 +341,8 @@ export const App: React.FC = () => {
             }
           />
         )}
+
+        {activeTab === 'RECORD' && <RecordView />}
 
         {activeTab === 'UPDATES' && (
           <UpdatesSection currentRole={currentRole} onOpenTab={setActiveTab} />
