@@ -28,6 +28,7 @@ import { DataQualityPanel } from './DataQualityPanel';
 import { SanctionPanel } from './SanctionPanel';
 import { PlanApprovalPanel } from './PlanApprovalPanel';
 import { PortalSection } from './PortalSection';
+import { XpStatementPanel } from '../rewards/XpStatementPanel';
 import { UserCog, ListChecks, Link as LinkIcon } from 'lucide-react';
 import { logAuditEvent } from '../../services/auditService';
 import { triggerCelebration } from '../../utils/confetti';
@@ -45,6 +46,7 @@ import {
   Sparkles,
   KeyRound,
   ShieldCheck,
+  Receipt,
   FileWarning,
 } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
@@ -686,6 +688,21 @@ export const ParentPortal: React.FC = () => {
       >
         <ChoreManagerPanel />
         <RewardManagerPanel />
+      </PortalSection>
+
+      {/* Reconciling the points.
+
+          Reachable from the Rewards shop too, and it belongs here as well: the
+          question "is that balance right?" is a parent's, it is asked away from
+          the shop, and answering it used to mean exporting the database. The
+          same panel, so there is one account of where the XP came from rather
+          than two that can disagree. */}
+      <PortalSection
+        title="XP"
+        blurb="Where every point came from, and any closes worth a second look"
+        icon={<Receipt className="w-5 h-5 text-emerald-400" />}
+      >
+        <XpStatementPanel role="PARENT" />
       </PortalSection>
 
       <PortalSection

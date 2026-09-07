@@ -175,6 +175,29 @@ export interface WeekPlanBaseline {
   /** Set when a parent sends it back instead of approving, with what to fix. */
   returnedAt?: number;
   returnedNote?: string;
+  /**
+   * When the week was actually reviewed, and what was said.
+   *
+   * The gate timeline used to settle "close the week" from the calendar alone -
+   * a week whose Sunday had passed counted as reviewed whether anybody had
+   * looked at it or not, so a skipped review was indistinguishable from a done
+   * one and the one gate that could never be late was the one most often
+   * missed. A timestamp written by the review itself is the only thing that can
+   * tell those two apart.
+   */
+  reviewedAt?: number;
+  reviewedNote?: string;
+  /**
+   * A week deliberately written off rather than reviewed.
+   *
+   * Tejas skipped a week because by the time he came back to it there was no
+   * point finalising it, and the app had nowhere to put that decision - so the
+   * week sat looking merely unfinished, forever. Writing it off is a normal,
+   * recorded act: the week stops asking to be dealt with, and the reason
+   * survives, which is the difference between a decision and a gap.
+   */
+  writtenOffAt?: number;
+  writtenOffNote?: string;
   createdAt: number;
 }
 
@@ -381,7 +404,7 @@ export interface Assessment {
  */
 export interface ProofAttachment {
   id: string;
-  ownerType: 'ASSESSMENT' | 'TASK' | 'REMEDIATION' | 'MILESTONE' | 'TOPIC';
+  ownerType: 'ASSESSMENT' | 'TASK' | 'REMEDIATION' | 'MILESTONE' | 'TOPIC' | 'GOAL';
   ownerId: string;
   fileName: string;
   mimeType: string;
@@ -848,6 +871,29 @@ export interface AuditLogEntry {
 }
 
 export interface ParentSettings {
+  /**
+   * When this family's app first offered to capture evidence at the moment work
+   * is closed.
+   *
+   * Written once, by whichever device opens the app first after the upgrade,
+   * and never rewritten. It exists to keep one specific accusation honest: the
+   * XP statement flags homework closed with nothing attached and nothing said,
+   * and that flag reads as "you skipped the step you were offered". Before this
+   * moment there was no step - a task could not carry a photo or a link at all
+   * - so applying it to older work accuses somebody of skipping something that
+   * did not exist, and buries the real cases under a term of noise.
+   *
+   * A stamp rather than a constant in the code, because a family upgrades when
+   * their device happens to pick the build up. A hardcoded release date would
+   * wrongly flag every close made between that date and whenever they actually
+   * got the new version - a month of false accusations for a family who
+   * upgraded late, which is the exact failure this is here to prevent.
+   *
+   * Optional, and its absence means "not known to have been available", which
+   * suppresses the flag entirely. Silence is the right failure mode for an
+   * accusation.
+   */
+  evidenceOnCloseFrom?: number;
   /**
    * Who the app is for. Name, year, school and the headline target grade were
    * literal strings inside Header.tsx, so a second child - or simply moving up
@@ -1316,8 +1362,11 @@ export interface ActivityComment {
    * rather than chasing them twice. Absent on rows written before this existed,
    * which are ordinary comments.
    */
-  kind?: 'COMMENT' | 'EVIDENCE_REQUEST';
-  /** The record the request is about, when it is an evidence request. */
+  kind?: 'COMMENT' | 'EVIDENCE_REQUEST' | 'EVIDENCE_NOTE';
+  /**
+   * The record the request is about, when it is an evidence request or a note
+   * explaining why there is none.
+   */
   subjectEntityId?: string;
   resolvedAt?: number;
   resolvedByRole?: UserRole;

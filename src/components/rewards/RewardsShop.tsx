@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { RewardItem, RewardRedemption, UserRole } from '../../types';
 import { calculateTotalXP } from '../../services/ragCalculator';
+import { XpStatementPanel } from './XpStatementPanel';
 import { logAuditEvent } from '../../services/auditService';
 import {
   Gift,
@@ -214,6 +215,15 @@ export const RewardsShop: React.FC<RewardsShopProps> = ({ currentRole }) => {
           <Sparkles className="w-8 h-8 text-amber-400" />
         </div>
       </div>
+
+      {/* What the balance is made of.
+
+          Directly under the number, because "where did that come from?" is
+          asked of the number and nowhere else - and until now the app had no
+          answer to give. It also carries the reconciliation: closes that look
+          like they might have been accidents, sized in XP, with reopening as
+          the one action that corrects them. */}
+      <XpStatementPanel role={currentRole} />
 
       {/* Anticipation does more work than the balance alone: show the next thing
           within reach and how close it is */}

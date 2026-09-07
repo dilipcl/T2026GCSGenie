@@ -14,7 +14,13 @@ import {
   CheckCircle2,
   Send,
   Check,
+  Plus,
+  MessageSquare,
+  CalendarClock,
 } from 'lucide-react';
+import { EvidencePanel } from '../shared/EvidencePanel';
+import { EVIDENCE_TARGETS } from '../../services/evidenceService';
+import { formatShortDate } from '../../utils/date';
 import { UserRole } from '../../types';
 import { requestEvidence, resolveComment } from '../../services/activityCommentService';
 import { WhatsAppShare } from '../shared/WhatsAppShare';
@@ -42,9 +48,20 @@ const EvidenceRow: React.FC<{
 }> = ({ item, studentName, subjectName, currentRole }) => {
   const [sharing, setSharing] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [note, setNote] = useState('');
 
   const openAsk = item.openRequests?.[0];
+  const given = item.notes?.[0];
+
+  /**
+   * The link already on the record, picked out of the evidence refs by the
+   * source the index stamped on it. The panel needs the current value or its
+   * field opens blank and a save wipes a link that was already there.
+   */
+  const existingLink = item.evidence.find(
+    (ref) => ref.kind === 'LINK' && ref.source === EVIDENCE_TARGETS[item.entity].linkLabel
+  )?.url;
 
   /**
    * The message says when the work was done, not just what it was called.
@@ -76,10 +93,31 @@ const EvidenceRow: React.FC<{
 
       <div className="min-w-0 flex-1">
         <p className="text-xs text-slate-100 leading-snug break-words">{item.title}</p>
-        <p className="text-[10px] text-slate-500">
-          {item.entity}
-          {item.subjectId ? ` · ${item.subjectId.replace(/_/g, ' ')}` : ''}
-          {item.completed ? ' · done' : ' · not finished'}
+        {/* Enough to know which piece of work this actually was.
+
+            "Marked done with nothing attached" over a bare title is not
+            something anybody can act on - the first question is always which
+            one, and by the time a row reaches this list it is usually a week
+            old. The date it was due and the date it was closed are what pin it
+            down, so they are on the row rather than a tap away. */}
+        <p className="text-[10px] text-slate-500 flex flex-wrap items-center gap-x-1.5">
+          <span>{item.entity}</span>
+          {item.subjectId && <span>· {item.subjectId.replace(/_/g, ' ')}</span>}
+          {item.dueDate && (
+            <span className="inline-flex items-center gap-0.5">
+              {/* A plain calendar date. `formatFriendlyDate` answers "how
+                  soon?" and returns "Overdue by 12 days", which reads as
+                  nonsense after the word "due". */}
+              · <CalendarClock className="w-2.5 h-2.5" /> due {formatShortDate(item.dueDate)}
+            </span>
+          )}
+          {item.completed ? (
+            <span className="text-slate-400">
+              · closed {item.completedAt ? whenLabel(item.completedAt) : 'at some point'}
+            </span>
+          ) : (
+            <span>· not finished</span>
+          )}
         </p>
 
         {item.evidence.length > 0 && (
@@ -127,10 +165,35 @@ const EvidenceRow: React.FC<{
           </div>
         )}
 
-        {item.missingEvidence && (
+        {item.unexplained && (
           <p className="text-[10px] text-amber-300 mt-1 leading-snug">
-            Marked done with nothing attached — no photo, no link.
+            Marked done with nothing attached — no photo, no link, and nothing said about why.
           </p>
+        )}
+
+        {/* Missing, but accounted for. A different row from the one above, and
+            deliberately quieter: somebody has already dealt with this, and
+            colouring it like an unanswered problem is how a list of real
+            problems gets ignored. */}
+        {given && (
+          <div className="mt-1.5 rounded-lg bg-slate-800/60 border border-slate-700 p-2">
+            <p className="text-[10px] text-slate-300 leading-snug flex items-start gap-1.5">
+              <MessageSquare className="w-3 h-3 text-slate-400 flex-shrink-0 mt-0.5" />
+              <span>
+                <span className="font-bold">No proof, and that is explained</span> — “{given.text}”
+                <span className="text-slate-500">
+                  {' '}
+                  ·{' '}
+                  {given.authorLabel ||
+                    (given.authorRole === 'PARENT' ? 'a parent' : 'the student')}
+                  , {whenLabel(given.createdAt)}
+                </span>
+                {(item.notes?.length ?? 0) > 1 && (
+                  <span className="text-slate-500"> · {item.notes!.length - 1} more</span>
+                )}
+              </span>
+            </p>
+          </div>
         )}
 
         {/* Chased, and still nothing back. A different situation from simply
@@ -176,14 +239,54 @@ const EvidenceRow: React.FC<{
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => setSharing((prev) => !prev)}
-          className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-300"
-        >
-          <Send className="w-3 h-3" />
-          {sharing ? 'Hide' : item.missingEvidence ? 'Ask for it on WhatsApp' : 'Share on WhatsApp'}
-        </button>
+        {/* The action that was missing entirely.
+
+            This tab could say a piece of homework had been closed with nothing
+            attached, and then offer exactly one thing to do about it: message
+            somebody on WhatsApp. Adding the evidence - the obvious answer, and
+            usually the right one - was not possible from anywhere in the app.
+            It is the first control on the row now, and chasing is the fallback
+            behind it. */}
+        <div className="flex flex-wrap items-center gap-3 mt-1.5">
+          <button
+            type="button"
+            onClick={() => setAdding((prev) => !prev)}
+            className={`inline-flex items-center gap-1 text-[10px] font-bold ${
+              item.unexplained
+                ? 'text-amber-300 hover:text-amber-200'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            <Plus className="w-3 h-3" />
+            {adding ? 'Close' : item.hasEvidence ? 'Add more evidence' : 'Add the evidence'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSharing((prev) => !prev)}
+            className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-slate-300"
+          >
+            <Send className="w-3 h-3" />
+            {sharing
+              ? 'Hide'
+              : item.missingEvidence
+              ? 'Ask for it on WhatsApp'
+              : 'Share on WhatsApp'}
+          </button>
+        </div>
+
+        {adding && (
+          <div className="mt-2 p-2.5 rounded-xl bg-slate-950/70 border border-slate-800">
+            <EvidencePanel
+              entity={item.entity}
+              entityId={item.entityId}
+              title={item.title}
+              role={currentRole}
+              existingLink={existingLink}
+              compact
+            />
+          </div>
+        )}
 
         {sharing && (
           <div className="mt-1.5">
@@ -233,12 +336,18 @@ export const EvidenceCheck: React.FC<{ currentRole: UserRole }> = ({ currentRole
       .filter((item) => (missingOnly ? item.missingEvidence : true))
       .filter((item) => (askedOnly ? (item.openRequests?.length ?? 0) > 0 : true))
       .filter((item) => matches(item, query))
-      /* Chased-and-unanswered first. It is the only state here that is waiting
-         on a person, so burying it under everything finished recently would
-         defeat the point of recording the ask at all. */
+      /* Chased-and-unanswered first, then gaps nobody has accounted for. Those
+         are the two states waiting on a person; burying either under everything
+         finished recently would defeat the point of recording them at all. A
+         gap with a reason against it sorts with the ordinary rows, because it
+         is finished business. */
       .sort((a, b) => {
         const asked = (item: typeof a) => ((item.openRequests?.length ?? 0) > 0 ? 1 : 0);
         if (asked(a) !== asked(b)) return asked(b) - asked(a);
+
+        const open = (item: typeof a) => (item.unexplained ? 1 : 0);
+        if (open(a) !== open(b)) return open(b) - open(a);
+
         return (b.completedAt ?? 0) - (a.completedAt ?? 0);
       });
   }, [index, query, missingOnly, askedOnly]);
@@ -301,6 +410,19 @@ export const EvidenceCheck: React.FC<{ currentRole: UserRole }> = ({ currentRole
           {summary.withEvidence} of {summary.expected}
         </span>{' '}
         finished pieces of work have something attached.
+        {/* The split matters more than the total. A gap somebody has already
+            accounted for is finished business; only the unexplained ones are
+            worth anybody's evening. */}
+        {summary.missing > 0 && (
+          <>
+            {' '}
+            <span className={summary.unexplained > 0 ? 'text-amber-300 font-bold' : ''}>
+              {summary.unexplained} of the {summary.missing} without proof have nothing said about
+              them
+            </span>
+            {summary.explained > 0 && <> · {summary.explained} explained</>}.
+          </>
+        )}
         {summary.awaitingReply > 0 && (
           <>
             {' '}

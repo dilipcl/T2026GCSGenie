@@ -104,30 +104,114 @@ export async function requestEvidence(input: {
 }
 
 /**
- * Open evidence requests, keyed by the record they are about.
+ * Everything the Evidence tab needs to say about a piece of work, in one pass.
  *
- * Keyed by `subjectEntityId` rather than by the activity row, because the
- * Evidence tab lists work rather than changes and would otherwise have to walk
- * the audit log to join the two back together.
+ * Deliberately one function returning two maps rather than two functions, and
+ * the reason is a bug rather than tidiness. Each of these needs author labels,
+ * and `deviceLabelMap` does not merely read - it back-fills registrations for
+ * device ids it finds in the audit log and has no row for. Calling it twice
+ * inside a single `Promise.all` had both halves compute the same backfill
+ * before either had written it, so both wrote; and because the whole thing runs
+ * inside a `useLiveQuery`, that write invalidated the query that had just
+ * caused it. The tab spent its time re-reading three whole tables and never
+ * painted a frame.
+ *
+ * Keyed by `subjectEntityId` rather than by the activity row, because the tab
+ * lists work rather than changes and would otherwise have to walk the audit log
+ * to join the two back together.
  */
-export async function openEvidenceRequests(): Promise<Map<string, ActivityComment[]>> {
+export interface EvidenceComments {
+  /** Asks nobody has answered, by the record they are about. */
+  requests: Map<string, ActivityComment[]>;
+  /** Reasons given for there being no proof, newest first. */
+  notes: Map<string, ActivityComment[]>;
+}
+
+export async function evidenceComments(): Promise<EvidenceComments> {
   const [comments, devices] = await Promise.all([
     db.activityComments.toArray(),
     deviceLabelMap(),
   ]);
 
-  const byEntity = new Map<string, ActivityComment[]>();
+  const requests = new Map<string, ActivityComment[]>();
+  const notes = new Map<string, ActivityComment[]>();
+
   for (const comment of comments) {
-    if (comment.kind !== 'EVIDENCE_REQUEST' || !comment.subjectEntityId) continue;
-    if (comment.resolvedAt) continue;
+    if (!comment.subjectEntityId) continue;
+
+    const into =
+      comment.kind === 'EVIDENCE_REQUEST'
+        ? comment.resolvedAt
+          ? undefined
+          : requests
+        : comment.kind === 'EVIDENCE_NOTE'
+        ? notes
+        : undefined;
+    if (!into) continue;
 
     const actor = describeActor(comment.authorRole, comment.authorDeviceId, devices);
-    byEntity.set(comment.subjectEntityId, [
-      ...(byEntity.get(comment.subjectEntityId) ?? []),
+    into.set(comment.subjectEntityId, [
+      ...(into.get(comment.subjectEntityId) ?? []),
       { ...comment, authorLabel: actor.person ?? actor.label },
     ]);
   }
-  return byEntity;
+
+  // Newest first: the latest word on a piece of work is the one that stands.
+  for (const [, list] of notes) list.sort((a, b) => b.createdAt - a.createdAt);
+
+  return { requests, notes };
+}
+
+/** Just the unanswered asks. */
+export async function openEvidenceRequests(): Promise<Map<string, ActivityComment[]>> {
+  return (await evidenceComments()).requests;
+}
+
+/**
+ * Saying why a piece of work has no proof behind it.
+ *
+ * The Evidence tab could only ever report the gap. That is fine for the cases
+ * where the answer is "attach the photo", and useless for the ones where the
+ * honest answer is "it was classwork, the book is in school" or "it was marked
+ * verbally" - both complete answers, and neither of them a file. With nowhere
+ * to write that down, the only way to clear a row was to attach something that
+ * did not exist, so the list filled with rows nobody could act on and stopped
+ * being read.
+ *
+ * Deliberately not a resolution of the request: nobody may have asked. It is a
+ * statement about the work, so it stands on its own, and if somebody has asked
+ * as well then answering the ask is a separate act with its own note.
+ */
+export async function addEvidenceNote(input: {
+  entityId: string;
+  title: string;
+  text: string;
+  authorRole: UserRole;
+}): Promise<ActivityComment> {
+  const text = input.text.trim();
+  if (!text) throw new Error('A note needs something in it.');
+
+  const history = await db.auditLogs.where('entity').notEqual('').toArray();
+  const latest = history
+    .filter((row) => row.entityId === input.entityId)
+    .sort((a, b) => b.timestamp - a.timestamp)[0];
+
+  const comment: ActivityComment = {
+    id: newId('cmt'),
+    activityId: latest?.id ?? input.entityId,
+    subjectEntityId: input.entityId,
+    kind: 'EVIDENCE_NOTE',
+    createdAt: Date.now(),
+    authorRole: input.authorRole,
+    authorDeviceId: getDeviceId(),
+    text,
+    // A statement, not a question. Flagging it for review would put the person
+    // who just answered back at the top of somebody else's to-do list.
+    needsResponse: false,
+  };
+
+  await db.activityComments.add(comment);
+  return comment;
 }
 
 /**

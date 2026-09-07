@@ -166,14 +166,47 @@ export async function weekExecution(weekStart: string): Promise<WeekExecution> {
  * time a task from a past week was ticked or a check-in backfilled, and the
  * version that forgets to invalidate pays the wrong number for ever.
  */
-export async function closedWeekBonuses(weeks = 12): Promise<number> {
+export async function closedWeekExecutions(weeks = 12): Promise<WeekExecution[]> {
   const baselines = await db.planBaselines.toArray();
   const closed = baselines
+    /**
+     * Only weeks that were actually agreed can pay.
+     *
+     * This walked every row in the table, which was fine while a row only ever
+     * existed because somebody had submitted a plan. It stopped being fine the
+     * moment a week could get a row for another reason: closing a week that ran
+     * without a plan writes one to hold the decision, and that quietly enrolled
+     * the week in the payment list. `extraXp` is not gated by the bonus rules,
+     * so writing off a week paid 20 XP for every piece of work finished during
+     * it - an administrative act moving the balance, which is the one thing it
+     * must never do.
+     *
+     * The status test is what the design said all along: "an unplanned week has
+     * no promise to have kept". It also settles a latent version of the same
+     * bug, where a plan that was submitted and sent back - DRAFT, never
+     * approved - was paid as though it had been agreed.
+     */
+    .filter((baseline) => baseline.status === 'BASELINED')
     .map((baseline) => baseline.weekStart)
     .filter((weekStart) => addDaysISO(6, parseISODate(weekStart)) < todayISO())
     .sort()
     .slice(-weeks);
 
-  const executions = await Promise.all(closed.map((weekStart) => weekExecution(weekStart)));
+  return Promise.all(closed.map((weekStart) => weekExecution(weekStart)));
+}
+
+/**
+ * The same weeks, summed.
+ *
+ * Kept as a one-line wrapper over `closedWeekExecutions` rather than its own
+ * loop, so the itemised XP statement and the headline balance cannot disagree
+ * about which weeks paid. Two separate implementations of "the last twelve
+ * closed weeks" is precisely how a statement comes to sum to a different number
+ * than the total it is explaining - and a statement that does not add up is
+ * worse than no statement, because it makes the balance look wrong when it is
+ * not.
+ */
+export async function closedWeekBonuses(weeks = 12): Promise<number> {
+  const executions = await closedWeekExecutions(weeks);
   return executions.reduce((sum, execution) => sum + execution.bonusXp + execution.extraXp, 0);
 }

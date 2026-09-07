@@ -176,13 +176,37 @@ describe('currentGate', () => {
     expect(currentGate(planGates(WEEK, base, TUESDAY))?.id).toBe('RUN');
   });
 
-  it('has nothing left to point at once every gate is behind us', () => {
+  /**
+   * The calendar passing is not somebody closing the week.
+   *
+   * This used to expect `undefined` here, because REVIEW settled itself from
+   * the date - so a finished week nobody had looked at reported four green
+   * ticks and nothing left to do. That was the exact failure the gate timeline
+   * exists to catch, told about itself.
+   */
+  it('still points at the review of a finished week nobody closed', () => {
     const base = baseline({
       status: 'BASELINED',
       submittedAt: Date.parse(SUNDAY_BEFORE),
       approvedAt: Date.parse(MONDAY),
     });
+    expect(currentGate(planGates(WEEK, base, NEXT_TUESDAY))?.id).toBe('REVIEW');
+  });
+
+  it('has nothing left to point at once the week has actually been reviewed', () => {
+    const base = baseline({
+      status: 'BASELINED',
+      submittedAt: Date.parse(SUNDAY_BEFORE),
+      approvedAt: Date.parse(MONDAY),
+      reviewedAt: Date.parse(NEXT_TUESDAY),
+    });
     expect(currentGate(planGates(WEEK, base, NEXT_TUESDAY))).toBeUndefined();
+  });
+
+  it('counts a written-off week as closed too', () => {
+    const base = baseline({ writtenOffAt: Date.parse(NEXT_TUESDAY) });
+    const review = planGates(WEEK, base, NEXT_TUESDAY).find((g) => g.id === 'REVIEW');
+    expect(review?.state).toBe('DONE');
   });
 });
 

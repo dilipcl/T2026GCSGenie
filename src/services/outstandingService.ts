@@ -2,9 +2,12 @@ import { db } from '../db';
 import { NavTab } from '../components/layout/Navigation';
 import { UserRole } from '../types';
 import { formatShortDate, todayISO } from '../utils/date';
-import { readFinalisationState } from './planBaselineService';
+import { PlanHorizon, horizonWeekStart, readFinalisationState } from './planBaselineService';
 import { pendingConfirmation } from './changeLogService';
 import { daysNeedingBackfill } from './checkInOccurrenceService';
+import { openWeeks } from './weekLedger';
+import { workNeedingEvidence } from './evidenceService';
+import { currentWeek } from './weekWindow';
 
 /**
  * One list of everything still waiting on somebody.
@@ -63,6 +66,8 @@ const URGENCY_RANK: Record<OutstandingUrgency, number> = {
 export async function loadOutstanding(role: UserRole): Promise<OutstandingItem[]> {
   const sources = [
     planItems,
+    pastWeekItems,
+    evidenceItems,
     taskItems,
     checkInItems,
     remediationItems,
@@ -88,19 +93,57 @@ export async function loadOutstanding(role: UserRole): Promise<OutstandingItem[]
     .sort((a, b) => URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency]);
 }
 
-/** The week's plan, wherever it has got stuck. */
+/**
+ * The plan, for whichever week is actually being decided.
+ *
+ * This asked about the current week and only the current week, which quietly
+ * reproduced the bug it was written to catch. The planner switches to next week
+ * from Thursday onwards - by then this week is agreed and there is nothing left
+ * to decide about it - so from Thursday to Sunday the inbox had nothing to say
+ * while the week about to start had no plan at all. The one stretch where
+ * planning actually happens was the one stretch this was silent.
+ *
+ * Both horizons are asked, and the answer for each is only included when there
+ * is something to do about it. A week already baselined contributes nothing,
+ * which is what keeps the list short in the ordinary case.
+ */
 async function planItems(): Promise<OutstandingItem[]> {
-  const { status, checks } = await readFinalisationState();
+  /**
+   * Next week is only worth nagging about once it is close enough to plan.
+   * Asking on a Monday for a plan covering seven days that have not started
+   * yet is asking somebody to invent work, and the gate windows already say
+   * planning opens on the Saturday before.
+   */
+  const horizons: PlanHorizon[] =
+    currentWeek().weekday >= 4 ? ['THIS_WEEK', 'NEXT_WEEK'] : ['THIS_WEEK'];
+
+  const perHorizon = await Promise.all(horizons.map(horizonItems));
+  return perHorizon.flat();
+}
+
+async function horizonItems(horizon: PlanHorizon): Promise<OutstandingItem[]> {
+  const { status, checks } = await readFinalisationState(horizon);
   const blocking = checks.filter((c) => !c.ok && c.blocking);
 
   if (status === 'BASELINED') return [];
 
+  /**
+   * Named by its dates, never by "this week" or "next week".
+   *
+   * Two rows both saying "this week's plan" on a Saturday - one about the week
+   * ending and one about the week starting - is worse than one row, and a
+   * relative word is exactly how that happens.
+   */
+  const weekStart = horizonWeekStart(horizon);
+  const naming = `week of ${formatShortDate(weekStart)}`;
+  const suffix = horizon === 'THIS_WEEK' ? '' : `:${horizon}`;
+
   if (status === 'AWAITING_APPROVAL') {
     return [
       {
-        id: 'plan:approve',
-        title: 'Approve this week’s plan',
-        detail: 'Tejas has sent the week for approval. It is not the baseline until it is agreed.',
+        id: `plan:approve${suffix}`,
+        title: `Approve the plan for the ${naming}`,
+        detail: 'Tejas has sent it for approval. It is not the baseline until it is agreed.',
         urgency: 'TODAY',
         owner: 'PARENT',
         tab: 'PLAN',
@@ -112,8 +155,8 @@ async function planItems(): Promise<OutstandingItem[]> {
   if (blocking.length === 0) {
     return [
       {
-        id: 'plan:submit',
-        title: 'Send this week’s plan for approval',
+        id: `plan:submit${suffix}`,
+        title: `Send the plan for the ${naming} for approval`,
         detail: 'Every step is done. Nobody has agreed to the week yet.',
         urgency: 'TODAY',
         owner: 'STUDENT',
@@ -127,14 +170,69 @@ async function planItems(): Promise<OutstandingItem[]> {
   // detail on each is the thing to fix, which is what makes the list actionable
   // instead of merely accurate.
   return blocking.map((check) => ({
-    id: `plan:${check.id}`,
-    title: check.label,
+    id: `plan:${check.id}${suffix}`,
+    title: `${check.label} — ${naming}`,
     detail: check.detail,
     urgency: 'SOON' as const,
     owner: 'STUDENT' as const,
     tab: 'PLAN' as const,
     action: 'Open the plan',
   }));
+}
+
+/**
+ * Weeks that have run and that nobody ever closed.
+ *
+ * The gap Tejas described: he committed the current week and left the one
+ * before it, because by then it was too late to be worth finalising. That was a
+ * reasonable call, and no screen in the app ever mentioned the week again -
+ * so from the outside it was indistinguishable from a week he had forgotten.
+ *
+ * Deliberately WAITING rather than OVERDUE. Nothing about a finished week is
+ * urgent; what it needs is a decision, and dressing that up as an emergency
+ * would push the genuinely time-critical rows below it.
+ */
+async function pastWeekItems(): Promise<OutstandingItem[]> {
+  const weeks = await openWeeks();
+
+  return weeks.map((week) => ({
+    id: `week:${week.weekStart}`,
+    title: `${week.todo} — ${formatShortDate(week.weekStart)} to ${formatShortDate(week.weekEnd)}`,
+    detail: week.because,
+    urgency: 'WAITING' as const,
+    owner: 'STUDENT' as const,
+    tab: 'PLAN' as const,
+    action: 'Open the plan',
+  }));
+}
+
+/**
+ * Work marked done with nothing to show for it and nothing said about why.
+ *
+ * The Evidence tab has been able to list these for a while; nothing ever
+ * carried them to the one screen people actually open to find out what needs
+ * doing. Only the unexplained ones count - a gap somebody has already accounted
+ * for is finished business, and an inbox row that can never be cleared is how
+ * an inbox stops being read.
+ */
+async function evidenceItems(): Promise<OutstandingItem[]> {
+  const missing = await workNeedingEvidence();
+  if (missing.length === 0) return [];
+
+  return [
+    {
+      id: 'evidence:missing',
+      title: `${missing.length} finished ${missing.length === 1 ? 'thing has' : 'things have'} no proof attached`,
+      detail:
+        `${namesOf(missing.map((item) => item.title))} — attach a photo or a link, ` +
+        `or say why there is nothing to attach.`,
+      urgency: 'SOON',
+      owner: 'STUDENT',
+      tab: 'UPDATES',
+      action: 'Open Evidence',
+      count: missing.length,
+    },
+  ];
 }
 
 async function taskItems(): Promise<OutstandingItem[]> {

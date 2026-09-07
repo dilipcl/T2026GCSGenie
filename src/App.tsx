@@ -22,6 +22,7 @@ import { UpdatesSection } from './components/updates/UpdatesSection';
 import { touchThisDevice } from './services/deviceRegistryService';
 import { resolveWeekType } from './services/weekType';
 import { backupIfDue } from './services/driveBackupService';
+import { markEvidenceOnCloseAvailable } from './services/evidenceService';
 import { ImprovementsView } from './components/improvements/ImprovementsView';
 import { CloudLoginDialog } from './components/layout/CloudLoginDialog';
 import { DatabaseGate } from './components/layout/DatabaseGate';
@@ -102,6 +103,15 @@ export const App: React.FC = () => {
     (async () => {
       try {
         await touchThisDevice(currentRole);
+        if (cancelled) return;
+        /**
+         * Records that closing work now offers to capture its evidence, the
+         * first time a build with that step runs. The XP statement only flags
+         * missing evidence after this moment - before it, a task could not
+         * carry a photo or a link at all, and accusing somebody of skipping a
+         * step that did not exist buries the real cases in a term of noise.
+         */
+        await markEvidenceOnCloseAvailable();
         if (cancelled) return;
         await backupIfDue();
       } catch (err) {
@@ -306,6 +316,7 @@ export const App: React.FC = () => {
             onAdd={() => setIsQuickAddOpen(true)}
             onEdit={(task: Task) => openEditor({ kind: 'TASK', record: task })}
             onOpenLegacyFixups={() => setActiveTab('REMEDIATIONS')}
+            currentRole={currentRole}
           />
         )}
 
@@ -315,6 +326,7 @@ export const App: React.FC = () => {
             onEdit={(task: Task) => openEditor({ kind: 'TASK', record: task })}
             onOpenReview={() => setIsReviewOpen(true)}
             activeWeek={activeWeek}
+            currentRole={currentRole}
           />
         )}
 

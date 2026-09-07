@@ -90,9 +90,17 @@ function isoFrom(epochMs?: number): string | undefined {
 /**
  * When each gate was actually passed.
  *
- * RUN and REVIEW have no timestamp of their own - the week running is not an
- * event somebody performs - so they are settled by the calendar. A week whose
- * Sunday has passed has run, whatever anybody recorded.
+ * RUN has no timestamp of its own - the week running is not an event somebody
+ * performs - so it is settled by the calendar. A week whose Sunday has passed
+ * has run, whatever anybody recorded.
+ *
+ * REVIEW used to be settled the same way, and that was a lie the timeline told
+ * every week. Closing a week *is* something a person does, and treating the
+ * calendar as proof of it meant the one gate that could never be late was the
+ * one most often skipped: a fortnight-old week nobody had looked at showed four
+ * green ticks. It now reads the timestamp the review itself writes, or the one
+ * written when a week is deliberately abandoned - which is also a way of
+ * closing it, just an honest one.
  */
 function actualFor(
   gate: GateId,
@@ -102,6 +110,7 @@ function actualFor(
 ): string | undefined {
   if (gate === 'PLAN') return isoFrom(baseline?.submittedAt);
   if (gate === 'APPROVE') return isoFrom(baseline?.approvedAt);
+  if (gate === 'REVIEW') return isoFrom(baseline?.reviewedAt ?? baseline?.writtenOffAt);
 
   const end = offsetFrom(weekStart, WINDOWS[gate].end);
   return today > end ? end : undefined;
@@ -158,8 +167,10 @@ function isGateDone(
     case 'APPROVE':
       return status === 'BASELINED' && baseline?.approvedAt !== undefined;
     case 'RUN':
-    case 'REVIEW':
       return today > offsetFrom(weekStart, WINDOWS[id].end);
+    // Somebody has to have actually closed it. See `actualFor`.
+    case 'REVIEW':
+      return baseline?.reviewedAt !== undefined || baseline?.writtenOffAt !== undefined;
   }
 }
 

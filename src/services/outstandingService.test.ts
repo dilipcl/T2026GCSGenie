@@ -3,7 +3,8 @@ import { db } from '../db';
 import { emptyDatabase } from '../test/harness';
 import { Task } from '../types';
 import { loadOutstanding } from './outstandingService';
-import { todayISO, addDaysISO } from '../utils/date';
+import { todayISO, addDaysISO, parseISODate, startOfWeekISO } from '../utils/date';
+import { addEvidenceNote } from './activityCommentService';
 
 /**
  * The Updates tab said "nothing pending" while the week was unfinalised, work
@@ -260,5 +261,85 @@ describe('only a promise can be broken', () => {
 
     const items = await loadOutstanding('STUDENT');
     expect(items.find((i) => i.id === 'tasks:overdue')?.count).toBe(1);
+  });
+});
+
+
+/**
+ * Two gaps Tejas found by using the app rather than by reading it.
+ *
+ * The inbox asked about the current week and only the current week - so from
+ * Thursday, once this week is agreed and the planner has already switched to
+ * next week, it had nothing to say while the week about to start had no plan at
+ * all. And a week that ran without ever being finalised was never mentioned
+ * again anywhere, which is exactly how one gets forgotten.
+ */
+describe('the week the inbox is talking about', () => {
+  it('names the week by its dates rather than calling it “this week”', async () => {
+    await checkInDone();
+    const items = await loadOutstanding('STUDENT');
+    const plan = items.filter((i) => i.id.startsWith('plan:'));
+
+    expect(plan.length).toBeGreaterThan(0);
+    for (const row of plan) expect(row.title).toMatch(/week of/i);
+  });
+
+  it('never produces two rows that both read as “this week”', async () => {
+    await checkInDone();
+    const items = await loadOutstanding('STUDENT');
+    const titles = items.filter((i) => i.id.startsWith('plan:')).map((i) => i.title);
+
+    expect(new Set(titles).size).toBe(titles.length);
+  });
+});
+
+describe('weeks that ran and were never closed', () => {
+  it('surfaces a past week nobody accounted for', async () => {
+    const lastWeekMonday = addDaysISO(-7, parseISODate(startOfWeekISO(todayISO())));
+    await db.checkIns.add({
+      id: 'ci_last_week',
+      date: lastWeekMonday,
+      mood: 'OK',
+      energy: 3,
+      createdAt: Date.parse(lastWeekMonday),
+    } as never);
+
+    const items = await loadOutstanding('STUDENT');
+    expect(ids(items).some((id) => id.startsWith('week:'))).toBe(true);
+  });
+
+  it('says nothing about weeks before the app was ever used', async () => {
+    await checkInDone();
+    const items = await loadOutstanding('STUDENT');
+    expect(ids(items).some((id) => id.startsWith('week:'))).toBe(false);
+  });
+});
+
+describe('work closed with nothing to show for it', () => {
+  it('carries a missing-evidence gap into the inbox', async () => {
+    await checkInDone();
+    await db.tasks.add(task({ completed: true, completedAt: Date.now(), isHomework: true }));
+
+    const items = await loadOutstanding('STUDENT');
+    const row = items.find((i) => i.id === 'evidence:missing');
+
+    expect(row).toBeDefined();
+    expect(row?.tab).toBe('UPDATES');
+  });
+
+  it('drops it once somebody has said why there is nothing to attach', async () => {
+    await checkInDone();
+    await db.tasks.add(
+      task({ id: 'explained_task', completed: true, completedAt: Date.now(), isHomework: true })
+    );
+    await addEvidenceNote({
+      entityId: 'explained_task',
+      title: 'Explained task',
+      text: 'Classwork, the book stayed in school',
+      authorRole: 'STUDENT',
+    });
+
+    const items = await loadOutstanding('STUDENT');
+    expect(ids(items)).not.toContain('evidence:missing');
   });
 });

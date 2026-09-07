@@ -17,7 +17,9 @@ import { PACE_TEXT } from '../shared/PaceBar';
 import { ChoreCadence } from '../../types';
 import { logAuditEvent } from '../../services/auditService';
 import { useFeedback } from '../shared/FeedbackProvider';
-import { addDaysISO, formatFriendlyDate, daysUntil } from '../../utils/date';
+import { addDaysISO, formatFriendlyDate, formatShortDate, daysUntil } from '../../utils/date';
+import { markWeekReviewed } from '../../services/weekLedger';
+import { weeksAgo } from '../../services/weekWindow';
 import {
   X,
   ChevronRight,
@@ -180,14 +182,33 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
     }
   };
 
+  /**
+   * The week this review is about.
+   *
+   * A review run at any point in a week is looking back at the one before it -
+   * the modal's first step is literally headed "Last week" - and until now the
+   * sign-off recorded only the date it happened, so nothing could say which
+   * week had actually been closed. That is why the gate timeline settled
+   * "close the week" from the calendar instead of from anybody's decision, and
+   * why a week nobody had reviewed still showed a green tick.
+   */
+  const reviewedWeek = weeksAgo(1).start;
+
   const handleSignOff = async () => {
+    await markWeekReviewed(
+      reviewedWeek,
+      `${commitment.committedDone}/${commitment.committedCount} committed tasks done, ` +
+        `${effort.hoursThisWeek}h studied`
+    );
+
     await logAuditEvent({
       user: 'PARENT',
       action: 'UPDATE',
       entity: 'WeeklyReview',
       entityId: `review_${addDaysISO(0)}`,
       newValue:
-        `Weekly review completed. ${commitment.committedDone}/${commitment.committedCount} committed tasks done, ` +
+        `Weekly review completed for the week of ${formatShortDate(reviewedWeek)}. ` +
+        `${commitment.committedDone}/${commitment.committedCount} committed tasks done, ` +
         `${effort.hoursThisWeek}h studied, ${streak.current}-day streak, ${approvalCount} items were awaiting approval` +
         ((chores?.due ?? 0) > 0 ? `, chores ${chores!.done}/${chores!.due}.` : '.'),
     });

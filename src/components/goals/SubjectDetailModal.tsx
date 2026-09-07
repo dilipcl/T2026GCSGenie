@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { newId } from '../../utils/id';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 
 interface SubjectDetailModalProps {
@@ -43,6 +44,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
   onRefresh,
 }) => {
   const { confirm } = useFeedback();
+  const { confirmChange } = useChangeGuard();
   /**
    * Live, so a mastery tap lands immediately. Reloading the whole modal after
    * each write meant the star briefly rendered its old value again before the
@@ -307,12 +309,51 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     onRefresh();
   };
 
+  /**
+   * The last one-tap completion in the app.
+   *
+   * Every other route to marking work done goes through the change guard, which
+   * exists because a tick in a scrolling list is easy to catch with a thumb and
+   * the app cannot tell an accident from a decision. This one wrote the change
+   * immediately and left no line in the log, so a stray tap here silently moved
+   * the week's delivery score and the XP behind it.
+   */
   const toggleTaskCompleted = async (task: Task) => {
     const newCompleted = !task.completed;
-    await db.tasks.update(task.id, {
-      completed: newCompleted,
-      completedAt: newCompleted ? Date.now() : undefined,
+
+    const done = await confirmChange({
+      title: newCompleted ? 'Mark this as done?' : 'Put this back on the list?',
+      subject: task.title,
+      effect: newCompleted
+        ? `+${task.xpValue} XP`
+        : `−${task.xpValue} XP · it counts as unfinished again`,
+      category: 'HOMEWORK',
+      entity: 'Task',
+      entityId: task.id,
+      confirmLabel: newCompleted ? 'Yes, done' : 'Yes, reopen it',
+      summary: newCompleted
+        ? `Finished "${task.title}" (+${task.xpValue} XP)`
+        : `Reopened "${task.title}"`,
+      run: async () => {
+        await db.tasks.update(task.id, {
+          completed: newCompleted,
+          completedAt: newCompleted ? Date.now() : undefined,
+        });
+        await logAuditEvent({
+          user: 'STUDENT',
+          action: 'UPDATE',
+          entity: 'Task',
+          entityId: task.id,
+          fieldChanged: 'completed',
+          oldValue: task.completed ? 'completed' : 'not completed',
+          newValue: newCompleted
+            ? `Completed "${task.title}" (+${task.xpValue} XP)`
+            : `Reopened "${task.title}"`,
+        });
+      },
     });
+
+    if (!done) return;
     if (newCompleted) triggerCelebration({ particleCount: 40 });
     loadSubjectData();
     onRefresh();

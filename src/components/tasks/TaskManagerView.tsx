@@ -3,6 +3,7 @@ import { db } from '../../db';
 import { Task, PriorityLevel, SubjectId, Goal } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent } from '../../services/auditService';
+import { recordChange } from '../../services/changeLogService';
 import { triggerCelebration } from '../../utils/confetti';
 import { todayISO, formatFriendlyDate } from '../../utils/date';
 import {
@@ -18,7 +19,10 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { WeekCommitmentBanner } from './WeekCommitmentBanner';
+import { TaskCloseModal } from './TaskCloseModal';
+import { UserRole } from '../../types';
 
 interface TaskManagerViewProps {
   /** Opens the shared add sheet loaded with this task. */
@@ -31,6 +35,8 @@ interface TaskManagerViewProps {
    * but that screen is no longer a tab, so this is how it is reached.
    */
   onOpenLegacyFixups?: () => void;
+  /** Who is closing the work, so evidence and notes are attributed correctly. */
+  currentRole?: UserRole;
 }
 
 export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
@@ -38,8 +44,10 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
   onAdd,
   onEdit,
   onOpenLegacyFixups,
+  currentRole = 'STUDENT',
 }) => {
-  const { confirm } = useFeedback();
+  const { confirm, toast } = useFeedback();
+  const { confirmChange } = useChangeGuard();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<SubjectId | 'ALL'>('ALL');
@@ -53,6 +61,14 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
   const [selectedKind, setSelectedKind] = useState<'ALL' | 'HOMEWORK' | 'FIXUP'>('ALL');
   /** Open quests still on the old screen, so the pointer to it can be honest. */
   const [legacyFixups, setLegacyFixups] = useState(0);
+  /**
+   * The task being closed, while its sheet is open.
+   *
+   * Ticking the circle no longer writes anything. It was one tap in a list that
+   * scrolls under a thumb, and the whole XP and week-execution model rests on
+   * that tick meaning a decision rather than an accident.
+   */
+  const [closing, setClosing] = useState<Task | null>(null);
 
   const loadData = async () => {
     const tList = await db.tasks.orderBy('dueDate').toArray();
@@ -66,29 +82,88 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
     loadData();
   }, [refreshKey]);
 
-  const toggleTaskCompleted = async (task: Task) => {
-    const newStatus = !task.completed;
+  /**
+   * Writes the tick. Never called straight from the circle.
+   *
+   * Every path into this one goes through a confirmation first, because the
+   * circle sits in a list that scrolls under a thumb and a stray tap used to
+   * award XP, move the week's delivery score and log a completion nobody had
+   * decided on.
+   */
+  const setCompleted = async (task: Task, done: boolean) => {
     await db.tasks.update(task.id, {
-      completed: newStatus,
-      completedAt: newStatus ? Date.now() : undefined,
+      completed: done,
+      completedAt: done ? Date.now() : undefined,
     });
 
     await logAuditEvent({
-      user: 'STUDENT',
+      user: currentRole,
       action: 'UPDATE',
       entity: 'Task',
       entityId: task.id,
       fieldChanged: 'completed',
       // "true" tells a parent auditing the log nothing. Say what happened.
       oldValue: task.completed ? 'completed' : 'not completed',
-      newValue: newStatus
+      newValue: done
         ? `Completed "${task.title}" (+${task.xpValue} XP)`
         : `Reopened "${task.title}"`,
     });
 
-    if (newStatus) triggerCelebration({ particleCount: 50 });
+    if (done) triggerCelebration({ particleCount: 50 });
     loadData();
   };
+
+  /**
+   * Reopening, which is as consequential as closing and was equally unguarded.
+   *
+   * It takes the XP back off the week's delivery score and, on a baselined
+   * week, changes what the execution bonus pays. Routed through the change
+   * guard so it lands in the log a parent reads, rather than silently undoing
+   * a number somebody was relying on.
+   */
+  const reopenTask = async (task: Task) => {
+    await confirmChange({
+      title: 'Put this back on the list?',
+      subject: task.title,
+      effect: `−${task.xpValue} XP · it counts as unfinished again`,
+      category: 'HOMEWORK',
+      entity: 'Task',
+      entityId: task.id,
+      confirmLabel: 'Yes, reopen it',
+      summary: `Reopened "${task.title}"`,
+      actor: currentRole,
+      run: () => setCompleted(task, false),
+    });
+  };
+
+  /**
+   * Closing. Work that somebody else set or that exists because something went
+   * wrong gets the evidence sheet; a task set for yourself gets the ordinary
+   * confirmation, because nothing is expected to be shown for it and asking
+   * anyway is how a prompt becomes something people dismiss without reading.
+   */
+  const closeTask = async (task: Task) => {
+    if (task.isHomework || task.isRemediation) {
+      setClosing(task);
+      return;
+    }
+
+    await confirmChange({
+      title: 'Mark this as done?',
+      subject: task.title,
+      effect: `+${task.xpValue} XP`,
+      category: 'HOMEWORK',
+      entity: 'Task',
+      entityId: task.id,
+      confirmLabel: 'Yes, done',
+      summary: `Finished "${task.title}" (+${task.xpValue} XP)`,
+      actor: currentRole,
+      run: () => setCompleted(task, true),
+    });
+  };
+
+  const toggleTaskCompleted = (task: Task) =>
+    task.completed ? reopenTask(task) : closeTask(task);
 
   const handleDeleteTask = async (task: Task) => {
     const ok = await confirm({
@@ -404,6 +479,41 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
         )}
       </div>
 
+      {closing && (
+        <TaskCloseModal
+          task={closing}
+          role={currentRole}
+          onCancel={() => {
+            setClosing(null);
+            // Evidence may have been attached and then the close abandoned.
+            // Re-read, or the row keeps the state it had when the sheet opened.
+            loadData();
+          }}
+          onConfirm={async (hadEvidence) => {
+            const task = closing;
+            setClosing(null);
+            await setCompleted(task, true);
+            await recordChange({
+              category: 'HOMEWORK',
+              summary: `Finished "${task.title}" (+${task.xpValue} XP)`,
+              detail: hadEvidence
+                ? 'Closed with its evidence attached.'
+                : 'Closed with nothing attached — it is listed under Evidence.',
+              entity: 'Task',
+              entityId: task.id,
+              actor: currentRole,
+            });
+            if (hadEvidence) {
+              toast.success(`+${task.xpValue} XP`, 'Done, with the proof attached.');
+            } else {
+              toast.info(
+                `+${task.xpValue} XP`,
+                'Done. It is listed under Updates → Evidence until something is attached.'
+              );
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
