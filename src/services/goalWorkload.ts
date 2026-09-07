@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { Goal, GoalStatus, Task } from '../types';
+import { inferBucket } from './planService';
 
 /**
  * How much work is actually pointed at each goal.
@@ -76,7 +77,7 @@ export async function goalWorkload(): Promise<GoalWork[]> {
   return goals.map((goal) => {
     const linked = byGoal.get(goal.id) ?? [];
     const open = linked.filter((task) => !task.completed);
-    const committed = open.filter((task) => task.bucket === 'THIS_WEEK');
+    const committed = open.filter((task) => inferBucket(task) === 'THIS_WEEK');
     const live = isLive(goal);
 
     return {
@@ -99,7 +100,7 @@ export async function goalWorkload(): Promise<GoalWork[]> {
  */
 function byUrgency(a: Task, b: Task): number {
   const rank = (task: Task) =>
-    task.completed ? 2 : task.bucket === 'THIS_WEEK' ? 0 : 1;
+    task.completed ? 2 : inferBucket(task) === 'THIS_WEEK' ? 0 : 1;
   const byRank = rank(a) - rank(b);
   if (byRank !== 0) return byRank;
   return (a.dueDate ?? '').localeCompare(b.dueDate ?? '');

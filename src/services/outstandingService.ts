@@ -3,6 +3,7 @@ import { NavTab } from '../components/layout/Navigation';
 import { UserRole } from '../types';
 import { formatShortDate, todayISO } from '../utils/date';
 import { PlanHorizon, horizonWeekStart, readFinalisationState } from './planBaselineService';
+import { inferBucket } from './planService';
 import { pendingConfirmation } from './changeLogService';
 import { daysNeedingBackfill } from './checkInOccurrenceService';
 import { openWeeks } from './weekLedger';
@@ -252,8 +253,14 @@ async function taskItems(): Promise<OutstandingItem[]> {
    * a promise is the only thing that can be broken. An older row with no bucket
    * at all is treated as committed, because that is what it meant before the
    * buckets existed.
+   *
+   * Read through `inferBucket` rather than off the field, which also settles
+   * the bucketless case it used to special-case by hand. It matters more now
+   * that "next week" expires: work whose promised week has arrived is a promise
+   * that can be broken, and reading the raw field would have gone on calling it
+   * an intention.
    */
-  const committed = open.filter((t) => t.bucket === undefined || t.bucket === 'THIS_WEEK');
+  const committed = open.filter((t) => inferBucket(t) === 'THIS_WEEK');
 
   const overdue = committed.filter((t) => t.dueDate < today);
   const dueToday = committed.filter((t) => t.dueDate === today);

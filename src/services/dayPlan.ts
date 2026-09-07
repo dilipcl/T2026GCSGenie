@@ -2,6 +2,7 @@ import { db } from '../db';
 import { DayOfWeek, SubjectId, TimetableEntry, WeekType } from '../types';
 import { dayOfWeekFor, occasionsOn } from './commitmentService';
 import { todayISO } from '../utils/date';
+import { inferBucket } from './planService';
 
 /**
  * What a single day actually consists of, as things that either happened or did
@@ -148,7 +149,10 @@ export async function dayShape(
    */
   for (const task of tasks) {
     if (task.completed) continue;
-    if (task.bucket !== 'THIS_WEEK') continue;
+    // Through `inferBucket`, not the raw field: work planned for "next week"
+    // reads as committed once that week arrives, and a day plan that missed it
+    // would leave the board and the day disagreeing about the same task.
+    if (inferBucket(task) !== 'THIS_WEEK') continue;
     occurrences.push({
       key: `work__${task.id}`,
       kind: 'WORK',

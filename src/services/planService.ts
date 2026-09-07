@@ -2,7 +2,7 @@ import { db } from '../db';
 import { PlanBucket, Task } from '../types';
 import { addDaysISO, daysUntil, todayISO } from '../utils/date';
 import { logAuditEvent } from './auditService';
-import { currentWeek } from './weekWindow';
+import { currentWeek, isInWeek } from './weekWindow';
 
 /**
  * Planning: what has been promised for this week, versus what is merely known
@@ -57,9 +57,34 @@ export function isKnownBucket(bucket: unknown): bucket is PlanBucket {
  * homework into an empty backlog would be useless. Anything already due inside
  * the week is treated as committed - it effectively is - and the rest sorts by
  * how far away it is.
+ *
+ * "Next week" is the one stored value that expires. It is a relative label
+ * written at a moment in time, and nothing ever rewrote it, so work planned on
+ * a Saturday for the week ahead was still sitting in the Next week column on
+ * the Monday that week began - with This week reading as empty. That is not
+ * cosmetic: `HAS_COMMITMENT` is a blocking check, so an empty column made the
+ * week impossible to send for approval, and it stayed a draft indefinitely.
+ * Planning ahead, which the planner actively encourages from Friday onwards,
+ * was the thing that broke it.
+ *
+ * Resolved against the Monday-to-Sunday week rather than a rolling seven days,
+ * because this codebase has already been bitten by having two definitions of
+ * "this week" - see `weekWindow`. `moveTaskToBucket` clamps a next-week task's
+ * due date to a fortnight, so the due date is a dependable signal for whether
+ * the week it was promised to has arrived.
+ *
+ * An overdue next-week task is deliberately left where it is. It was planned
+ * for a week that has gone, and sweeping it into this week would both flood the
+ * committed column and trip the "nothing overdue" gate - blocking the week
+ * again, which is the failure this is here to remove.
  */
 export function inferBucket(task: Task): PlanBucket {
-  if (isKnownBucket(task.bucket)) return task.bucket;
+  if (isKnownBucket(task.bucket)) {
+    if (task.bucket === 'NEXT_WEEK' && isInWeek(task.dueDate, currentWeek())) {
+      return 'THIS_WEEK';
+    }
+    return task.bucket;
+  }
   const days = daysUntil(task.dueDate);
   if (days <= 7) return 'THIS_WEEK';
   if (days <= 14) return 'NEXT_WEEK';

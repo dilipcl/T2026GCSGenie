@@ -201,3 +201,80 @@ describe('a bucket written by another version', () => {
     expect(total).toBe(2);
   });
 });
+
+/**
+ * "Next week" is a relative label written at a moment in time, and nothing ever
+ * rewrote it. Work planned on a Saturday for the week ahead was still sitting
+ * in the Next week column on the Monday that week began, with This week reading
+ * as empty - and because `HAS_COMMITMENT` blocks submission, the week could not
+ * be sent for approval at all and stayed a draft indefinitely.
+ */
+describe('next week becomes this week when it arrives', () => {
+  it('reads work promised for the week we are now in as committed', () => {
+    // Planned on the Saturday for the week beginning Monday 7 Sept.
+    freezeAt('2026-09-09');
+    const task = makeTask({ bucket: 'NEXT_WEEK', dueDate: '2026-09-11' });
+
+    expect(inferBucket(task)).toBe('THIS_WEEK');
+  });
+
+  it('leaves work still genuinely a week out where it is', () => {
+    freezeAt('2026-09-09');
+    const task = makeTask({ bucket: 'NEXT_WEEK', dueDate: '2026-09-16' });
+
+    expect(inferBucket(task)).toBe('NEXT_WEEK');
+  });
+
+  it('resolves against the Monday week, not a rolling seven days', () => {
+    // Wednesday 9 Sept. Next Monday is 6 days away - inside a rolling week, and
+    // firmly in the week after this one. Two definitions of "this week" is a
+    // mistake this codebase has made before; see weekWindow.
+    freezeAt('2026-09-09');
+    const task = makeTask({ bucket: 'NEXT_WEEK', dueDate: '2026-09-14' });
+
+    expect(inferBucket(task)).toBe('NEXT_WEEK');
+  });
+
+  it('does not sweep in work whose promised week has already gone', () => {
+    // Overdue next-week work would both flood the committed column and trip the
+    // "nothing overdue" gate, blocking the week again.
+    freezeAt('2026-09-09');
+    const task = makeTask({ bucket: 'NEXT_WEEK', dueDate: '2026-08-28' });
+
+    expect(inferBucket(task)).toBe('NEXT_WEEK');
+  });
+
+  it('leaves the other stored buckets alone', () => {
+    freezeAt('2026-09-09');
+    const soon = { dueDate: '2026-09-11' };
+
+    expect(inferBucket(makeTask({ bucket: 'BACKLOG', ...soon }))).toBe('BACKLOG');
+    expect(inferBucket(makeTask({ bucket: 'FUTURE', ...soon }))).toBe('FUTURE');
+    expect(inferBucket(makeTask({ bucket: 'THIS_WEEK', ...soon }))).toBe('THIS_WEEK');
+  });
+
+  it('unblocks the week it used to strand', async () => {
+    freezeAt('2026-09-09');
+    await db.tasks.add(makeTask({ bucket: 'NEXT_WEEK', dueDate: '2026-09-11' }));
+
+    const commitment = await loadWeekCommitment();
+
+    // The whole symptom: This week read as empty while the work sat one column
+    // over, and the readiness checklist refused to let the week be agreed.
+    expect(commitment.columns.THIS_WEEK).toHaveLength(1);
+    expect(commitment.columns.NEXT_WEEK).toHaveLength(0);
+    expect(commitment.committedCount).toBe(1);
+  });
+
+  it('still lets the work be pulled across explicitly', async () => {
+    freezeAt('2026-09-09');
+    const task = makeTask({ bucket: 'NEXT_WEEK', dueDate: '2026-09-11' });
+    await db.tasks.add(task);
+
+    // It already reads as committed, but the stored value should still settle
+    // when somebody moves it, rather than the move being swallowed as a no-op.
+    await moveTaskToBucket(task, 'THIS_WEEK');
+
+    expect((await db.tasks.get(task.id))?.bucket).toBe('THIS_WEEK');
+  });
+});
