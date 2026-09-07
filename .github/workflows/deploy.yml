@@ -14,6 +14,17 @@ concurrency:
   group: 'pages'
   cancel-in-progress: true
 
+# Every action here is pinned to a major that runs on Node 24.
+#
+# They were all on majors targeting Node 20, which the runners had begun
+# force-migrating to Node 24 and warning about on every run. The warning was
+# the only symptom - the deploy still passed - but a forced runtime is a
+# deprecation with a deadline attached, and the version to find that out on is
+# not the one carrying a release.
+#
+# `actions/upload-artifact` appears in that warning without appearing here:
+# `upload-pages-artifact` delegates to it internally, so bumping the wrapper is
+# what moves it.
 jobs:
   deploy:
     environment:
@@ -22,12 +33,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          # The Node that builds the bundle, which is a different thing from the
+          # Node the actions themselves run on - and it was pinned to a release
+          # that has since gone end-of-life. 24 is what the project is developed
+          # and verified on locally, so this closes a gap where CI could have
+          # built on a runtime nobody had run the app against.
+          node-version: 24
 
       - name: Install Dependencies
         run: npm install
@@ -54,13 +70,13 @@ jobs:
           VITE_DRIVE_OAUTH_CLIENT_ID: ${{ vars.VITE_DRIVE_OAUTH_CLIENT_ID || secrets.VITE_DRIVE_OAUTH_CLIENT_ID }}
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v6
 
       - name: Upload Artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
