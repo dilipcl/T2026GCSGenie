@@ -11,7 +11,7 @@ import { logAuditEvent } from './auditService';
 import { newId } from '../utils/id';
 import { addDaysISO, daysBetween, parseISODate, startOfWeekISO, todayISO } from '../utils/date';
 import { currentWeek } from './weekWindow';
-import { loadWeekCommitment, taskHours, WeekCommitment } from './planService';
+import { hasEstimate, loadWeekCommitment, taskHours, WeekCommitment } from './planService';
 import { calculateBurnoutCapacity, safeStudyHours } from './burnoutEngine';
 
 /**
@@ -175,9 +175,9 @@ export function readinessChecks(input: ReadinessInput): ReadinessCheck[] {
     (t) => !t.completed
   );
 
-  const missingEstimates = committed.filter(
-    (t) => !(typeof t.estimatedHours === 'number' && t.estimatedHours > 0)
-  );
+  // Through `hasEstimate`, so this and the board agree about which tasks are
+  // missing one. A second inline copy of the test is how they drift.
+  const missingEstimates = committed.filter((t) => !hasEstimate(t));
   const overdue = committed.filter((t) => t.dueDate < today);
 
   const dueSoon = input.milestones.filter((m) => {
@@ -276,6 +276,27 @@ export async function loadBaseline(
   weekStart: string = weekStartISO()
 ): Promise<WeekPlanBaseline | undefined> {
   return db.planBaselines.get(weekStart);
+}
+
+/**
+ * The week a parent is actually being asked about.
+ *
+ * The approval panel used to read `weekStartISO()` - always this Monday - while
+ * the planner lets a week be submitted for *next* Monday, and defaults to doing
+ * exactly that from Friday onwards. So a plan sent at the weekend could never be
+ * approved: the student's screen said "waiting on a parent" and the parent's
+ * said "nothing to approve", both truthfully, about different weeks, with no
+ * control anywhere that could reach the one in question.
+ *
+ * The earliest waiting week wins, because if two are somehow outstanding the
+ * imminent one is the one that stops mattering first.
+ */
+export async function weekAwaitingApproval(): Promise<string | undefined> {
+  const rows = await db.planBaselines.toArray();
+  return rows
+    .filter((row) => row.status === 'AWAITING_APPROVAL')
+    .map((row) => row.weekStart)
+    .sort()[0];
 }
 
 export function baselineStatus(baseline?: WeekPlanBaseline): PlanBaselineStatus {

@@ -7,12 +7,13 @@ import {
   approveBaseline,
   loadBaseline,
   returnForChanges,
+  weekAwaitingApproval,
   weekStartISO,
 } from '../../services/planBaselineService';
 import { taskHours } from '../../services/planService';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { useChangeGuard } from '../shared/ChangeGuardProvider';
-import { formatFriendlyDate } from '../../utils/date';
+import { addDaysISO, formatFriendlyDate, formatShortDate, parseISODate } from '../../utils/date';
 import { ClipboardCheck, Clock, ShieldCheck, Target, AlertTriangle } from 'lucide-react';
 
 /**
@@ -34,7 +35,21 @@ export const PlanApprovalPanel: React.FC = () => {
   const { confirmChange } = useChangeGuard();
   const [note, setNote] = useState('');
 
-  const weekStart = weekStartISO();
+  /**
+   * The week actually waiting on a decision, falling back to this one.
+   *
+   * This read `weekStartISO()` and nothing else, while the planner lets a week
+   * be submitted for *next* Monday - and defaults to doing exactly that from
+   * Friday onwards. A plan sent at the weekend was therefore unapprovable: the
+   * student's screen said "waiting on a parent", this one said "nothing to
+   * approve", both truthfully, about different weeks.
+   *
+   * Falling back to this week rather than showing nothing keeps the panel
+   * meaningful in the ordinary case, where it reports that the current week is
+   * approved or has not been sent.
+   */
+  const awaiting = useLiveQuery(() => weekAwaitingApproval(), []);
+  const weekStart = awaiting ?? weekStartISO();
   const baseline = useLiveQuery(() => loadBaseline(weekStart), [weekStart]);
   const amendments = useLiveQuery(() => amendmentsFor(weekStart), [weekStart], []);
   const tasks = useLiveQuery(() => db.tasks.toArray(), [], [] as Task[]);
@@ -93,7 +108,16 @@ export const PlanApprovalPanel: React.FC = () => {
     <div className="glass-card p-6">
       <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-800">
         <ClipboardCheck className="w-5 h-5 text-indigo-400" />
-        <h3 className="font-bold text-sm text-white">This week&rsquo;s plan</h3>
+        {/* Named by its dates whenever it is not the current week. A panel
+            headed "This week's plan" that is in fact showing next week's is
+            the bug this fix exists to remove, restated as a caption. */}
+        <h3 className="font-bold text-sm text-white">
+          {weekStart === weekStartISO()
+            ? "This week’s plan"
+            : `Plan for ${formatShortDate(weekStart)} – ${formatShortDate(
+                addDaysISO(6, parseISODate(weekStart))
+              )}`}
+        </h3>
         <span
           className={`ml-auto text-[10px] font-bold px-2.5 py-1 rounded-full border ${
             status === 'BASELINED'
@@ -113,7 +137,8 @@ export const PlanApprovalPanel: React.FC = () => {
 
       {status === 'DRAFT' && (
         <p className="text-xs text-slate-400">
-          Nothing to approve. Tejas has not sent this week yet
+          Nothing to approve. Tejas has not sent the week of{' '}
+          {formatShortDate(weekStart)} yet
           {baseline?.returnedNote ? ' — you sent it back for a change.' : '.'}
         </p>
       )}

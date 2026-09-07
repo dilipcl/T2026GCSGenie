@@ -147,8 +147,12 @@ async function horizonItems(horizon: PlanHorizon): Promise<OutstandingItem[]> {
         detail: 'Tejas has sent it for approval. It is not the baseline until it is agreed.',
         urgency: 'TODAY',
         owner: 'PARENT',
-        tab: 'PLAN',
-        action: 'Review the week',
+        // The Parent Portal, not the planner. Approving happens in
+        // `PlanApprovalPanel`, and the Plan tab has no control that can do it -
+        // so this row used to hand a parent a screen where the action it was
+        // asking for did not exist.
+        tab: 'PARENT',
+        action: 'Approve the week',
       },
     ];
   }

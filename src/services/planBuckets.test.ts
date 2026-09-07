@@ -2,7 +2,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { db } from '../db';
 import { resetDatabase } from '../test/harness';
 import { Task } from '../types';
-import { inferBucket, isKnownBucket, loadWeekCommitment, moveTaskToBucket } from './planService';
+import {
+  hasEstimate,
+  inferBucket,
+  isKnownBucket,
+  loadWeekCommitment,
+  moveTaskToBucket,
+  taskHours,
+} from './planService';
 import { addDaysISO } from '../utils/date';
 
 function freezeAt(iso: string) {
@@ -276,5 +283,30 @@ describe('next week becomes this week when it arrives', () => {
     await moveTaskToBucket(task, 'THIS_WEEK');
 
     expect((await db.tasks.get(task.id))?.bucket).toBe('THIS_WEEK');
+  });
+});
+
+/**
+ * `taskHours` substitutes a priority default so a week's load always adds up.
+ * That is right for a total and wrong for a question: the plan board rendered
+ * an unestimated MEDIUM task as "1h", indistinguishable from a real estimate,
+ * while the readiness checklist blocked the week over that very task.
+ */
+describe('telling a real estimate from a default', () => {
+  it('still counts hours for work nobody has estimated', () => {
+    expect(taskHours(makeTask({ priority: 'MEDIUM' }))).toBe(1);
+    expect(taskHours(makeTask({ priority: 'HIGH' }))).toBe(1.5);
+  });
+
+  it('but says plainly that there is no estimate behind them', () => {
+    expect(hasEstimate(makeTask({ priority: 'MEDIUM' }))).toBe(false);
+    expect(hasEstimate(makeTask({ estimatedHours: 0 }))).toBe(false);
+    expect(hasEstimate(makeTask({ estimatedHours: undefined }))).toBe(false);
+  });
+
+  it('recognises one that has been set', () => {
+    const task = makeTask({ estimatedHours: 2.5 });
+    expect(hasEstimate(task)).toBe(true);
+    expect(taskHours(task)).toBe(2.5);
   });
 });

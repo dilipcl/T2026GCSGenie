@@ -18,6 +18,7 @@ import {
   readinessChecks,
   returnForChanges,
   submitForApproval,
+  weekAwaitingApproval,
   weekStartISO,
 } from './planBaselineService';
 
@@ -485,5 +486,72 @@ describe('the reminder to finalise the week', () => {
     const nudge = finalisationNudge('DRAFT', clean, 1);
     expect(nudge?.outstanding).toBe(0);
     expect(nudge?.headline).toBe('Ready to finalise');
+  });
+});
+
+/**
+ * The approval panel read `weekStartISO()` and nothing else, while the planner
+ * lets a week be submitted for next Monday - and defaults to doing exactly that
+ * from Friday onwards. A plan sent at the weekend was therefore unapprovable:
+ * the student saw "waiting on a parent", the parent saw "nothing to approve",
+ * both truthfully, about different weeks.
+ */
+describe('finding the week a parent is actually being asked about', () => {
+  const NEXT_MONDAY = '2026-09-07';
+
+  it('finds nothing when no week is waiting', async () => {
+    expect(await weekAwaitingApproval()).toBeUndefined();
+  });
+
+  it('finds this week when this week was sent', async () => {
+    await submitForApproval(await commitmentOf([makeTask()]), undefined, MONDAY);
+    expect(await weekAwaitingApproval()).toBe(MONDAY);
+  });
+
+  it('finds next week when next week was sent — the case that was unreachable', async () => {
+    await submitForApproval(await commitmentOf([makeTask()]), undefined, NEXT_MONDAY);
+    expect(await weekAwaitingApproval()).toBe(NEXT_MONDAY);
+  });
+
+  it('prefers the sooner week when two are somehow outstanding', async () => {
+    await submitForApproval(await commitmentOf([makeTask()]), undefined, NEXT_MONDAY);
+    await submitForApproval(await commitmentOf([makeTask()]), undefined, MONDAY);
+
+    // The imminent one stops mattering first.
+    expect(await weekAwaitingApproval()).toBe(MONDAY);
+  });
+
+  it('stops offering a week once it has been approved', async () => {
+    await submitForApproval(await commitmentOf([makeTask()]), undefined, NEXT_MONDAY);
+    await approveBaseline(NEXT_MONDAY);
+
+    expect(await weekAwaitingApproval()).toBeUndefined();
+  });
+
+  it('offers it again when a parent sends it back and it is resubmitted', async () => {
+    await submitForApproval(await commitmentOf([makeTask()]), undefined, MONDAY);
+    await returnForChanges('Too much', MONDAY);
+    expect(await weekAwaitingApproval()).toBeUndefined();
+
+    await submitForApproval(await commitmentOf([makeTask()]), undefined, MONDAY);
+    expect(await weekAwaitingApproval()).toBe(MONDAY);
+  });
+
+  it('ignores a week that was only written off or reviewed', async () => {
+    // Those rows are DRAFT with no submission behind them - closing an old week
+    // is not the same act as sending one for approval, and the panel must not
+    // confuse the two.
+    await db.planBaselines.put({
+      id: '2026-08-24',
+      weekStart: '2026-08-24',
+      status: 'DRAFT',
+      taskIds: [],
+      hours: 0,
+      writtenOffAt: Date.now(),
+      writtenOffNote: 'too late',
+      createdAt: Date.now(),
+    });
+
+    expect(await weekAwaitingApproval()).toBeUndefined();
   });
 });

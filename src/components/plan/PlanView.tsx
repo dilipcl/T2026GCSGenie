@@ -16,6 +16,7 @@ import {
   inferBucket,
   moveTaskToBucket,
   assessPlan,
+  hasEstimate,
   taskHours,
 } from '../../services/planService';
 import { calculateBurnoutCapacity, safeStudyHours } from '../../services/burnoutEngine';
@@ -345,6 +346,22 @@ export const PlanView: React.FC<PlanViewProps> = ({
     toast.success('Added to the plan', `"${task.title}" now counts towards ${milestone.title}.`);
   };
 
+  /** How long it will take, set from where the gap is visible. */
+  const setEstimate = async (task: Task, hours: number) => {
+    if (!hours) return;
+    await db.tasks.update(task.id, { estimatedHours: hours });
+    await logAuditEvent({
+      user: currentRole,
+      action: 'UPDATE',
+      entity: 'Task',
+      entityId: task.id,
+      fieldChanged: 'estimatedHours',
+      oldValue: '(none)',
+      newValue: `${hours}h`,
+    });
+    toast.success(`${hours}h`, `Estimated "${task.title}".`);
+  };
+
   /** Pointing a task at the goal it serves, from where the gap is visible. */
   const linkToGoal = async (task: Task, goalId: string) => {
     await db.tasks.update(task.id, { linkedGoalId: goalId || undefined });
@@ -390,6 +407,11 @@ export const PlanView: React.FC<PlanViewProps> = ({
     });
     toast.info(`Removed "${task.title}"`, `No longer planned for ${milestoneTitle}.`);
   };
+
+  /** Committed work whose hours are a default rather than anybody's estimate. */
+  const unestimatedCount = commitment.columns.THIS_WEEK.filter(
+    (t) => !t.completed && !hasEstimate(t)
+  ).length;
 
   const soonMilestones = milestones.filter((m) => daysUntil(m.date) <= 21);
   const loadPercent = health.safeStudyHours
@@ -448,6 +470,19 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   {commitment.committedHours}h of {health.safeStudyHours}h study time left in the
                   week of {formatShortDate(weekStartISO())}
                 </span>
+                {/* How much of that total is a guess.
+
+                    `taskHours` substitutes a priority default for anything
+                    unestimated, so the promised figure is partly invented -
+                    and saying so is the difference between a number and a
+                    number you can act on. */}
+                {unestimatedCount > 0 && (
+                  <span className="text-amber-300 font-normal">
+                    {' · '}
+                    {unestimatedCount} of those {unestimatedCount === 1 ? 'is a' : 'are'} guess
+                    {unestimatedCount === 1 ? '' : 'es'} — no estimate set
+                  </span>
+                )}
               </span>
               <InfoTip label="Committed vs capacity">
                 Hours you have promised this week vs. what safely fits. Move things out and they
@@ -669,7 +704,18 @@ export const PlanView: React.FC<PlanViewProps> = ({
                                 overdue ? 'text-rose-300 font-semibold' : 'text-slate-500'
                               }`}
                             >
-                              {formatFriendlyDate(task.dueDate)} · {taskHours(task)}h
+                              {formatFriendlyDate(task.dueDate)} ·{' '}
+                              {/* An unestimated task used to render its
+                                  priority default here - "1h", identical to a
+                                  real 1h estimate - while the readiness
+                                  checklist blocked the week over that same
+                                  task. The app cannot complain about something
+                                  it draws as fine. */}
+                              {hasEstimate(task) ? (
+                                `${taskHours(task)}h`
+                              ) : (
+                                <span className="text-amber-300 font-semibold">no estimate</span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -689,6 +735,30 @@ export const PlanView: React.FC<PlanViewProps> = ({
                             {goals.map((g) => (
                               <option key={g.id} value={g.id}>
                                 {g.title}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+
+                        {/* How long it will take, asked for where its absence
+                            is visible - the same shape as the goal picker
+                            above, and for the same reason: an estimate is one
+                            tap, and a blocking checklist item with no way to
+                            act on it from the row it concerns is a dead end.
+
+                            Only on committed work, because that is the column
+                            the estimate gates. */}
+                        {bucket.id === 'THIS_WEEK' && !task.completed && !hasEstimate(task) && (
+                          <select
+                            aria-label={`How long will "${task.title}" take?`}
+                            value=""
+                            onChange={(e) => setEstimate(task, Number(e.target.value))}
+                            className="w-full mt-2 bg-slate-950 border border-amber-500/40 rounded-lg px-2 py-1.5 text-[10px] text-amber-100"
+                          >
+                            <option value="">⚠ No estimate — how long will it take?</option>
+                            {[0.5, 1, 1.5, 2, 3, 4].map((h) => (
+                              <option key={h} value={h}>
+                                {h}h
                               </option>
                             ))}
                           </select>

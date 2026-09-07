@@ -23,10 +23,27 @@ const DEFAULT_HOURS: Record<Task['priority'], number> = {
   LOW: 0.5,
 };
 
+/**
+ * Whether somebody has actually said how long this will take.
+ *
+ * `taskHours` answers "how many hours do we count", and quietly substitutes a
+ * default when nobody has said. That is the right behaviour for a total - a
+ * week's load cannot refuse to add up - but it made the gap invisible: the plan
+ * board rendered an unestimated MEDIUM task as "1h", identical to one genuinely
+ * estimated at 1h, while the readiness checklist blocked the week because that
+ * very task had no estimate. The app was complaining about something it was
+ * simultaneously drawing as fine.
+ *
+ * So the question "is there an estimate" gets its own function, and the screens
+ * that ask people to fix it use this rather than inferring it from a number
+ * that is never absent.
+ */
+export function hasEstimate(task: Task): boolean {
+  return typeof task.estimatedHours === 'number' && task.estimatedHours > 0;
+}
+
 export function taskHours(task: Task): number {
-  return typeof task.estimatedHours === 'number' && task.estimatedHours > 0
-    ? task.estimatedHours
-    : DEFAULT_HOURS[task.priority] ?? 1;
+  return hasEstimate(task) ? task.estimatedHours! : DEFAULT_HOURS[task.priority] ?? 1;
 }
 
 /** The four columns that exist. Anything else stored is from another version. */
