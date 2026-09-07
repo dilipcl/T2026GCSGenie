@@ -15,19 +15,42 @@ import { readFileSync } from 'fs';
  * Tejas again.
  */
 
-const source = readFileSync('src/components/dashboard/DayOccurrenceChecklist.tsx', 'utf8');
+/**
+ * Both files that render inside that form.
+ *
+ * The buttons themselves moved into `OccurrenceAnswer` when the home screen
+ * started using them too, and this guard follows them - a check still pointed
+ * at the file the risk used to live in is worse than no check, because it goes
+ * on passing. The checklist stays in the list: it is still inside the form, and
+ * a button added back to it would carry the same fault.
+ */
+const SOURCES = [
+  'src/components/dashboard/OccurrenceAnswer.tsx',
+  'src/components/dashboard/DayOccurrenceChecklist.tsx',
+];
+
+const BUTTON_TAG = /<button\b[\s\S]*?>/g;
 
 describe('the day checklist', () => {
   it('declares a type on every button', () => {
-    const buttons = source.match(/<button\b[\s\S]*?>/g) ?? [];
+    let seen = 0;
 
-    expect(buttons.length).toBeGreaterThan(0);
-    for (const button of buttons) {
-      expect(button).toMatch(/type="button"/);
+    for (const path of SOURCES) {
+      const source = readFileSync(path, 'utf8');
+      for (const button of source.match(BUTTON_TAG) ?? []) {
+        seen += 1;
+        expect(button, `${path}: ${button}`).toMatch(/type="button"/);
+      }
     }
+
+    // The buttons have to be somewhere. If this ever reads zero they have moved
+    // again, and the guard is watching an empty room.
+    expect(seen).toBeGreaterThan(0);
   });
 
   it('never renders a submit button', () => {
-    expect(source).not.toMatch(/type="submit"/);
+    for (const path of SOURCES) {
+      expect(readFileSync(path, 'utf8'), path).not.toMatch(/type="submit"/);
+    }
   });
 });

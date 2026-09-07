@@ -1,6 +1,7 @@
 import { db } from '../db';
 import {
   CheckInOccurrence,
+  ExceptionReasonCategory,
   OccurrenceOutcome,
   UserRole,
   WeekType,
@@ -45,6 +46,8 @@ export interface RecordOccurrenceInput {
   outcome: OccurrenceOutcome;
   minutes?: number;
   notes?: string;
+  /** Why it did not fully happen. Only carried on PARTIAL and MISSED answers. */
+  reasonCategory?: ExceptionReasonCategory;
   followUp?: string;
   loggedBy?: UserRole;
 }
@@ -152,6 +155,12 @@ export async function recordOccurrence(
     outcome,
     minutes: input.minutes,
     notes: input.notes?.trim() || undefined,
+    /**
+     * Dropped when the answer goes back to HAPPENED. A reason left behind on a
+     * row that now says it happened is a contradiction the reader has to
+     * resolve, and they will resolve it by trusting neither.
+     */
+    reasonCategory: outcome === 'HAPPENED' ? undefined : input.reasonCategory,
     followUp,
     followUpTaskId,
     xpAwarded: rowXp(occurrence),

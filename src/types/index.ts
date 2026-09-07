@@ -541,6 +541,20 @@ export interface CheckInOccurrence {
   minutes?: number;
   notes?: string;
   /**
+   * Why it did not fully happen, from a fixed list.
+   *
+   * Only meaningful on a PARTIAL or MISSED answer. Typing a sentence is the
+   * kind of small tax that gets a check-in skipped at ten at night, and a
+   * reason trapped in prose cannot be counted - "three Physics lessons missed
+   * for Cadets" is a pattern worth seeing, and free text will never yield it.
+   *
+   * Deliberately the same vocabulary as a missed commitment
+   * (`ExceptionReasonCategory`), because they are the same question asked about
+   * different things, and two lists would drift the moment either gained an
+   * option.
+   */
+  reasonCategory?: ExceptionReasonCategory;
+  /**
    * Something to do about it, which becomes real work rather than a note
    * nobody reads again. Set when the answer raises one.
    */
