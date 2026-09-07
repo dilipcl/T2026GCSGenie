@@ -146,6 +146,13 @@ describe('loadOutstanding — student', () => {
     for (const item of items) {
       expect(item.tab).toBeTruthy();
       expect(item.action).toBeTruthy();
+      /**
+       * A row that points at Updates has to say which pane, because this list
+       * is itself rendered on the Updates tab - navigating to the tab you are
+       * already on does nothing, and the row reads as a dead link. Exactly what
+       * happened to "8 changes to sign off · Review the changes".
+       */
+      if (item.tab === 'UPDATES') expect(item.pane).toBeTruthy();
     }
   });
 });
@@ -341,5 +348,45 @@ describe('work closed with nothing to show for it', () => {
 
     const items = await loadOutstanding('STUDENT');
     expect(ids(items)).not.toContain('evidence:missing');
+  });
+});
+
+
+describe('rows that point back into the Updates tab', () => {
+  it('sends the sign-off row to the pane that can sign things off', async () => {
+    await db.changeLog.add({
+      id: 'chg_1',
+      timestamp: Date.now(),
+      date: todayISO(),
+      actor: 'STUDENT',
+      category: 'HOMEWORK',
+      summary: 'Finished something',
+    } as never);
+
+    const items = await loadOutstanding('PARENT');
+    const row = items.find((i) => i.id === 'changes:pending');
+
+    expect(row?.tab).toBe('UPDATES');
+    expect(row?.pane).toBe('SIGN_OFF');
+  });
+
+  it('sends the evidence row to the evidence pane', async () => {
+    await checkInDone();
+    await db.tasks.add(task({ completed: true, completedAt: Date.now(), isHomework: true }));
+
+    const items = await loadOutstanding('STUDENT');
+    const row = items.find((i) => i.id === 'evidence:missing');
+
+    expect(row?.tab).toBe('UPDATES');
+    expect(row?.pane).toBe('EVIDENCE');
+  });
+
+  it('leaves rows that genuinely change tab without a pane', async () => {
+    await db.tasks.add(task({ dueDate: addDaysISO(-1) }));
+
+    const items = await loadOutstanding('STUDENT');
+    for (const item of items.filter((i) => i.tab !== 'UPDATES')) {
+      expect(item.pane).toBeUndefined();
+    }
   });
 });

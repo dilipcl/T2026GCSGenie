@@ -5,6 +5,7 @@ import { UserRole } from '../../types';
 import {
   OutstandingItem,
   OutstandingUrgency,
+  UpdatesPane,
   loadOutstanding,
 } from '../../services/outstandingService';
 import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, Clock, Inbox } from 'lucide-react';
@@ -41,7 +42,12 @@ const URGENCY_ICON: Record<OutstandingUrgency, React.ElementType> = {
 
 interface Props {
   role: UserRole;
-  onOpenTab: (tab: NavTab) => void;
+  /**
+   * Takes the reader to where the thing is done. The pane matters for the rows
+   * that stay inside Updates - switching to the tab you are already on is a
+   * no-op, which is what made those rows look like dead links.
+   */
+  onOpenTab: (tab: NavTab, pane?: UpdatesPane) => void;
 }
 
 export const OutstandingPanel: React.FC<Props> = ({ role, onOpenTab }) => {
@@ -94,7 +100,10 @@ export const OutstandingPanel: React.FC<Props> = ({ role, onOpenTab }) => {
   );
 };
 
-const OutstandingRow: React.FC<{ item: OutstandingItem; onOpenTab: (tab: NavTab) => void }> = ({
+const OutstandingRow: React.FC<{
+  item: OutstandingItem;
+  onOpenTab: (tab: NavTab, pane?: UpdatesPane) => void;
+}> = ({
   item,
   onOpenTab,
 }) => {
@@ -105,7 +114,7 @@ const OutstandingRow: React.FC<{ item: OutstandingItem; onOpenTab: (tab: NavTab)
     <li>
       <button
         type="button"
-        onClick={() => onOpenTab(item.tab)}
+        onClick={() => onOpenTab(item.tab, item.pane)}
         className="w-full text-left p-3 bg-slate-900/70 border border-slate-800 hover:border-indigo-500/50 rounded-xl transition-colors group"
       >
         <div className="flex items-start justify-between gap-3">

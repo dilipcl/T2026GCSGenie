@@ -28,6 +28,23 @@ import { currentWeek } from './weekWindow';
  * from makes the reader do that sorting themselves.
  */
 
+/**
+ * Which half of the Updates tab a row is asking you to open.
+ *
+ * Every other row here points at a different tab, so navigating there is
+ * enough. Two of them point at Updates - and they are rendered *inside*
+ * Updates, on its To do pane. Switching to the tab you are already on does
+ * nothing at all, so those rows read as broken links: "8 changes to sign off ·
+ * Review the changes" sat there absorbing clicks, because the sign-off list is
+ * one pane over and nothing could reach it.
+ *
+ * Owned here rather than by the tab, in the same spirit as `tab` itself: this
+ * module already decides where each row is dealt with, and splitting that
+ * decision across two files is how a row ends up pointing somewhere its action
+ * does not exist.
+ */
+export type UpdatesPane = 'TO_DO' | 'SIGN_OFF' | 'ACTIVITY' | 'EVIDENCE';
+
 export type OutstandingUrgency = 'OVERDUE' | 'TODAY' | 'SOON' | 'WAITING';
 
 /** Who has the ball. A student cannot approve a reward; a parent need not revise. */
@@ -43,6 +60,11 @@ export interface OutstandingItem {
   owner: OutstandingOwner;
   /** Where doing it happens. */
   tab: NavTab;
+  /**
+   * Which pane, for the rows that stay inside the Updates tab. Ignored
+   * everywhere else, because no other tab has panes to land on.
+   */
+  pane?: UpdatesPane;
   /** Label for the link, e.g. "Open the plan". */
   action: string;
   /** How many underlying things this row stands for, when it stands for many. */
@@ -234,6 +256,7 @@ async function evidenceItems(): Promise<OutstandingItem[]> {
       urgency: 'SOON',
       owner: 'STUDENT',
       tab: 'UPDATES',
+      pane: 'EVIDENCE',
       action: 'Open Evidence',
       count: missing.length,
     },
@@ -411,6 +434,7 @@ async function confirmationItems(): Promise<OutstandingItem[]> {
       urgency: 'WAITING',
       owner: 'PARENT',
       tab: 'UPDATES',
+      pane: 'SIGN_OFF',
       action: 'Review the changes',
       count: pending.length,
     },

@@ -7,7 +7,7 @@ import { ActivityView } from './ActivityView';
 import { EvidenceCheck } from './EvidenceCheck';
 import { OutstandingPanel } from './OutstandingPanel';
 import { buildActivityFeed, needingReview, outstanding } from '../../services/activityService';
-import { loadOutstanding } from '../../services/outstandingService';
+import { UpdatesPane, loadOutstanding } from '../../services/outstandingService';
 
 /**
  * The Updates tab, which now does three different jobs.
@@ -38,7 +38,7 @@ export const UpdatesSection: React.FC<{
   currentRole: UserRole;
   onOpenTab: (tab: NavTab) => void;
 }> = ({ currentRole, onOpenTab }) => {
-  const [pane, setPane] = useState<'TO_DO' | 'SIGN_OFF' | 'ACTIVITY' | 'EVIDENCE'>('TO_DO');
+  const [pane, setPane] = useState<UpdatesPane>('TO_DO');
   const [waitingCount, setWaitingCount] = useState(0);
 
   const todoCount = useLiveQuery(
@@ -110,7 +110,18 @@ export const UpdatesSection: React.FC<{
       {/* Four panes, because reviewing an update raises four different
           questions: what is still to do, what changed, is it signed off, and
           can I actually see the work. */}
-      {pane === 'TO_DO' && <OutstandingPanel role={currentRole} onOpenTab={onOpenTab} />}
+      {pane === 'TO_DO' && (
+        <OutstandingPanel
+          role={currentRole}
+          /* A row pointing back into this tab has to move the pane, not the
+             tab. Handing it `onOpenTab` unchanged meant "Review the changes"
+             navigated to the tab it was already on and nothing happened. */
+          onOpenTab={(tab, target) => {
+            if (tab === 'UPDATES' && target) setPane(target);
+            else onOpenTab(tab);
+          }}
+        />
+      )}
       {pane === 'SIGN_OFF' && <UpdatesView />}
       {pane === 'ACTIVITY' && <ActivityView currentRole={currentRole} />}
       {pane === 'EVIDENCE' && <EvidenceCheck currentRole={currentRole} />}
