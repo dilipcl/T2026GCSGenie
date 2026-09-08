@@ -17,8 +17,15 @@ import { PACE_TEXT } from '../shared/PaceBar';
 import { ChoreCadence } from '../../types';
 import { logAuditEvent } from '../../services/auditService';
 import { useFeedback } from '../shared/FeedbackProvider';
-import { addDaysISO, formatFriendlyDate, formatShortDate, daysUntil } from '../../utils/date';
+import {
+  addDaysISO,
+  formatFriendlyDate,
+  formatPastDate,
+  formatShortDate,
+  daysUntil,
+} from '../../utils/date';
 import { markWeekReviewed } from '../../services/weekLedger';
+import { notesForWeek } from '../../services/dayRecordService';
 import { weeksAgo } from '../../services/weekWindow';
 import {
   X,
@@ -72,6 +79,24 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
   const goalHours = useLiveQuery(() => (isOpen ? lockedGoalProgress() : []), [isOpen], []);
   const capacity = useLiveQuery(() => (isOpen ? calculateBurnoutCapacity() : undefined), [isOpen]);
   const exceptions = useLiveQuery(() => (isOpen ? weekExceptions() : []), [isOpen], []);
+
+  /**
+   * What was actually written during the week being reviewed.
+   *
+   * The review had every number about the week and not one word from it, so
+   * "how did it go?" was answered by four statistics while the sentences
+   * somebody wrote at the time sat unread. The notes are the only part of the
+   * record that says *why*, which is the half a review is for.
+   *
+   * Up here with the other queries rather than beside the value it feeds,
+   * because everything below line 132 sits under an early return - and a hook
+   * called conditionally is a React fault that shows up later as unrelated
+   * state appearing in the wrong component.
+   */
+  const weekNotes = useLiveQuery(
+    () => (isOpen ? notesForWeek(weeksAgo(1).start) : undefined),
+    [isOpen]
+  );
   const settings = useLiveQuery(
     () => (isOpen ? db.parentSettings.get('active_settings') : undefined),
     [isOpen]
@@ -307,6 +332,45 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
               {effort.votes} votes cast for being someone who does the work — {effort.tasksCompleted}{' '}
               tasks, {effort.questsCompleted} quests, {effort.checkInDays} days checked in.
             </p>
+
+            {/* The week in its own words.
+
+                In full, never truncated, and grouped by the day they were
+                written on - a note is about a moment, and stripping the day off
+                it turns a record into a pile of sentences. Silent when there
+                are none rather than showing an empty heading, because a review
+                that opens with "nothing written" reads as an accusation. */}
+            {weekNotes && weekNotes.length > 0 && (
+              <div className="p-3 bg-slate-900/70 border border-slate-800 rounded-xl space-y-2.5">
+                <p className="text-xs font-bold text-white">What was written during the week</p>
+                {weekNotes.map((day) => (
+                  <div key={day.date}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                      {formatPastDate(day.date)}
+                    </p>
+                    <ul className="space-y-1">
+                      {day.notes.map((note, index) => (
+                        <li
+                          key={index}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800"
+                        >
+                          <p className="text-[10px] text-slate-500">
+                            {note.kind === 'FOLLOW_UP' ? 'Follow-up' : 'Note'} · {note.about}
+                          </p>
+                          <p
+                            className={`text-[11px] leading-relaxed ${
+                              note.kind === 'FOLLOW_UP' ? 'text-violet-200' : 'text-slate-200'
+                            }`}
+                          >
+                            {note.text}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

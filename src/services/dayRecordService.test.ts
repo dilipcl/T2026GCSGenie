@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../db';
 import { emptyDatabase } from '../test/harness';
 import { Task } from '../types';
-import { dayMatches, dayRecords, summarise } from './dayRecordService';
+import { dayMatches, dayRecords, notesForWeek, summarise } from './dayRecordService';
 
 /**
  * The app recorded a great deal and showed almost none of it back. A note typed
@@ -206,5 +206,47 @@ describe('the totals across the record', () => {
     expect(totals.workFinished).toBe(1);
     expect(totals.notesWritten).toBe(1);
     expect(totals.xp).toBe(52);
+  });
+});
+
+/**
+ * The weekly review had every number about the week and not one word from it,
+ * so "how did it go?" was answered by four statistics while the sentences
+ * somebody wrote at the time sat unread.
+ */
+describe('the notes from one week', () => {
+  const WEEK_START = '2026-08-31'; // Monday
+  const WEEK_END = '2026-09-06'; // Sunday
+
+  it('gathers what was written inside the week', async () => {
+    await lesson(WEEK_START, { notes: 'Monday note' });
+    await lesson(WEEK_END, { notes: 'Sunday note' });
+
+    const days = await notesForWeek(WEEK_START);
+    expect(days.flatMap((d) => d.notes.map((n) => n.text)).sort()).toEqual([
+      'Monday note',
+      'Sunday note',
+    ]);
+  });
+
+  it('leaves out the week either side of it', async () => {
+    await lesson('2026-08-30', { notes: 'the Sunday before' });
+    await lesson('2026-09-07', { notes: 'the Monday after' });
+
+    expect(await notesForWeek(WEEK_START)).toEqual([]);
+  });
+
+  it('keeps the day a note was written on', async () => {
+    // A note is about a moment. Stripping the day off it turns a record into a
+    // pile of sentences.
+    await lesson('2026-09-02', { notes: 'Wednesday' });
+
+    const [day] = await notesForWeek(WEEK_START);
+    expect(day.date).toBe('2026-09-02');
+  });
+
+  it('says nothing for a week nobody wrote in', async () => {
+    await lesson(WEEK_START);
+    expect(await notesForWeek(WEEK_START)).toEqual([]);
   });
 });

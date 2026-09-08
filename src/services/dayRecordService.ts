@@ -213,6 +213,29 @@ export async function dayRecords(days = 14, today: string = todayISO()): Promise
   return records.filter((record) => !record.isEmpty);
 }
 
+/**
+ * Everything written during one week, by the day it was written on.
+ *
+ * For the weekly review, which had every number about the week and not one word
+ * from it - so "how did it go?" was answered by four statistics while the
+ * sentences somebody actually wrote at the time sat unread in the database.
+ * Those notes are the only part of the record that says *why*, which is the
+ * half a review is for.
+ *
+ * Built on `dayRecords` rather than querying afresh, so the review and the
+ * record can never show different things about the same Tuesday.
+ */
+export async function notesForWeek(
+  weekStart: string
+): Promise<Array<{ date: string; notes: DayNote[] }>> {
+  const weekEnd = addDaysISO(6, parseISODate(weekStart));
+  const records = await dayRecords(7, weekEnd);
+
+  return records
+    .filter((record) => record.notes.length > 0)
+    .map((record) => ({ date: record.date, notes: record.notes }));
+}
+
 export interface RecordSummary {
   days: number;
   occurrencesAnswered: number;
