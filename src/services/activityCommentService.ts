@@ -1,6 +1,7 @@
 import { db } from '../db';
-import { ActivityComment, CommentSummary, UserRole } from '../types';
+import { ActivityComment, CommentSummary, SubjectId, UserRole } from '../types';
 import { newId } from '../utils/id';
+import { todayISO } from '../utils/date';
 import { getDeviceId } from '../utils/device';
 import { deviceLabelMap, describeActor } from './deviceRegistryService';
 
@@ -165,6 +166,143 @@ export async function evidenceComments(): Promise<EvidenceComments> {
 /** Just the unanswered asks. */
 export async function openEvidenceRequests(): Promise<Map<string, ActivityComment[]>> {
   return (await evidenceComments()).requests;
+}
+
+/**
+ * What answering a question is worth, and how long it is assumed to take.
+ *
+ * The same terms as a check-in follow-up, deliberately: both are "somebody
+ * raised something, go and deal with it", and pricing them differently would
+ * only invite picking the cheaper one to record.
+ */
+export const FOLLOW_UP_XP = 15;
+export const FOLLOW_UP_HOURS = 0.5;
+
+/**
+ * A comment about a record, and the work it raises.
+ *
+ * `addComment` attaches to a row in the activity feed. This attaches to the
+ * thing itself - a task, a piece of homework - so a conversation can start from
+ * wherever the work is being looked at rather than only from the feed.
+ *
+ * The important half is what a question does. A comment expecting an answer
+ * used to leave a flag on a feed row and nothing else, so answering it depended
+ * on somebody scrolling back to a screen they had no reason to open. It now
+ * raises a task, in this week, on the list people actually work from - which is
+ * the only version of "please look at this" that survives contact with a
+ * fourteen-year-old's week.
+ *
+ * A remark raises nothing. "Nice one" becoming a chore is how a comment box
+ * stops being used.
+ */
+export async function addEntityComment(input: {
+  entityId: string;
+  /** What the record is, for the raised task's description. */
+  entityLabel: string;
+  /** The record's own title, so the task reads without opening anything. */
+  title: string;
+  text: string;
+  authorRole: UserRole;
+  /** True when an answer is expected. Only these raise work. */
+  needsResponse?: boolean;
+  subjectId?: SubjectId;
+}): Promise<ActivityComment> {
+  const text = input.text.trim();
+  if (!text) throw new Error('A comment needs something in it.');
+
+  const history = await db.auditLogs.where('entity').notEqual('').toArray();
+  const latest = history
+    .filter((row) => row.entityId === input.entityId)
+    .sort((a, b) => b.timestamp - a.timestamp)[0];
+
+  const id = newId('cmt');
+  let followUpTaskId: string | undefined;
+
+  if (input.needsResponse) {
+    followUpTaskId = newId('task');
+    await db.tasks.add({
+      id: followUpTaskId,
+      subjectId: input.subjectId ?? 'general',
+      bucket: 'THIS_WEEK',
+      committedAt: Date.now(),
+      title: `Answer: ${text}`,
+      description: `Asked about "${input.title}" (${input.entityLabel}).`,
+      /**
+       * Due today rather than on the record's own date. A question asked today
+       * about last Tuesday's homework is not already a week overdue, and a task
+       * that arrives late is one nobody believes.
+       */
+      dueDate: todayISO(),
+      priority: 'MEDIUM',
+      isHomework: false,
+      isRemediation: false,
+      isFollowUp: true,
+      followUpCommentId: id,
+      estimatedHours: FOLLOW_UP_HOURS,
+      xpValue: FOLLOW_UP_XP,
+      completed: false,
+      createdAt: Date.now(),
+    });
+  }
+
+  const comment: ActivityComment = {
+    id,
+    activityId: latest?.id ?? input.entityId,
+    subjectEntityId: input.entityId,
+    kind: 'COMMENT',
+    createdAt: Date.now(),
+    authorRole: input.authorRole,
+    authorDeviceId: getDeviceId(),
+    text,
+    needsResponse: input.needsResponse ?? false,
+    followUpTaskId,
+  };
+
+  await db.activityComments.add(comment);
+  return comment;
+}
+
+/**
+ * The conversation about one record, oldest first.
+ *
+ * Oldest first because a thread is read as a thread - the newest-first rule
+ * that suits a list of unrelated items makes a conversation read backwards.
+ */
+export async function commentsForEntity(entityId: string): Promise<ActivityComment[]> {
+  const [comments, devices] = await Promise.all([
+    db.activityComments.toArray(),
+    deviceLabelMap(),
+  ]);
+
+  return comments
+    .filter((comment) => comment.subjectEntityId === entityId)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((comment) => {
+      const actor = describeActor(comment.authorRole, comment.authorDeviceId, devices);
+      return { ...comment, authorLabel: actor.person ?? actor.label };
+    });
+}
+
+/**
+ * Marks the question answered when its follow-up task is ticked off.
+ *
+ * Without this the two drift immediately: the work says done, the comment still
+ * says somebody is waiting, and the flag outlives the thing it was about -
+ * which is exactly how a review flag becomes furniture.
+ */
+export async function resolveCommentForTask(
+  taskId: string,
+  role: UserRole
+): Promise<void> {
+  const comments = await db.activityComments.toArray();
+  const comment = comments.find((row) => row.followUpTaskId === taskId && !row.resolvedAt);
+  if (!comment) return;
+
+  await db.activityComments.put({
+    ...comment,
+    resolvedAt: Date.now(),
+    resolvedByRole: role,
+  });
 }
 
 /**

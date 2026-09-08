@@ -4,6 +4,7 @@ import { Task, PriorityLevel, SubjectId, Goal } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent } from '../../services/auditService';
 import { recordChange } from '../../services/changeLogService';
+import { resolveCommentForTask } from '../../services/activityCommentService';
 import { triggerCelebration } from '../../utils/confetti';
 import { todayISO, formatFriendlyDate } from '../../utils/date';
 import {
@@ -17,6 +18,7 @@ import {
   Filter,
   Wrench,
   ArrowRight,
+  MessageSquare,
 } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { useChangeGuard } from '../shared/ChangeGuardProvider';
@@ -58,7 +60,9 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
    * have I got to do" and "what did I get wrong" are different questions, and
    * a fix-up buried among thirty pieces of homework answers neither.
    */
-  const [selectedKind, setSelectedKind] = useState<'ALL' | 'HOMEWORK' | 'FIXUP'>('ALL');
+  const [selectedKind, setSelectedKind] = useState<'ALL' | 'HOMEWORK' | 'FIXUP' | 'FOLLOWUP'>(
+    'ALL'
+  );
   /** Open quests still on the old screen, so the pointer to it can be honest. */
   const [legacyFixups, setLegacyFixups] = useState(0);
   /**
@@ -108,6 +112,14 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
         ? `Completed "${task.title}" (+${task.xpValue} XP)`
         : `Reopened "${task.title}"`,
     });
+
+    /**
+     * A follow-up exists to answer somebody. Ticking it off without settling
+     * the question leaves the work saying done and the comment still saying
+     * somebody is waiting - and a flag that outlives what it was about is how
+     * a review flag becomes furniture.
+     */
+    if (done && task.isFollowUp) await resolveCommentForTask(task.id, currentRole);
 
     if (done) triggerCelebration({ particleCount: 50 });
     loadData();
@@ -194,7 +206,9 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
     if (filterStatus === 'PENDING' && t.completed) return false;
     if (filterStatus === 'COMPLETED' && !t.completed) return false;
     if (selectedKind === 'FIXUP' && !t.isRemediation) return false;
-    if (selectedKind === 'HOMEWORK' && t.isRemediation) return false;
+    if (selectedKind === 'FOLLOWUP' && !t.isFollowUp) return false;
+    // Homework means work somebody set, so neither of the other two kinds.
+    if (selectedKind === 'HOMEWORK' && (t.isRemediation || t.isFollowUp)) return false;
     return true;
   });
 
@@ -272,6 +286,10 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
                 { id: 'ALL', label: 'All' },
                 { id: 'HOMEWORK', label: 'Homework' },
                 { id: 'FIXUP', label: 'Fix-ups' },
+                // "What have I been asked?" is a different question from "what
+                // have I been set?", and a follow-up buried among thirty pieces
+                // of homework answers neither.
+                { id: 'FOLLOWUP', label: 'Follow-ups' },
               ] as const
             ).map((k) => (
               <button
@@ -397,6 +415,13 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
                       >
                         {task.priority} Priority
                       </span>
+
+                      {task.isFollowUp && (
+                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.2 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30 font-bold uppercase">
+                          <MessageSquare className="w-2.5 h-2.5" />
+                          Follow-up
+                        </span>
+                      )}
 
                       {task.isRemediation && (
                         <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold uppercase">

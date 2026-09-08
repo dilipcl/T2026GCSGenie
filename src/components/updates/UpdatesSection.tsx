@@ -122,7 +122,7 @@ export const UpdatesSection: React.FC<{
           }}
         />
       )}
-      {pane === 'SIGN_OFF' && <UpdatesView />}
+      {pane === 'SIGN_OFF' && <UpdatesView role={currentRole} />}
       {pane === 'ACTIVITY' && <ActivityView currentRole={currentRole} />}
       {pane === 'EVIDENCE' && <EvidenceCheck currentRole={currentRole} />}
     </div>

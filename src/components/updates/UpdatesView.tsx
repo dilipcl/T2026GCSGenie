@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { ChangeLogEntry } from '../../types';
+import { ChangeLogEntry, UserRole } from '../../types';
+import { TaskDetailPanel } from '../shared/TaskDetailPanel';
 import {
   CATEGORY_ICON,
   CATEGORY_LABEL,
@@ -32,6 +33,7 @@ import {
   Copy,
   History,
   ExternalLink,
+  ChevronRight,
 } from 'lucide-react';
 
 /**
@@ -47,8 +49,10 @@ import {
  * once: a signature, a file in Drive with a timestamp, and - if the family has
  * asked for it - a message.
  */
-export const UpdatesView: React.FC = () => {
+export const UpdatesView: React.FC<{ role?: UserRole }> = ({ role = 'PARENT' }) => {
   const { toast } = useFeedback();
+  /** One open at a time; a page of expanded panels is a page nobody reads. */
+  const [openTask, setOpenTask] = useState<string | undefined>(undefined);
 
   const pending = useLiveQuery(() => pendingConfirmation(), [], []);
   const confirmed = useLiveQuery(() => confirmedChanges(), [], []);
@@ -188,32 +192,64 @@ export const UpdatesView: React.FC = () => {
           <div className="space-y-1.5 mb-4">
             {pending.map((entry) => {
               const isOn = !deselected.has(entry.id);
+              /**
+               * Only a row that names a task can be opened. Most can: the
+               * change log has carried `entity` and `entityId` since September,
+               * which is what lets a sentence about a change reach the thing it
+               * was about.
+               */
+              const taskId = entry.entity === 'Task' ? entry.entityId : undefined;
+              const isOpen = openTask === taskId;
+
               return (
-                <label
+                <div
                   key={entry.id}
-                  className={`flex items-start gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                  className={`p-2.5 rounded-xl border transition-all ${
                     isOn
                       ? 'bg-slate-900/70 border-slate-700'
                       : 'bg-slate-950/60 border-slate-800/70 opacity-50'
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={isOn}
-                    onChange={() => toggle(entry.id)}
-                    className="mt-0.5 w-4 h-4 accent-emerald-500 flex-shrink-0"
-                  />
-                  <span className="text-base leading-5 flex-shrink-0" aria-hidden="true">
-                    {CATEGORY_ICON[entry.category]}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs text-slate-100">{entry.summary}</span>
-                    <span className="block text-[10px] text-slate-500 mt-0.5">
-                      {CATEGORY_LABEL[entry.category]} · {formatLogTimestamp(entry.timestamp)}
-                      {entry.detail ? ` · ${entry.detail}` : ''}
-                    </span>
-                  </span>
-                </label>
+                  <div className="flex items-start gap-3">
+                    {/* The label covers the checkbox and the text, and stops
+                        there. It used to wrap the whole row, so anything added
+                        beside it - a button to open the detail - would toggle
+                        the checkbox on its way through. */}
+                    <label className="flex items-start gap-3 min-w-0 flex-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isOn}
+                        onChange={() => toggle(entry.id)}
+                        className="mt-0.5 w-4 h-4 accent-emerald-500 flex-shrink-0"
+                      />
+                      <span className="text-base leading-5 flex-shrink-0" aria-hidden="true">
+                        {CATEGORY_ICON[entry.category]}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs text-slate-100">{entry.summary}</span>
+                        <span className="block text-[10px] text-slate-500 mt-0.5">
+                          {CATEGORY_LABEL[entry.category]} · {formatLogTimestamp(entry.timestamp)}
+                          {entry.detail ? ` · ${entry.detail}` : ''}
+                        </span>
+                      </span>
+                    </label>
+
+                    {taskId && (
+                      <button
+                        type="button"
+                        onClick={() => setOpenTask(isOpen ? undefined : taskId)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300 hover:bg-slate-700 flex-shrink-0"
+                      >
+                        {isOpen ? 'Hide' : 'Details'}
+                        <ChevronRight
+                          className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                        />
+                      </button>
+                    )}
+                  </div>
+
+                  {taskId && isOpen && <TaskDetailPanel taskId={taskId} role={role} />}
+                </div>
               );
             })}
           </div>

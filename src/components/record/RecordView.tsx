@@ -8,7 +8,8 @@ import {
   summarise,
 } from '../../services/dayRecordService';
 import { REASON_LABEL } from '../../services/commitmentService';
-import { OccurrenceOutcome } from '../../types';
+import { OccurrenceOutcome, UserRole } from '../../types';
+import { TaskDetailPanel } from '../shared/TaskDetailPanel';
 import { formatPastDate, formatShortDate } from '../../utils/date';
 import {
   BookOpen,
@@ -22,6 +23,7 @@ import {
   Link as LinkIcon,
   AlertTriangle,
   Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 
 /**
@@ -65,8 +67,10 @@ const NOTE_STYLE: Record<DayNote['kind'], { label: string; icon: typeof MessageS
 const DEFAULT_DAYS = 14;
 const EXTENDED_DAYS = 60;
 
-export const RecordView: React.FC = () => {
+export const RecordView: React.FC<{ role?: UserRole }> = ({ role = 'STUDENT' }) => {
   const [query, setQuery] = useState('');
+  /** One open at a time: a page of expanded panels is a page nobody reads. */
+  const [openTask, setOpenTask] = useState<string | undefined>(undefined);
   const [days, setDays] = useState(DEFAULT_DAYS);
   const [notesOnly, setNotesOnly] = useState(false);
 
@@ -173,7 +177,13 @@ export const RecordView: React.FC = () => {
       ) : (
         <div className="space-y-3">
           {shown.map((day) => (
-            <DayCard key={day.date} day={day} />
+            <DayCard
+              key={day.date}
+              day={day}
+              role={role}
+              openTask={openTask}
+              onOpen={(taskId) => setOpenTask((prev) => (prev === taskId ? undefined : taskId))}
+            />
           ))}
         </div>
       )}
@@ -181,7 +191,12 @@ export const RecordView: React.FC = () => {
   );
 };
 
-const DayCard: React.FC<{ day: DayRecord }> = ({ day }) => {
+const DayCard: React.FC<{
+  day: DayRecord;
+  role: UserRole;
+  openTask?: string;
+  onOpen: (taskId: string) => void;
+}> = ({ day, role, openTask, onOpen }) => {
   /**
    * Whether the heading still needs the date spelled out beside it.
    *
@@ -268,9 +283,18 @@ const DayCard: React.FC<{ day: DayRecord }> = ({ day }) => {
             {day.work.map((item) => (
               <li
                 key={item.taskId}
-                className="flex flex-wrap items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-900/70 border border-slate-800"
+                className="px-2.5 py-1.5 rounded-lg bg-slate-900/70 border border-slate-800"
               >
-                <span className="text-[11px] text-slate-100 min-w-0 flex-1">{item.title}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                {/* The row opens. Being told something was finished and having
+                    no way to see it is most of what made this record feel thin. */}
+                <button
+                  type="button"
+                  onClick={() => onOpen(item.taskId)}
+                  className="text-[11px] text-slate-100 min-w-0 flex-1 text-left hover:text-white"
+                >
+                  {item.title}
+                </button>
 
                 {item.evidence.map((ref, index) =>
                   ref.url ? (
@@ -304,6 +328,17 @@ const DayCard: React.FC<{ day: DayRecord }> = ({ day }) => {
                     <AlertTriangle className="w-3 h-3" />
                     nothing attached
                   </span>
+                )}
+
+                <ChevronRight
+                  className={`w-3.5 h-3.5 text-slate-500 transition-transform ${
+                    openTask === item.taskId ? 'rotate-90' : ''
+                  }`}
+                />
+                </div>
+
+                {openTask === item.taskId && (
+                  <TaskDetailPanel taskId={item.taskId} role={role} />
                 )}
               </li>
             ))}

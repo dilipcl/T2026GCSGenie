@@ -342,7 +342,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'RECORD' && <RecordView />}
+        {activeTab === 'RECORD' && <RecordView role={currentRole} />}
 
         {activeTab === 'UPDATES' && (
           <UpdatesSection currentRole={currentRole} onOpenTab={setActiveTab} />

@@ -240,6 +240,23 @@ export interface Task {
   priority: PriorityLevel;
   isHomework: boolean;
   isRemediation: boolean;
+  /**
+   * Raised to answer somebody, rather than set by a teacher or by a mistake.
+   *
+   * A question asked in a comment used to leave a flag on a row in the activity
+   * feed and nothing else - so answering it depended on somebody scrolling back
+   * to a screen they had no reason to open. A question worth asking is worth a
+   * place on the list of things to do, which is the only surface anybody
+   * actually works from.
+   *
+   * A third kind alongside homework and fix-ups rather than a plain task,
+   * because "what have I been asked?" is a different question from "what have I
+   * been set?", and a follow-up buried among thirty pieces of homework answers
+   * neither.
+   */
+  isFollowUp?: boolean;
+  /** The comment it answers, so resolving one can settle the other. */
+  followUpCommentId?: string;
   remediationSourceDoc?: string;
   linkedGoalId?: string;
   linkedTopicId?: string;
@@ -1377,6 +1394,8 @@ export interface ActivityComment {
    * which are ordinary comments.
    */
   kind?: 'COMMENT' | 'EVIDENCE_REQUEST' | 'EVIDENCE_NOTE';
+  /** The task raised to answer this, when one was. */
+  followUpTaskId?: string;
   /**
    * The record the request is about, when it is an evidence request or a note
    * explaining why there is none.
