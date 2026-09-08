@@ -178,152 +178,171 @@ export const RecordView: React.FC = () => {
   );
 };
 
-const DayCard: React.FC<{ day: DayRecord }> = ({ day }) => (
-  <div className="glass-card p-4">
-    <div className="flex flex-wrap items-baseline justify-between gap-2 pb-2 mb-3 border-b border-slate-800">
-      {/* `formatPastDate`, never `formatFriendlyDate`.
+const DayCard: React.FC<{ day: DayRecord }> = ({ day }) => {
+  /**
+   * Whether the heading still needs the date spelled out beside it.
+   *
+   * `formatPastDate` is relative for the last week - "Yesterday", "Wednesday" -
+   * where the date genuinely adds something, and absolute beyond that - "Tue 1
+   * Sept" - where repeating it reads as a stutter.
+   *
+   * Derived by asking what it actually returned rather than by re-deriving the
+   * six-day rule here. A second copy of that rule is precisely the kind of
+   * duplication that drifts the moment either side is tuned, and this file has
+   * already been bitten once by two date helpers disagreeing.
+   */
+  const shortDate = formatShortDate(day.date);
+  const showDate = !formatPastDate(day.date).includes(shortDate);
 
-          The friendly one answers "how soon?" and returns "Overdue by 4 days"
-          for a date in the past - which as the heading of a diary entry is
-          nonsense: a day that has happened cannot be overdue. This one answers
-          "how long ago?", which is the question a record is asking. */}
-      <h3 className="text-sm font-bold text-white">
-        {formatPastDate(day.date)}
-        <span className="ml-2 text-[11px] font-normal text-slate-500">
-          {formatShortDate(day.date)}
+  return (
+    <div className="glass-card p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 pb-2 mb-3 border-b border-slate-800">
+        {/* `formatPastDate`, never `formatFriendlyDate`.
+
+            The friendly one answers "how soon?" and returns "Overdue by 4 days"
+            for a date in the past - which as the heading of a diary entry is
+            nonsense: a day that has happened cannot be overdue. This one answers
+            "how long ago?", which is the question a record is asking. */}
+        <h3 className="text-sm font-bold text-white">
+          {formatPastDate(day.date)}
+          {showDate && (
+            <span className="ml-2 text-[11px] font-normal text-slate-500">
+              {shortDate}
+            </span>
+          )}
+        </h3>
+        <span className="text-[11px] text-slate-400 flex items-center gap-1">
+          {day.xp > 0 && (
+            <>
+              <Sparkles className="w-3 h-3 text-fuchsia-300" />
+              <span className="text-fuchsia-200 font-bold">{day.xp} XP</span>
+            </>
+          )}
         </span>
-      </h3>
-      <span className="text-[11px] text-slate-400 flex items-center gap-1">
-        {day.xp > 0 && (
-          <>
-            <Sparkles className="w-3 h-3 text-fuchsia-300" />
-            <span className="text-fuchsia-200 font-bold">{day.xp} XP</span>
-          </>
-        )}
-      </span>
-    </div>
-
-    {day.occurrences.length > 0 && (
-      <div className="mb-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-          How the day went
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {day.occurrences.map((row) => {
-            const style = OUTCOME_STYLE[row.outcome];
-            const Icon = style.icon;
-            return (
-              <span
-                key={row.id}
-                title={row.reasonCategory ? REASON_LABEL[row.reasonCategory] : undefined}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-semibold ${style.tone}`}
-              >
-                <Icon className="w-3 h-3" />
-                {row.label}
-                {row.reasonCategory && (
-                  <span className="font-normal opacity-80">· {REASON_LABEL[row.reasonCategory]}</span>
-                )}
-              </span>
-            );
-          })}
-        </div>
       </div>
-    )}
 
-    {day.work.length > 0 && (
-      <div className="mb-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-          Work finished
-        </p>
-        <ul className="space-y-1">
-          {day.work.map((item) => (
-            <li
-              key={item.taskId}
-              className="flex flex-wrap items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-900/70 border border-slate-800"
-            >
-              <span className="text-[11px] text-slate-100 min-w-0 flex-1">{item.title}</span>
-
-              {item.evidence.map((ref, index) =>
-                ref.url ? (
-                  <a
-                    key={index}
-                    href={ref.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/30 text-[10px] text-indigo-300"
-                  >
-                    {ref.kind === 'LINK' ? (
-                      <LinkIcon className="w-2.5 h-2.5" />
-                    ) : (
-                      <Paperclip className="w-2.5 h-2.5" />
-                    )}
-                    <span className="truncate max-w-[10rem]">{ref.label}</span>
-                  </a>
-                ) : (
-                  <span
-                    key={index}
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-400"
-                  >
-                    <Paperclip className="w-2.5 h-2.5" />
-                    <span className="truncate max-w-[10rem]">{ref.label}</span>
-                  </span>
-                )
-              )}
-
-              {item.missingEvidence && (
-                <span className="inline-flex items-center gap-1 text-[10px] text-amber-300 font-semibold">
-                  <AlertTriangle className="w-3 h-3" />
-                  nothing attached
+      {day.occurrences.length > 0 && (
+        <div className="mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+            How the day went
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {day.occurrences.map((row) => {
+              const style = OUTCOME_STYLE[row.outcome];
+              const Icon = style.icon;
+              return (
+                <span
+                  key={row.id}
+                  title={row.reasonCategory ? REASON_LABEL[row.reasonCategory] : undefined}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-semibold ${style.tone}`}
+                >
+                  <Icon className="w-3 h-3" />
+                  {row.label}
+                  {row.reasonCategory && (
+                    <span className="font-normal opacity-80">· {REASON_LABEL[row.reasonCategory]}</span>
+                  )}
                 </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
-    )}
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-    {/* In full, never truncated. This is the only screen that shows them at
-        all, and a note worth writing is worth reading. */}
-    {day.notes.length > 0 && (
-      <div className="mb-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-          What was written
-        </p>
-        <ul className="space-y-1.5">
-          {day.notes.map((note, index) => {
-            const style = NOTE_STYLE[note.kind];
-            const Icon = style.icon;
-            return (
+      {day.work.length > 0 && (
+        <div className="mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+            Work finished
+          </p>
+          <ul className="space-y-1">
+            {day.work.map((item) => (
               <li
-                key={index}
-                className="px-2.5 py-2 rounded-lg bg-slate-900/70 border border-slate-800"
+                key={item.taskId}
+                className="flex flex-wrap items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-900/70 border border-slate-800"
               >
-                <p className="text-[10px] text-slate-500 flex items-center gap-1 mb-0.5">
-                  <Icon className={`w-3 h-3 ${style.tone}`} />
-                  <span className="font-bold">{style.label}</span>
-                  <span>· {note.about}</span>
-                </p>
-                <p className={`text-[11px] leading-relaxed ${style.tone}`}>{note.text}</p>
+                <span className="text-[11px] text-slate-100 min-w-0 flex-1">{item.title}</span>
+
+                {item.evidence.map((ref, index) =>
+                  ref.url ? (
+                    <a
+                      key={index}
+                      href={ref.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/30 text-[10px] text-indigo-300"
+                    >
+                      {ref.kind === 'LINK' ? (
+                        <LinkIcon className="w-2.5 h-2.5" />
+                      ) : (
+                        <Paperclip className="w-2.5 h-2.5" />
+                      )}
+                      <span className="truncate max-w-[10rem]">{ref.label}</span>
+                    </a>
+                  ) : (
+                    <span
+                      key={index}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-400"
+                    >
+                      <Paperclip className="w-2.5 h-2.5" />
+                      <span className="truncate max-w-[10rem]">{ref.label}</span>
+                    </span>
+                  )
+                )}
+
+                {item.missingEvidence && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-amber-300 font-semibold">
+                    <AlertTriangle className="w-3 h-3" />
+                    nothing attached
+                  </span>
+                )}
               </li>
-            );
-          })}
-        </ul>
-      </div>
-    )}
+            ))}
+          </ul>
+        </div>
+      )}
 
-    {day.checkIn && (
-      <p className="text-[10px] text-slate-500">
-        Check-in · energy {day.checkIn.energyLevel}/5 · focus{' '}
-        {day.checkIn.focusRating.toLowerCase()}
-        {day.checkIn.completedRevisionMinutes > 0 &&
-          ` · ${day.checkIn.completedRevisionMinutes} min of revision`}
-      </p>
-    )}
+      {/* In full, never truncated. This is the only screen that shows them at
+          all, and a note worth writing is worth reading. */}
+      {day.notes.length > 0 && (
+        <div className="mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+            What was written
+          </p>
+          <ul className="space-y-1.5">
+            {day.notes.map((note, index) => {
+              const style = NOTE_STYLE[note.kind];
+              const Icon = style.icon;
+              return (
+                <li
+                  key={index}
+                  className="px-2.5 py-2 rounded-lg bg-slate-900/70 border border-slate-800"
+                >
+                  <p className="text-[10px] text-slate-500 flex items-center gap-1 mb-0.5">
+                    <Icon className={`w-3 h-3 ${style.tone}`} />
+                    <span className="font-bold">{style.label}</span>
+                    <span>· {note.about}</span>
+                  </p>
+                  <p className={`text-[11px] leading-relaxed ${style.tone}`}>{note.text}</p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
-    {day.attachments.length > 0 && (
-      <p className="text-[10px] text-slate-500 mt-1">
-        {day.attachments.length} file{day.attachments.length === 1 ? '' : 's'} added this day
-      </p>
-    )}
-  </div>
-);
+      {day.checkIn && (
+        <p className="text-[10px] text-slate-500">
+          Check-in · energy {day.checkIn.energyLevel}/5 · focus{' '}
+          {day.checkIn.focusRating.toLowerCase()}
+          {day.checkIn.completedRevisionMinutes > 0 &&
+            ` · ${day.checkIn.completedRevisionMinutes} min of revision`}
+        </p>
+      )}
+
+      {day.attachments.length > 0 && (
+        <p className="text-[10px] text-slate-500 mt-1">
+          {day.attachments.length} file{day.attachments.length === 1 ? '' : 's'} added this day
+        </p>
+      )}
+    </div>
+  );
+};

@@ -75,6 +75,19 @@ describe('the places the wrong formatter keeps reaching', () => {
     }
   });
 
+  /**
+   * The rule the record's heading relies on to decide whether to print the date
+   * a second time. Pinned here rather than left implicit, because the heading
+   * derives it from what `formatPastDate` returned - so a change to where that
+   * switches from relative to absolute silently changes the heading too.
+   */
+  it('switches from a relative word to a date after a week', () => {
+    // Inside the week: relative, and the date beside it adds something.
+    expect(formatPastDate('2026-09-06')).not.toContain(formatShortDate('2026-09-06'));
+    // Beyond it: already a date, so repeating it would stutter.
+    expect(formatPastDate('2026-08-27')).toContain(formatShortDate('2026-08-27'));
+  });
+
   it('does not head a record of something past with a deadline phrase', () => {
     const source = readFileSync('src/components/record/RecordView.tsx', 'utf8');
     /**
