@@ -9,7 +9,7 @@ import {
 } from '../../services/dayRecordService';
 import { REASON_LABEL } from '../../services/commitmentService';
 import { OccurrenceOutcome } from '../../types';
-import { formatFriendlyDate, formatShortDate } from '../../utils/date';
+import { formatPastDate, formatShortDate } from '../../utils/date';
 import {
   BookOpen,
   Search,
@@ -181,8 +181,14 @@ export const RecordView: React.FC = () => {
 const DayCard: React.FC<{ day: DayRecord }> = ({ day }) => (
   <div className="glass-card p-4">
     <div className="flex flex-wrap items-baseline justify-between gap-2 pb-2 mb-3 border-b border-slate-800">
+      {/* `formatPastDate`, never `formatFriendlyDate`.
+
+          The friendly one answers "how soon?" and returns "Overdue by 4 days"
+          for a date in the past - which as the heading of a diary entry is
+          nonsense: a day that has happened cannot be overdue. This one answers
+          "how long ago?", which is the question a record is asking. */}
       <h3 className="text-sm font-bold text-white">
-        {formatFriendlyDate(day.date)}
+        {formatPastDate(day.date)}
         <span className="ml-2 text-[11px] font-normal text-slate-500">
           {formatShortDate(day.date)}
         </span>

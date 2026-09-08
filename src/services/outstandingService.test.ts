@@ -238,6 +238,16 @@ describe('only a promise can be broken', () => {
    * overdue" before anyone had agreed to do it.
    */
   const yesterday = () => addDaysISO(-1, new Date());
+  /**
+   * A date genuinely before this week began.
+   *
+   * `yesterday()` is not that on most days - it usually falls inside the
+   * current Monday-to-Sunday week, and a NEXT_WEEK task dated inside this week
+   * is no longer next week's intention: its promised week has arrived, and
+   * `inferBucket` rightly reads it as committed. Using `yesterday()` here made
+   * this test pass on a Monday and fail on every other day.
+   */
+  const beforeThisWeek = () => addDaysISO(-1, parseISODate(startOfWeekISO(todayISO())));
 
   it('reports committed work that has slipped', async () => {
     await db.tasks.add(task({ bucket: 'THIS_WEEK', dueDate: yesterday() }));
@@ -247,10 +257,31 @@ describe('only a promise can be broken', () => {
   });
 
   it('leaves next week alone', async () => {
-    await db.tasks.add(task({ bucket: 'NEXT_WEEK', dueDate: yesterday() }));
+    await db.tasks.add(task({ bucket: 'NEXT_WEEK', dueDate: beforeThisWeek() }));
 
     const items = await loadOutstanding('STUDENT');
     expect(items.find((i) => i.id === 'tasks:overdue')).toBeUndefined();
+  });
+
+  it('but reports next week’s work once that week has arrived and it is late', async () => {
+    // The rollover, seen from the inbox. A task promised for "next week" whose
+    // week is now this one is a promise like any other, and a late one can be
+    // broken - which is exactly what this list exists to say.
+    await db.tasks.add(
+      task({ bucket: 'NEXT_WEEK', dueDate: startOfWeekISO(todayISO()) })
+    );
+
+    const items = await loadOutstanding('STUDENT');
+    const overdue = items.find((i) => i.id === 'tasks:overdue');
+
+    // On a Monday the week's own Monday is today, not yet overdue; any other
+    // day it is behind us. Both are correct, and the row is only claimed when
+    // the date has actually passed.
+    if (startOfWeekISO(todayISO()) < todayISO()) {
+      expect(overdue?.count).toBe(1);
+    } else {
+      expect(overdue).toBeUndefined();
+    }
   });
 
   it('leaves the backlog alone', async () => {
