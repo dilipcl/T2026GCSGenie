@@ -751,6 +751,62 @@ while testing.
 
 ---
 
+### 4.14. Module 14: The Record *(added September 2026)*
+
+A day-by-day account of what happened, assembled on read from the rows that already exist —
+`checkInOccurrences`, `checkIns`, `tasks`, `attachments` and the evidence index — and never stored,
+so it cannot drift from them.
+
+A day is the unit because that is the unit the answers were given in. A lesson, the note about it,
+the homework finished that evening and the photo of it are one episode; splitting them by type
+across four panes is what made the record unreadable. Days with no trace are omitted.
+
+`dayRecordService` also exposes `notesForWeek`, which the weekly review uses. Built on the same
+assembly rather than querying afresh, so the review and the Record cannot show different things
+about the same Tuesday.
+
+`DayNote` carries four kinds: a typed note, a follow-up, a check-in field, and a **reason** — the
+tapped category from a Partly or Missed answer. Reasons are derived here once; each screen then
+decides what to do with them. The Record filters them out because its outcome chips already carry
+them, and the review shows them, labelled "Reason given" so a tapped category is not read as a
+written sentence.
+
+### 4.15. Module 15: The week ledger *(added September 2026)*
+
+What became of each finished week, and which ones still need somebody to say. A week has a
+**standing** — planning, running, needs review, abandoned, written off, reviewed — derived rather
+than stored, because a stored status needs updating from four places and the version that forgets
+is the version that lies.
+
+Weeks are enumerated from the calendar rather than from `planBaselines`, because an abandoned week
+has no row anywhere; reading the table would find every week except the ones worth finding. A week
+the app was never used in is excluded — that is a week before the install, not one anybody
+abandoned.
+
+Closing happens two ways: reviewed, or written off with a required reason. Both stamp the baseline
+row, creating one if the week never had a plan. Neither moves any XP: `closedWeekExecutions` pays
+only weeks whose status is `BASELINED`, which is what stops an administrative act changing the
+balance.
+
+### 4.16. Module 16: The XP statement *(added September 2026)*
+
+XP is derived from source rows on every read and never banked, so nothing ever needs clawing back —
+reopening a task removes its points exactly.
+
+`xpLedgerService` itemises every contributing row as a signed entry and totals them by source. The
+statement reconciles against `calculateTotalXP` by construction, and the tests assert it rather than
+leaving it to hold by inspection; `closedWeekBonuses` is a thin wrapper over `closedWeekExecutions`
+for the same reason, so the statement and the balance cannot disagree about which weeks paid.
+
+Closes carrying the *signature* of an accident are surfaced and never acted on: a burst of three or
+more within ten seconds, a close at the instant of creation, a close with no timestamp, and
+homework closed with nothing attached and nothing said. The last is gated on
+`parentSettings.evidenceOnCloseFrom`, because before that moment a task could not carry evidence at
+all and the flag would accuse somebody of skipping a step that did not exist.
+
+The app has no standing to decide a close was not real. The figure sizes the question; reopening
+the task is what corrects the points, and that is a person's decision.
+
 ## 5. Comprehensive Database Schema (IndexedDB / Dexie.js)
 
 ```typescript
@@ -1038,9 +1094,23 @@ export interface ProofAttachment {
 | 17 | The middle of the planner splits in two. `NEXT_UP` and `LATER` are re-filed by due date into `THIS_WEEK` / `NEXT_WEEK` / `FUTURE` / `BACKLOG` |
 | 18 | Repairs the databases that ran the first, wrong version of v17. See below |
 | 19 | `seedLedger` — which starter rows this database has already been offered, so a deleted one stays deleted. See below |
+| 20 | `checkInOccurrences` — one row per lesson, activity, study block or promised task, per date. Ids are `${date}__${occurrenceKey}`, built rather than generated, so the same lesson answered on two devices offline merges into one row instead of paying twice |
 
 `attachments` carries a compound index `[ownerType+ownerId]`, which is the only lookup that matters.
 Booleans are never indexed — see 8.6.
+
+**Fields added without a version bump (September 2026).** Dexie only needs a version when an
+*index* changes. These are all optional, unindexed fields on existing stores, so they read as
+`undefined` on older rows and need no migration:
+
+| Store | Field | Why |
+| :--- | :--- | :--- |
+| `tasks` | `isFollowUp`, `followUpCommentId` | A third kind beside homework and fix-ups: work raised to answer somebody. The comment id lets ticking the task off settle the question |
+| `checkInOccurrences` | `reasonCategory` | Why something was only partly done or missed, from the same fixed list a missed commitment already used. Tapped rather than typed, so it can be counted |
+| `activityComments` | `followUpTaskId` | The task raised to answer this comment, so the two can be kept in step |
+| `planBaselines` | `reviewedAt`, `reviewedNote`, `writtenOffAt`, `writtenOffNote` | A finished week is closed by a person, not by the calendar. Writing one off is a recorded decision rather than a gap |
+| `parentSettings` | `evidenceOnCloseFrom` | When this family's app first offered to capture evidence as work is closed. Stamped once at runtime, never rewritten — a hardcoded release date would wrongly accuse every close made before a late upgrade |
+| `attachments` | `ownerType` gains `GOAL` | Goals can carry proof like anything else |
 
 **v19 makes deletion possible.** Seeding inserted any starter row whose primary key was absent, on
 every load — deliberately, so that content added in a later app version reaches devices already in

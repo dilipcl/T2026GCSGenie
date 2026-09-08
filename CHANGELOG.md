@@ -1,5 +1,165 @@
 # Changelog
 
+## September 2026 - Evidence gets a way in, weeks get a way out, and XP gets an account
+
+Everything here came from Tejas and his father using the app for a week and
+reporting what did not work. Almost none of it was a feature behaving badly. It
+was features that stopped one step short of being usable, and screens that each
+held a third of an answer.
+
+### Evidence could be asked for and never added
+
+The Evidence tab could tell you a piece of homework had been marked done with
+nothing attached, and the only thing it offered was to chase it on WhatsApp.
+There was no path anywhere in the app that put a photo or a link onto a task -
+`ProofUploader` existed and had never been pointed at one, and no screen wrote
+the Drive link field the evidence check reads back. The app asked a question it
+gave you no way to answer, which is the worst kind of nag.
+
+Evidence is now added from the row that reports it missing, and from the moment
+work is closed. A third answer exists too, and it is the one that was missing
+entirely: "there is nothing to attach, and here is why". Marked verbally, done
+in a book left at school, a practical - all real, none of them a file. Without
+somewhere to say so, the only way to clear a row was to attach something that
+did not exist, so the list filled with rows nobody could act on.
+
+### Closing work is a decision rather than a tap
+
+A task could be closed by one tap of a circle in a scrolling list, which is
+indistinguishable from a thumb catching it on the way past - and the whole XP
+and week-execution model rests on that tick meaning something. Homework and
+fix-ups now open a sheet that confirms and captures the evidence in one step,
+because the moment work is finished is the only moment the photo is to hand,
+and two dialogs in a row would mean nobody used the second. It never blocks:
+"mark it done anyway" is always there and says plainly what it costs.
+
+Reopening is confirmed too. It was equally unguarded, and it moves the week's
+delivery score.
+
+### A skipped week had nowhere to go
+
+Tejas committed one week and left the one before it, sensibly, because by the
+time he came back to it finalising it was pointless. No screen mentioned that
+week again, so it was indistinguishable from one he had forgotten.
+
+A finished week now has a standing, and two honest ways to close it: review it,
+or write it off with a reason. Writing a week off is not a failure state - it
+records that somebody looked, decided it was not worth reconstructing, and said
+why. What is no longer offered is leaving it open forever, which is the only
+genuinely bad outcome: a list containing something nobody can ever clear is a
+list people stop opening.
+
+Weeks are found from the calendar rather than from the baselines table, because
+an abandoned week has no row anywhere - which is precisely why it was invisible.
+
+### The planner described two weeks at once
+
+A navigator stepped through weeks for the activities panel while a separate
+toggle decided which week the gate timeline and the finalisation card were
+about. Nothing kept them in step, so looking back at last week left the page
+silently split. There is one selected week now, named by its dates.
+
+"Close the week" also settled itself from the calendar, so a fortnight-old week
+nobody had looked at showed four green ticks. It reads a timestamp the review
+actually writes.
+
+And "next week" never became "this week". The bucket is a relative label written
+once and never rewritten, so work planned on a Saturday for the week ahead was
+still sitting in the Next week column on the Monday it began, with This week
+reading as empty - which, because "commit at least one piece of work" is a
+blocking check, made the week impossible to send for approval at all.
+
+### The plan could be sent and never approved
+
+The approval panel read this week and only this week, while the planner lets a
+week be submitted for next Monday and defaults to doing exactly that from Friday
+onwards. A plan sent at the weekend was unapprovable: the student saw "waiting on
+a parent", the parent saw "nothing to approve", both truthfully, about different
+weeks. It follows the week actually awaiting a decision now.
+
+Missing hours estimates were invisible for a related reason: the load total
+substitutes a priority default, so an unestimated task rendered as "1h",
+identical to a real estimate, while the checklist blocked the week over that same
+task. The board says "no estimate" and offers the hours inline.
+
+### XP was a number nobody could decompose
+
+It is derived from the source rows on every read and never banked, so nothing
+ever needed clawing back - reopening a task removes its points exactly. What was
+missing was any way to see what the total is made of, and which lines rest on a
+close that might not have been real.
+
+There is an itemised statement now, reconciled against the headline balance in
+the tests rather than left to hold by inspection. Closes carrying the signature
+of an accident are named - several within ten seconds, closed at the instant of
+creation, no completion time recorded - and never acted on, because the app
+cannot know what somebody meant by a tap. Missing evidence is only held against
+work closed after the capture step existed, stamped at runtime rather than
+hardcoded, because a family upgrades when their device happens to pick the build
+up.
+
+Two real faults surfaced while checking that none of this could move the
+balance. Writing off or reviewing a week paid 20 XP for every piece of work
+finished during it, because the row created to hold the decision enrolled the
+week in the payment list. And a plan submitted and sent back was paid as though
+it had been approved. Only agreed weeks pay now, which is what the design always
+said.
+
+### A check-in against each subject, from the home screen
+
+The per-lesson check-in existed and lived inside the daily check-in modal, so
+answering "did Maths happen?" meant opening a modal and scrolling to find the
+row for something already on screen behind it. It is on the home screen now,
+against each subject, writing the same rows the modal writes - there is one
+store of answers and never a copy.
+
+Saying *why* something went wrong is a dropdown rather than a sentence, and only
+appears once an answer says something went wrong. Typing is a small tax, and
+this is the screen where a small tax means the check-in does not happen. A
+reason trapped in prose also cannot be counted, and "three Physics lessons
+missed for Cadets" is a pattern worth seeing.
+
+### The record: what happened, day by day
+
+The app recorded a great deal and showed almost none of it back. A note typed
+against a lesson was stored faithfully and rendered nowhere afterwards; the
+Evidence tab knew about attachments but not notes; the activity feed knew about
+changes but not what was said. The one question a parent and a fourteen-year-old
+actually sit down to - "what did you do, and how did it go?" - had no screen.
+
+A day is the unit, because that is the unit the answers were given in. A lesson,
+the note about it, the homework finished that evening and the photo of it are one
+episode, and splitting them by type is what made the record unreadable. Notes
+appear in full and are never truncated; this is the only screen that shows them
+at all.
+
+The weekly review shows the week in its own words for the same reason. It had
+every number about the week and not one sentence from it.
+
+### A question becomes work
+
+A comment expecting an answer set a flag on a row in the activity feed and
+stopped, so answering depended on somebody scrolling back to a screen they had no
+reason to open. A question asked on a piece of work now becomes a task in the
+week, on the list people actually work from, and ticking it off settles the
+question it answers. A remark still raises nothing - "nice one" becoming a chore
+is how a comment box stops being used.
+
+Follow-ups are their own kind in My Work beside homework and fix-ups, because
+"what have I been asked?" is a different question from "what have I been set?".
+
+### Smaller things
+
+- Rows in the To do list that pointed at the Updates tab were rendered *inside*
+  it, so clicking them switched to the tab already showing and nothing happened.
+  They now open the pane that holds the action.
+- The deploy moved onto action versions that run on Node 24, and the build's own
+  Node from an end-of-life release to the one the project is developed on.
+- Three date formatters answer three different questions, and picking the wrong
+  one had shipped four times - "due Overdue by 11 days", "for the week of Today",
+  and a diary entry headed "Overdue by 4 days". There is a test for it now,
+  because they all return plausible-looking strings.
+
 ## September 2026 - The week becomes a promise, and check-ins become the evidence
 
 Plan, My Work and the check-in were three features that did not know about each

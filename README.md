@@ -322,6 +322,122 @@ Answering asks what was actually done - "added, and made a follow-up for Friday"
 and "not needed, it was classwork" are different answers a bare tick would lose.
 Either person can answer; the student is usually the one who did the thing.
 
+**A question becomes work.** Ticking *this needs an answer* raises a task in the
+current week - "Answer: which questions did you actually do?" - worth 15 XP, on
+the list Tejas already works from. A flag on a row in the activity feed depends
+on somebody scrolling back to a screen they have no reason to open; a task does
+not. Ticking the task off settles the question, so the two cannot drift.
+
+A remark still raises nothing. "Nice one" becoming a chore is how a comment box
+stops being used, and the control says which it is about to do before you post.
+
+Comments attach to a **piece of work** as well as to a change, so a conversation
+can start from wherever the work is being looked at - the record, or the
+sign-off list - rather than only from the feed.
+
+### The Record - what happened, day by day
+
+Its own tab. Every day, newest first, with how each lesson and activity went and
+the reason where one was given, the work finished and what is attached to it,
+every note in full, and the day's XP.
+
+It exists because the app recorded a great deal and showed almost none of it
+back. A note typed against a Physics lesson was stored faithfully and rendered
+nowhere afterwards; Evidence knew about attachments but not notes; the activity
+feed knew about changes but not what was said. The question a parent and a
+fourteen-year-old actually sit down to - "what did you do, and how did it go?" -
+had no screen.
+
+A day is the unit because that is the unit the answers were given in. A lesson,
+the note about it, the homework finished that evening and the photo of it are
+one episode; splitting them by type across four panes is what made the record
+unreadable. Days where nothing happened are left out - a diary made mostly of
+blank pages is one nobody scrolls.
+
+**Notes are never truncated here.** This is the only screen that shows them, and
+a note worth writing is worth reading.
+
+Search covers subjects, titles, note text and file names; every word must appear.
+*Days with notes* narrows to the days somebody wrote something. *Go back further*
+reaches sixty days instead of fourteen.
+
+**Opening a row.** Any finished piece of work expands: its subject, due date, XP
+and when it closed, what is attached with links that open, a way to add more, and
+the conversation about it. The same panel appears on the sign-off list, because
+both screens are asking the same question about the same row.
+
+Nothing here is stored. A day is assembled on read from rows that already exist,
+so it cannot drift from them.
+
+### Checking in against each subject, from Home
+
+*Today, and how it went* lists everything the day is made of - each lesson by
+subject, plus activities, study blocks and work promised for today - with
+**Done / Partly / Missed** against each, saving on the tap.
+
+It is the same check-in as the one inside the daily modal, not a copy: there is
+one store of answers, so a tap here is already in the check-in, the week's
+evidence score and the XP total by the time it finishes. The modal still exists
+for backfilling an earlier day.
+
+**Saying why is a dropdown.** Answering *Partly* or *Missed* reveals a reason -
+illness, family, school trip, mock prep, cancelled, something else - the same
+vocabulary a missed commitment already used. Nothing is asked after *Done*,
+because there is nothing to explain. Typing a sentence is a small tax, and this
+is the screen where a small tax means the check-in does not get done at all; a
+reason trapped in prose also cannot be counted, and "three Physics lessons missed
+for Cadets" is a pattern worth being able to see.
+
+The free-text note and the follow-up are still there behind their icon, for
+everything the categories do not cover.
+
+### Closing a week that has already gone
+
+A week that ran and was never finalised used to stay that way forever, and no
+screen mentioned it again - so it was indistinguishable from one somebody had
+merely forgotten.
+
+The Plan tab lists earlier weeks still open, and each can be closed two ways:
+**review it**, or **write it off** with a reason. Writing a week off is not a
+failure - it records that somebody looked, decided it was not worth
+reconstructing, and said why. Both stop the week asking. Nothing already earned
+is taken away.
+
+Weeks are found from the calendar rather than from the baselines table, because
+a week that was never planned has no row anywhere - which is exactly why the
+abandoned ones were invisible. A week the app was never used in is not listed:
+that is a week before you started, not one you abandoned.
+
+### Where the XP came from
+
+The balance is derived from your work on every read and never banked. That has a
+consequence worth stating: **nothing ever needs clawing back**. Reopening a task
+removes its points immediately and exactly, because they were never stored
+anywhere - they were only ever a sum over the rows that said `completed`.
+
+The Rewards shop and the Parent Portal both carry an itemised statement: every
+task, fix-up, check-in, lesson check-in, chore, week bonus, sanction, redemption
+and held request, as a signed line with a date and the record behind it, grouped
+by where it came from. It reconciles against the headline balance by
+construction, and the tests assert that rather than leaving it to hold by
+inspection.
+
+**Closes worth a second look** are named separately: several finished within ten
+seconds of each other, work closed at the instant it was created, work with no
+completion time, and homework closed with nothing attached and nothing said. Each
+is a *signature*, never a verdict - the app cannot know what somebody meant by a
+tap, and one that pretended otherwise would start deleting real achievements.
+
+Nothing is adjusted. The figure sizes the question; reopening the task is what
+corrects the points, and that is a person's decision. There is deliberately no
+"write off these points" button, because that would be an adjustment nobody could
+later explain.
+
+Missing evidence is only held against work closed after the app started asking
+for it. Before that a task could not carry a photo or a link at all, and
+accusing somebody of skipping a step that did not exist buries the real cases in
+a term of noise.
+
 ### Target vs actual
 
 Subjects & Goals opens with a burn-down: hours still owed against hours
@@ -463,6 +579,20 @@ photo may not.
 Search requires **every** word rather than any of them. "Physics electricity"
 matching anything mentioning either returns most of the database and answers
 nothing.
+
+**Adding it.** Every row carries *Add the evidence*: a photo, a link to wherever
+the working lives, or - the third answer, and the one that used to be missing -
+a note saying why there is nothing to attach. Marked verbally, done in a book
+left at school, a practical: all real, none of them a file. Until there was
+somewhere to say so, the only way to clear a row was to attach something that
+did not exist, so the tab filled with rows nobody could act on and stopped being
+read.
+
+A row with a reason against it is **explained**: still without proof, no longer
+chased. Only the unexplained ones reach the To do list.
+
+The same panel appears when homework or a fix-up is closed, because the moment
+work is finished is the only moment the photo is actually to hand.
 
 **Asking for it, and knowing you asked.** Sharing a missing-evidence row to
 WhatsApp records the ask. Without that, a chase left no trace and a week later
@@ -953,8 +1083,13 @@ src/
 │   ├── shared/QuickAddSheet.tsx      # unified add AND edit - homework / key date / lesson
 │   ├── shared/InfoTip.tsx            # the "i" beside a number the app never explained
 │   ├── shared/ProofUploader.tsx      # photo & PDF capture, thumbnails, cleanup
+│   ├── shared/EvidencePanel.tsx      # attach a photo, a link, or say why there is none
+│   ├── shared/TaskDetailPanel.tsx    # one piece of work: what is attached, and the thread
 │   ├── assessments/                   # Proof Log: entry modal + log view
 │   ├── dashboard/                     # Home: what's next, check-in, schedule, quests
+│   │                                  #   incl. OccurrenceAnswer - the Done/Partly/Missed
+│   │                                  #   control shared by Home and the check-in modal
+│   ├── record/                        # The Record: every day, with the notes in full
 │   ├── tasks/  calendar/  goals/      # My Work, Key Dates, Subjects & Goals
 │   ├── remediation/                   # Fix My Mistakes
 │   ├── timetable/  rewards/  guidance/ # incl. How Genie works + first-run tour
@@ -972,6 +1107,9 @@ src/
 │   ├── burnoutEngine.ts               # weekly time budget
 │   ├── planBaselineService.ts         # readiness, approval, amendments, goal drift
 │   ├── planGates.ts                   # the four gates, planned window vs actual date
+│   ├── weekLedger.ts                  # what became of a finished week; review or write off
+│   ├── xpLedgerService.ts             # the itemised XP statement, and closes worth checking
+│   ├── dayRecordService.ts            # a day assembled from every table that touched it
 │   ├── outstandingService.ts          # every screen's unfinished business, in one list
 │   ├── periodTimeService.ts           # moving a bell time, and the lessons that follow it
 │   ├── sanctionService.ts             # the three tiers and the escalation window
