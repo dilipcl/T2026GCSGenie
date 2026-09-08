@@ -250,3 +250,50 @@ describe('the notes from one week', () => {
     expect(await notesForWeek(WEEK_START)).toEqual([]);
   });
 });
+
+/**
+ * A reason is tapped rather than typed, which makes it the commonest thing
+ * anybody will ever say about a lesson - a review showing only free text would
+ * show almost nothing.
+ */
+describe('reasons as part of what was said', () => {
+  it('records the reason behind a missed lesson', async () => {
+    await lesson(TODAY, { outcome: 'MISSED', reasonCategory: 'ILLNESS' });
+
+    const [day] = await dayRecords(14, TODAY);
+    const reason = day.notes.find((n) => n.kind === 'REASON');
+    expect(reason?.text).toBe('Illness or rest');
+    expect(reason?.about).toBe('Physics');
+  });
+
+  it('carries it into the weekly review alongside anything typed', async () => {
+    await lesson('2026-09-02', {
+      outcome: 'PARTIAL',
+      reasonCategory: 'MOCK_PREP',
+      notes: 'only got halfway',
+    });
+
+    const [day] = await notesForWeek('2026-08-31');
+    expect(day.notes.map((n) => n.kind).sort()).toEqual(['OCCURRENCE', 'REASON']);
+  });
+
+  it('says nothing where no reason was given', async () => {
+    await lesson(TODAY, { outcome: 'MISSED' });
+
+    const [day] = await dayRecords(14, TODAY);
+    expect(day.notes.filter((n) => n.kind === 'REASON')).toEqual([]);
+  });
+
+  it('does not count a tapped reason as a note somebody wrote', async () => {
+    await lesson(TODAY, { outcome: 'MISSED', reasonCategory: 'ILLNESS' });
+
+    // It belongs in the record, but reporting it as a written note would claim
+    // somebody sat down and wrote something.
+    expect(summarise(await dayRecords(14, TODAY)).notesWritten).toBe(0);
+  });
+
+  it('still counts what was actually written', async () => {
+    await lesson(TODAY, { outcome: 'MISSED', reasonCategory: 'ILLNESS', notes: 'off sick' });
+    expect(summarise(await dayRecords(14, TODAY)).notesWritten).toBe(1);
+  });
+});

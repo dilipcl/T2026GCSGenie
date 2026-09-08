@@ -7,6 +7,7 @@ import {
   Task,
 } from '../types';
 import { evidenceIndex, EvidenceRef } from './evidenceService';
+import { REASON_LABEL } from './commitmentService';
 import { addDaysISO, parseISODate, todayISO } from '../utils/date';
 
 /**
@@ -69,7 +70,17 @@ export interface DayRecord {
  * do.
  */
 export interface DayNote {
-  kind: 'OCCURRENCE' | 'FOLLOW_UP' | 'CHECK_IN';
+  /**
+   * `REASON` is tapped rather than typed - the reason picker on a Partly or
+   * Missed answer. It belongs here because it is the commonest thing anybody
+   * will ever say about a lesson, and a review showing only free text would
+   * show almost nothing.
+   *
+   * Screens that already render the reason some other way filter it out; the
+   * Record tab carries it on the outcome chip, so listing it again underneath
+   * would say the same thing twice.
+   */
+  kind: 'OCCURRENCE' | 'FOLLOW_UP' | 'CHECK_IN' | 'REASON';
   /** What it was about - a lesson name, or the heading of a check-in field. */
   about: string;
   text: string;
@@ -166,6 +177,14 @@ export async function dayRecords(days = 14, today: string = todayISO()): Promise
     const notes: DayNote[] = [
       ...dayOccurrences.flatMap((row) => {
         const out: DayNote[] = [];
+        if (row.reasonCategory) {
+          out.push({
+            kind: 'REASON',
+            about: row.label,
+            text: REASON_LABEL[row.reasonCategory],
+            subjectId: row.subjectId,
+          });
+        }
         if (row.notes?.trim()) {
           out.push({
             kind: 'OCCURRENCE',
@@ -250,7 +269,15 @@ export function summarise(records: DayRecord[]): RecordSummary {
     days: records.length,
     occurrencesAnswered: records.reduce((sum, r) => sum + r.answered, 0),
     workFinished: records.reduce((sum, r) => sum + r.work.length, 0),
-    notesWritten: records.reduce((sum, r) => sum + r.notes.length, 0),
+    /**
+     * Written, not tapped. A reason chosen from a list is a real answer and
+     * belongs in the record, but counting it here would report a number of
+     * "notes written" that nobody wrote.
+     */
+    notesWritten: records.reduce(
+      (sum, r) => sum + r.notes.filter((n) => n.kind !== 'REASON').length,
+      0
+    ),
     filesAttached: records.reduce((sum, r) => sum + r.attachments.length, 0),
     xp: records.reduce((sum, r) => sum + r.xp, 0),
   };

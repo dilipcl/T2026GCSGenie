@@ -56,6 +56,9 @@ const NOTE_STYLE: Record<DayNote['kind'], { label: string; icon: typeof MessageS
     OCCURRENCE: { label: 'Note', icon: MessageSquare, tone: 'text-slate-300' },
     FOLLOW_UP: { label: 'Follow-up', icon: ArrowRightCircle, tone: 'text-violet-200' },
     CHECK_IN: { label: 'Check-in', icon: MessageSquare, tone: 'text-cyan-200' },
+    // Never rendered here - see `written` below - but the map is exhaustive so
+    // that adding a kind cannot silently fall through to nothing.
+    REASON: { label: 'Reason', icon: MessageSquare, tone: 'text-amber-200' },
   };
 
 /** How far back the diary reaches by default, and when asked for more. */
@@ -194,6 +197,14 @@ const DayCard: React.FC<{ day: DayRecord }> = ({ day }) => {
   const shortDate = formatShortDate(day.date);
   const showDate = !formatPastDate(day.date).includes(shortDate);
 
+  /**
+   * Reasons are excluded here and only here: the outcome chips above already
+   * carry them ("Maths · Illness"), and repeating them underneath would say the
+   * same thing twice on one card. The weekly review has no chips, so it shows
+   * them - which is the whole reason they are on the day record at all.
+   */
+  const written = day.notes.filter((note) => note.kind !== 'REASON');
+
   return (
     <div className="glass-card p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2 pb-2 mb-3 border-b border-slate-800">
@@ -302,13 +313,13 @@ const DayCard: React.FC<{ day: DayRecord }> = ({ day }) => {
 
       {/* In full, never truncated. This is the only screen that shows them at
           all, and a note worth writing is worth reading. */}
-      {day.notes.length > 0 && (
+      {written.length > 0 && (
         <div className="mb-3">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
             What was written
           </p>
           <ul className="space-y-1.5">
-            {day.notes.map((note, index) => {
+            {written.map((note, index) => {
               const style = NOTE_STYLE[note.kind];
               const Icon = style.icon;
               return (

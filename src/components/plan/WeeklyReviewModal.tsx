@@ -25,7 +25,26 @@ import {
   daysUntil,
 } from '../../utils/date';
 import { markWeekReviewed } from '../../services/weekLedger';
-import { notesForWeek } from '../../services/dayRecordService';
+import { DayNote, notesForWeek } from '../../services/dayRecordService';
+
+/**
+ * A reason is tapped rather than typed, and saying so matters: "Missed —
+ * Illness" read as though somebody had written a sentence would overstate what
+ * was actually recorded.
+ */
+const NOTE_LABEL: Record<DayNote['kind'], string> = {
+  OCCURRENCE: 'Note',
+  FOLLOW_UP: 'Follow-up',
+  CHECK_IN: 'Check-in',
+  REASON: 'Reason given',
+};
+
+const NOTE_TONE: Record<DayNote['kind'], string> = {
+  OCCURRENCE: 'text-slate-200',
+  FOLLOW_UP: 'text-violet-200',
+  CHECK_IN: 'text-slate-200',
+  REASON: 'text-amber-200',
+};
 import { weeksAgo } from '../../services/weekWindow';
 import {
   X,
@@ -355,12 +374,10 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
                           className="px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800"
                         >
                           <p className="text-[10px] text-slate-500">
-                            {note.kind === 'FOLLOW_UP' ? 'Follow-up' : 'Note'} · {note.about}
+                            {NOTE_LABEL[note.kind]} · {note.about}
                           </p>
                           <p
-                            className={`text-[11px] leading-relaxed ${
-                              note.kind === 'FOLLOW_UP' ? 'text-violet-200' : 'text-slate-200'
-                            }`}
+                            className={`text-[11px] leading-relaxed ${NOTE_TONE[note.kind]}`}
                           >
                             {note.text}
                           </p>
