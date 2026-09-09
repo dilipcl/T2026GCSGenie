@@ -16,8 +16,8 @@ npm run build         # tsc && vite build
 npm run dev           # localhost:3000/T2026GCSGenie/
 ```
 
-Run all three before committing. The suite is fast enough that there is no
-reason to skip it.
+CI runs `npm run build` on push to `main` and nothing else — the tests are not
+gated anywhere, so whether to run them before committing is a judgement call.
 
 ## How code is written here
 
@@ -121,17 +121,23 @@ Verify a deploy by comparing the hash in the live `index.html` against
 
 ## Interface copy
 
-Plain English, lower case after the first word, no exclamation marks. Say the
-consequence rather than the rule: "a quiet week earns less — it never costs you
-XP" rather than "bonus scaled by completion". Never blame. The audience is a
-fourteen-year-old on a phone at night and a parent who wants fewer arguments.
+Say the consequence rather than the rule: "a quiet week earns less — it never
+costs you XP" rather than "bonus scaled by completion". Deferring work is framed
+as planning rather than failing, and the backlog "counts towards nothing and
+generates no guilt". The audience is a fourteen-year-old on a phone at night and
+a parent who wants fewer arguments.
 
 Prefer a date to a relative word anywhere two things are being compared. "Next
 week" is ambiguous on a Sunday; "8 Sep – 14 Sep" cannot be misread.
 
-## Windows notes
+Beyond that the house has no settled style — existing copy mixes sentence case
+with shouted headings and the occasional exclamation mark. Match the screen you
+are editing rather than imposing a rule.
 
-The shell is Git Bash. Heredocs containing apostrophes have repeatedly broken
-mid-script; for anything non-trivial write the Python to a file under the
-scratchpad directory and run it. `LF will be replaced by CRLF` warnings from git
-are normal and can be ignored.
+## Environment
+
+Windows, Git Bash. `LF will be replaced by CRLF` warnings from git are normal.
+
+For the agent rather than the codebase: heredocs containing apostrophes break
+mid-script here often enough that anything non-trivial is better written to a
+file under the scratchpad directory and run from there.
