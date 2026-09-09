@@ -297,3 +297,85 @@ describe('reasons as part of what was said', () => {
     expect(summarise(await dayRecords(14, TODAY)).notesWritten).toBe(1);
   });
 });
+
+/**
+ * A conversation about a piece of work is as much a part of the day as a note
+ * typed against a lesson. Left out, the record showed everything anybody wrote
+ * except the half addressed to another person - which is the half most likely
+ * to matter when somebody reads a week back.
+ */
+describe('the conversation about a piece of work', () => {
+  const askedAt = Date.parse(`${TODAY}T20:00:00`);
+
+  async function comment(over: Record<string, unknown> = {}) {
+    await db.activityComments.add({
+      id: `cmt_${Math.random()}`,
+      activityId: 'a1',
+      subjectEntityId: 'task_x',
+      kind: 'COMMENT',
+      createdAt: askedAt,
+      authorRole: 'PARENT',
+      authorDeviceId: 'd1',
+      text: 'Which questions did you actually do?',
+      needsResponse: true,
+      ...over,
+    } as never);
+  }
+
+  it('shows a comment on the day it was written', async () => {
+    await db.tasks.add(task({ id: 'task_x', title: 'Physics past paper' }));
+    await comment();
+
+    const [day] = await dayRecords(14, TODAY);
+    const found = day.notes.find((n) => n.kind === 'COMMENT');
+    expect(found?.text).toBe('Which questions did you actually do?');
+  });
+
+  it('names the work it is about, so it reads on its own', async () => {
+    await db.tasks.add(task({ id: 'task_x', title: 'Physics past paper' }));
+    await comment();
+
+    const [day] = await dayRecords(14, TODAY);
+    expect(day.notes.find((n) => n.kind === 'COMMENT')?.about).toBe('Physics past paper');
+  });
+
+  it('files it by when it was written, not by the work it is about', async () => {
+    // A question asked on Thursday about Tuesday's homework belongs to
+    // Thursday - that is the day somebody is trying to remember.
+    await db.tasks.add(
+      task({ id: 'task_x', completedAt: Date.parse('2026-09-02T10:00:00') })
+    );
+    await comment();
+
+    const withComment = (await dayRecords(14, TODAY)).find((d) =>
+      d.notes.some((n) => n.kind === 'COMMENT')
+    );
+    expect(withComment?.date).toBe(TODAY);
+  });
+
+  it('tells an evidence request apart from an ordinary remark', async () => {
+    await db.tasks.add(task({ id: 'task_x' }));
+    await comment({ kind: 'EVIDENCE_REQUEST', text: 'Send the notebook link' });
+    await comment({ kind: 'EVIDENCE_NOTE', text: 'Classwork, book at school' });
+
+    const [day] = await dayRecords(14, TODAY);
+    expect(day.notes.map((n) => n.kind).sort()).toEqual(['ASKED', 'EXPLAINED']);
+  });
+
+  it('counts comments, and still counts a tapped reason as neither', async () => {
+    await db.tasks.add(task({ id: 'task_x' }));
+    await comment();
+    await lesson(TODAY, { outcome: 'MISSED', reasonCategory: 'ILLNESS' });
+
+    const totals = summarise(await dayRecords(14, TODAY));
+    expect(totals.comments).toBe(1);
+    expect(totals.notesWritten).toBe(1);
+  });
+
+  it('survives a comment about a record that no longer exists', async () => {
+    await comment();
+
+    const [day] = await dayRecords(14, TODAY);
+    expect(day.notes.find((n) => n.kind === 'COMMENT')?.about).toBe('a piece of work');
+  });
+});

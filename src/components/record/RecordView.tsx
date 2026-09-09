@@ -24,6 +24,8 @@ import {
   AlertTriangle,
   Sparkles,
   ChevronRight,
+  MessageCircle,
+  HelpCircle,
 } from 'lucide-react';
 
 /**
@@ -61,6 +63,9 @@ const NOTE_STYLE: Record<DayNote['kind'], { label: string; icon: typeof MessageS
     // Never rendered here - see `written` below - but the map is exhaustive so
     // that adding a kind cannot silently fall through to nothing.
     REASON: { label: 'Reason', icon: MessageSquare, tone: 'text-amber-200' },
+    COMMENT: { label: 'Comment', icon: MessageCircle, tone: 'text-sky-200' },
+    ASKED: { label: 'Asked for evidence', icon: HelpCircle, tone: 'text-rose-200' },
+    EXPLAINED: { label: 'Why there is none', icon: MessageSquare, tone: 'text-slate-300' },
   };
 
 /** How far back the diary reaches by default, and when asked for more. */
@@ -119,6 +124,9 @@ export const RecordView: React.FC<{ role?: UserRole }> = ({ role = 'STUDENT' }) 
           </span>
           <span>
             <strong className="text-white">{totals.notesWritten}</strong> notes written
+          </span>
+          <span>
+            <strong className="text-white">{totals.comments}</strong> comments
           </span>
           <span>
             <strong className="text-white">{totals.filesAttached}</strong> files attached

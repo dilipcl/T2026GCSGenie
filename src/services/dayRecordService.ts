@@ -80,7 +80,7 @@ export interface DayNote {
    * Record tab carries it on the outcome chip, so listing it again underneath
    * would say the same thing twice.
    */
-  kind: 'OCCURRENCE' | 'FOLLOW_UP' | 'CHECK_IN' | 'REASON';
+  kind: 'OCCURRENCE' | 'FOLLOW_UP' | 'CHECK_IN' | 'REASON' | 'COMMENT' | 'ASKED' | 'EXPLAINED';
   /** What it was about - a lesson name, or the heading of a check-in field. */
   about: string;
   text: string;
@@ -119,12 +119,19 @@ function notesFrom(checkIn: DailyCheckIn): DayNote[] {
 export async function dayRecords(days = 14, today: string = todayISO()): Promise<DayRecord[]> {
   const from = addDaysISO(-(days - 1), parseISODate(today));
 
-  const [occurrences, checkIns, tasks, attachments, evidence] = await Promise.all([
+  const [occurrences, checkIns, tasks, attachments, evidence, comments] = await Promise.all([
     db.checkInOccurrences.where('date').between(from, today, true, true).toArray(),
     db.checkIns.where('date').between(from, today, true, true).toArray(),
     db.tasks.toArray(),
     db.attachments.toArray(),
     evidenceIndex(),
+    /**
+     * The conversation about a piece of work is as much a part of the day as a
+     * note typed against a lesson. Left out, the record showed everything
+     * anybody wrote *except* the half addressed to another person - which is
+     * the half most likely to matter when somebody reads a week back.
+     */
+    db.activityComments.toArray(),
   ]);
 
   const evidenceById = new Map(evidence.map((item) => [item.entityId, item]));
@@ -140,6 +147,22 @@ export async function dayRecords(days = 14, today: string = todayISO()): Promise
   };
 
   const occurrencesOn = byDate(occurrences, (row) => row.date);
+
+  /** Titles for the records a comment can be about, so a note reads on its own. */
+  const titleOf = new Map<string, string>([
+    ...tasks.map((task) => [task.id, task.title] as const),
+    ...evidence.map((item) => [item.entityId, item.title] as const),
+  ]);
+
+  /**
+   * Dated by when it was written rather than by the record it is about. A
+   * question asked on Thursday about Tuesday's homework belongs to Thursday -
+   * that is the day somebody is trying to remember.
+   */
+  const commentsOn = byDate(
+    comments.filter((comment) => !!comment.subjectEntityId),
+    (comment) => localDate(comment.createdAt)
+  );
   const checkInsOn = byDate(checkIns, (row) => row.date);
   const workOn = byDate(
     tasks.filter((task): task is Task & { completedAt: number } =>
@@ -204,6 +227,16 @@ export async function dayRecords(days = 14, today: string = todayISO()): Promise
         return out;
       }),
       ...(checkIn ? notesFrom(checkIn) : []),
+      ...(commentsOn.get(date) ?? []).map((comment) => ({
+        kind:
+          comment.kind === 'EVIDENCE_REQUEST'
+            ? ('ASKED' as const)
+            : comment.kind === 'EVIDENCE_NOTE'
+            ? ('EXPLAINED' as const)
+            : ('COMMENT' as const),
+        about: titleOf.get(comment.subjectEntityId!) ?? 'a piece of work',
+        text: comment.text,
+      })),
     ];
 
     const xp =
@@ -211,8 +244,17 @@ export async function dayRecords(days = 14, today: string = todayISO()): Promise
       (checkIn?.xpEarned ?? 0) +
       work.reduce((sum, item) => sum + item.xp, 0);
 
+    /**
+     * A day somebody asked a question on is a day with something in it, even if
+     * no lesson was answered and nothing was finished. Leaving comments out of
+     * this dropped the entire day, taking the question with it.
+     */
     const isEmpty =
-      dayOccurrences.length === 0 && !checkIn && work.length === 0 && files.length === 0;
+      dayOccurrences.length === 0 &&
+      !checkIn &&
+      work.length === 0 &&
+      files.length === 0 &&
+      notes.length === 0;
 
     records.push({
       date,
@@ -260,6 +302,7 @@ export interface RecordSummary {
   occurrencesAnswered: number;
   workFinished: number;
   notesWritten: number;
+  comments: number;
   filesAttached: number;
   xp: number;
 }
@@ -276,6 +319,15 @@ export function summarise(records: DayRecord[]): RecordSummary {
      */
     notesWritten: records.reduce(
       (sum, r) => sum + r.notes.filter((n) => n.kind !== 'REASON').length,
+      0
+    ),
+    /** Questions and remarks about a piece of work, which are notes too. */
+    comments: records.reduce(
+      (sum, r) =>
+        sum +
+        r.notes.filter(
+          (n) => n.kind === 'COMMENT' || n.kind === 'ASKED' || n.kind === 'EXPLAINED'
+        ).length,
       0
     ),
     filesAttached: records.reduce((sum, r) => sum + r.attachments.length, 0),

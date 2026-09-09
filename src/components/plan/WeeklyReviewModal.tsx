@@ -37,6 +37,9 @@ const NOTE_LABEL: Record<DayNote['kind'], string> = {
   FOLLOW_UP: 'Follow-up',
   CHECK_IN: 'Check-in',
   REASON: 'Reason given',
+  COMMENT: 'Comment',
+  ASKED: 'Asked for evidence',
+  EXPLAINED: 'Why there is none',
 };
 
 const NOTE_TONE: Record<DayNote['kind'], string> = {
@@ -44,6 +47,9 @@ const NOTE_TONE: Record<DayNote['kind'], string> = {
   FOLLOW_UP: 'text-violet-200',
   CHECK_IN: 'text-slate-200',
   REASON: 'text-amber-200',
+  COMMENT: 'text-sky-200',
+  ASKED: 'text-rose-200',
+  EXPLAINED: 'text-slate-300',
 };
 import { weeksAgo } from '../../services/weekWindow';
 import {
