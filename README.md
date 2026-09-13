@@ -942,6 +942,11 @@ until an explicit logout — so it is a one-time step per device, not a daily lo
 The chip then reports state: **Synced**, **Saving…**, **Updating…**, **Offline**, or **Sync problem**.
 Tap it any time to force a sync.
 
+Two states mean the account rather than the connection: **Sync expired** (the subscription has run
+out) and **Sync blocked** (this user has been deactivated on the sync service). Both hit every
+device at once, which is how you tell them from a phone with no signal — and in both, work carries
+on saving locally and simply stops travelling.
+
 | | |
 | :--- | :--- |
 | Backend | [Dexie Cloud](https://dexie.org/cloud/) — free tier covers 3 users, 25 MB structured data + 75 MB photos |
