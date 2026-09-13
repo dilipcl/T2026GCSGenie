@@ -1004,6 +1004,11 @@ which rows were rejected and why.
 
 ## Backups
 
+On startup the app asks the browser for **persistent storage**, so IndexedDB is exempt from eviction
+— by default it is "best-effort", which Chrome clears under storage pressure and Safari clears after
+seven days without a visit. The browser can refuse; the console says which way it went. A granted
+request is not a backup, and does not remove the reason to export.
+
 **Automatic backup** is set up under Parent Portal → Backup & Restore and is the path to prefer -
 see *Automatic backups* above. **Export everything** remains for a manual copy: it writes a JSON
 bundle covering every table. *Export without photos* produces a much smaller file.
