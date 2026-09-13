@@ -1036,9 +1036,14 @@ PIN hash is still included so a restore keeps the same PIN.
 
 Documented honestly so they aren't rediscovered as bugs.
 
-1. **Sync is configured but unproven in the field.** The wiring is verified — cold start, seeding,
-   unsynced API key, whitelisted origins — but no two real devices have yet been signed in and
-   reconciled. Treat multi-device as untested until that happens.
+1. **A large catch-up pull locks the screen up while it lands.** Multi-device sync is no longer
+   theoretical: on 13 Sep 2026 several devices on the shared account reconciled a backlog of days —
+   check-ins, tasks, the change log and photo attachments — after an expired licence had blocked
+   every push for a week. Nothing was lost, nothing needed merging by hand, and the queued changes
+   flushed on their own once the licence was valid. What it cost was three to four minutes where
+   the device taking the backlog ignored every tap: no spinner, no progress, nothing to say it was
+   working. Everything here is derived on read, so several hundred arriving rows are several hundred
+   rows of recomputation. Wait it out rather than force-quitting — it comes back by itself.
 2. **Parent governance is detective, not preventive.** The passphrase hides buttons; it does not
    protect data. Anyone with devtools can still edit IndexedDB directly — but the change history is
    now hash-chained, so edits and deletions show up in the integrity check. Genuine *prevention*

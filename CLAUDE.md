@@ -117,7 +117,10 @@ safety net is that a failed run publishes nothing and the previous bundle keeps
 serving.
 
 Verify a deploy by comparing the hash in the live `index.html` against
-`dist/assets/`. It is a PWA, so a device may need a hard refresh.
+`dist/assets/`. This is not a PWA — no manifest, no service worker, nothing
+caching the assets — so an ordinary reload gets the new bundle and there is no
+service worker to go looking for when one appears not to. The corollary is that
+a cold load needs the network, however offline-first the data layer is.
 
 ## Interface copy
 
