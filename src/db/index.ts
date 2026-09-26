@@ -34,6 +34,7 @@ import {
   PlannedActivity,
   SeedLedgerEntry,
   CheckInOccurrence,
+  MaterialInsight,
 } from '../types';
 import {
   INITIAL_SUBJECTS,
@@ -148,6 +149,7 @@ export class GCSEGenieDatabase extends Dexie {
   plannedActivities!: Table<PlannedActivity, string>;
   seedLedger!: Table<SeedLedgerEntry, string>;
   checkInOccurrences!: Table<CheckInOccurrence, string>;
+  materialInsights!: Table<MaterialInsight, string>;
 
   constructor() {
     super('GCSEGenieDB', IS_BROWSER ? { addons: [dexieCloud] } : {});
@@ -498,6 +500,24 @@ export class GCSEGenieDatabase extends Dexie {
      * table sits beside it answering a different question.
      */
     this.version(20).stores({ checkInOccurrences: 'id, date, kind, taskId' });
+
+    /**
+     * v21 holds what a model read off each photograph.
+     *
+     * A new table, so a version is required - an added *field* would not have
+     * needed one. Synced on purpose, and the asymmetry matters: `llmApiKey` is
+     * in `unsyncedProperties` and must stay there, so only the device holding
+     * the key can run an extraction. If the results did not sync, the reading
+     * would happen on a parent's laptop and Tejas's phone would never see a
+     * word of it.
+     *
+     * Indexed by `attachmentId` because the only question asked of this table is
+     * "what do we know about this file", and by `extractedAt` so a bad batch can
+     * be found by when it ran.
+     */
+    this.version(21).stores({
+      materialInsights: 'id, attachmentId, subjectId, extractedAt',
+    });
 
     /**
      * What happens when the database cannot open.

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ProofAttachment, SyllabusTopic, UserRole } from '../../types';
+import { MaterialInsight, ProofAttachment, SyllabusTopic, UserRole } from '../../types';
 import { Material } from '../../services/materialLibrary';
 import {
   captionAttachment,
@@ -8,11 +8,12 @@ import {
   tagAttachmentToTopic,
 } from '../../services/attachmentService';
 import { tagOccurrenceToTopic } from '../../services/checkInOccurrenceService';
+import { insightFor } from '../../services/materialInsightService';
 import { MaterialViewer } from '../shared/MaterialViewer';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { formatShortDate } from '../../utils/date';
-import { X, Tag, Check, Maximize2, ExternalLink } from 'lucide-react';
+import { X, Tag, Check, Maximize2, ExternalLink, BookOpenCheck, EyeOff } from 'lucide-react';
 
 /**
  * One piece of material, and the two things that can be said about it.
@@ -32,6 +33,92 @@ import { X, Tag, Check, Maximize2, ExternalLink } from 'lucide-react';
  * inside a `.glass-card`, whose `backdrop-filter` makes it the containing block
  * for anything `fixed` underneath it.
  */
+/**
+ * What a model read off the page, shown beside the page itself.
+ *
+ * Deliberately labelled as a reading rather than presented as fact. It is a
+ * machine's transcription of a fourteen-year-old's handwriting, and a parent
+ * looking at a list of "key facts" needs to know whether they are looking at
+ * what Tejas wrote or at what a model thinks he meant. The unreadable case gets
+ * the most space, because an empty answer with a reason is the outcome most
+ * likely to be mistaken for a bug.
+ */
+const ReadMaterial: React.FC<{ insight: MaterialInsight }> = ({ insight }) => {
+  if (insight.legibility === 'UNREADABLE') {
+    return (
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+        <p className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+          <EyeOff className="w-3.5 h-3.5" />
+          <span>Could not be read</span>
+        </p>
+        <p className="text-[10px] text-amber-200/80 mt-1 leading-snug">
+          {insight.unreadableNote ||
+            'The handwriting was too faint or blurred to make out.'}{' '}
+          It is still proof that the work was done — Genie just cannot build questions from it. A
+          clearer photo would fix that.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-3 space-y-2">
+      <p className="text-[10px] font-bold text-fuchsia-300 uppercase flex items-center gap-1.5">
+        <BookOpenCheck className="w-3 h-3" />
+        <span>What is on the page</span>
+      </p>
+
+      {insight.legibility === 'PARTIAL' && (
+        <p className="text-[10px] text-amber-300/90 leading-snug">
+          Only partly legible{insight.unreadableNote ? ` — ${insight.unreadableNote}` : ''}.
+        </p>
+      )}
+
+      {insight.definitions.length > 0 && (
+        <ul className="space-y-0.5">
+          {insight.definitions.map((entry) => (
+            <li key={entry.term} className="text-[11px] text-slate-200 leading-snug">
+              <span className="font-bold text-white">{entry.term}</span> — {entry.meaning}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {insight.keyFacts.length > 0 && (
+        <ul className="space-y-0.5 list-disc list-inside">
+          {insight.keyFacts.map((fact) => (
+            <li key={fact} className="text-[11px] text-slate-200 leading-snug">
+              {fact}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {insight.workedExamples.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold text-slate-400 uppercase">Worked examples</p>
+          <ul className="space-y-0.5">
+            {insight.workedExamples.map((example) => (
+              <li key={example} className="text-[11px] text-slate-300 leading-snug">
+                {example}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {insight.specPoints.length > 0 && (
+        <p className="text-[10px] text-slate-500">Spec: {insight.specPoints.join(' · ')}</p>
+      )}
+
+      <p className="text-[10px] text-slate-600">
+        Read by {insight.model}. This is a transcription of the photo, not a check of whether it is
+        right.
+      </p>
+    </div>
+  );
+};
+
 export const MaterialDetail: React.FC<{
   material: Material;
   topics: SyllabusTopic[];
@@ -41,6 +128,7 @@ export const MaterialDetail: React.FC<{
 }> = ({ material, topics, role, onClose, onChanged }) => {
   const { toast } = useFeedback();
   const [attachment, setAttachment] = useState<ProofAttachment | undefined>(undefined);
+  const [insight, setInsight] = useState<MaterialInsight | undefined>(undefined);
   const [viewing, setViewing] = useState(false);
   const [caption, setCaption] = useState('');
   const [saving, setSaving] = useState(false);
@@ -60,6 +148,10 @@ export const MaterialDetail: React.FC<{
       if (cancelled) return;
       setAttachment(row);
       setCaption(row?.caption ?? '');
+    });
+
+    insightFor(attachmentId).then((row) => {
+      if (!cancelled) setInsight(row);
     });
 
     return () => {
@@ -179,6 +271,8 @@ export const MaterialDetail: React.FC<{
               </button>
             )}
 
+            {insight && <ReadMaterial insight={insight} />}
+
             {material.kind === 'LINK' && material.ref?.url && (
               <a
                 href={material.ref.url}
@@ -263,7 +357,15 @@ export const MaterialDetail: React.FC<{
                         Filed under {tagged.unit}.
                       </span>
                     ) : (
-                      'Untagged material counts towards nothing and cannot be revised from. One tap fixes it.'
+                      <>
+                        Untagged material counts towards nothing and cannot be revised from. One
+                        tap fixes it.
+                        {insight?.suggestedTopicTitle && (
+                          <span className="block mt-0.5 text-slate-400">
+                            Reading it suggested: “{insight.suggestedTopicTitle}”.
+                          </span>
+                        )}
+                      </>
                     )}
                   </p>
                 </>

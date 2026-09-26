@@ -28,6 +28,7 @@ import { DataQualityPanel } from './DataQualityPanel';
 import { SanctionPanel } from './SanctionPanel';
 import { PlanApprovalPanel } from './PlanApprovalPanel';
 import { PortalSection } from './PortalSection';
+import { MaterialReadingPanel } from './MaterialReadingPanel';
 import { XpStatementPanel } from '../rewards/XpStatementPanel';
 import { UserCog, ListChecks, Link as LinkIcon } from 'lucide-react';
 import { logAuditEvent } from '../../services/auditService';
@@ -47,6 +48,7 @@ import {
   KeyRound,
   ShieldCheck,
   Receipt,
+  BookOpenCheck,
   FileWarning,
 } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
@@ -703,6 +705,18 @@ export const ParentPortal: React.FC = () => {
         icon={<Receipt className="w-5 h-5 text-emerald-400" />}
       >
         <XpStatementPanel role="PARENT" />
+      </PortalSection>
+
+      {/* Sits beside XP rather than under "Links & data": it is not a link or an
+          export, it is the one action in the app that sends Tejas's work to
+          somebody else, and burying it among file operations would be the wrong
+          shape of consent. */}
+      <PortalSection
+        title="Reading the material"
+        blurb="Turning photographs of handwriting into text Genie can build revision from"
+        icon={<BookOpenCheck className="w-5 h-5 text-fuchsia-400" />}
+      >
+        <MaterialReadingPanel />
       </PortalSection>
 
       <PortalSection

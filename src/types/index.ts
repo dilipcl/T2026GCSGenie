@@ -468,6 +468,55 @@ export interface ProofAttachment {
 }
 
 /**
+ * What a model read off one photograph.
+ *
+ * The material this family captures is handwriting on paper. Genie can show you
+ * the page and it can tell you the page exists; it cannot do anything else with
+ * it, and every later ambition - a revision sheet, a set of mock questions -
+ * needs the words. So each file is read once and the words are kept.
+ *
+ * Stored, which is a deliberate exception to the rule that everything here is
+ * derived. The rule exists because a derived value can be recomputed for free
+ * and a stored one goes stale behind you. Neither applies: an extraction costs
+ * a paid network call, and it derives from an immutable blob. Staleness is
+ * handled by the id rather than by invalidation - `${attachmentId}__${hash}` -
+ * so a replaced photo produces a new row instead of a silently wrong old one.
+ */
+export interface MaterialInsight {
+  /** `${attachmentId}__${contentHash}`. Built, never generated - see CLAUDE.md. */
+  id: string;
+  attachmentId: string;
+  /** SHA-256 of the file, so a re-photographed page is read again. */
+  contentHash: string;
+  subjectId?: SubjectId;
+  /**
+   * What the page appears to be about, in the model's words.
+   *
+   * A suggestion, never a tag. Tagging is a claim about the syllabus that a
+   * person makes; this is a prompt to make it, shown beside the picker.
+   */
+  suggestedTopicTitle?: string;
+  /** Specification points named on the page, where it names any. */
+  specPoints: string[];
+  definitions: { term: string; meaning: string }[];
+  keyFacts: string[];
+  workedExamples: string[];
+  /**
+   * How much of the handwriting could actually be read.
+   *
+   * A real outcome with its own row, not an error. A model that guesses at an
+   * unreadable page produces a mock test on facts nobody wrote, which is worse
+   * than an empty one - so UNREADABLE is reported and nothing is invented.
+   */
+  legibility: 'CLEAR' | 'PARTIAL' | 'UNREADABLE';
+  unreadableNote?: string;
+  /** Which model said this, so a bad batch can be found and re-read. */
+  model: string;
+  provider: string;
+  extractedAt: number;
+}
+
+/**
  * A recurring real-world commitment that occupies time whether or not anyone
  * plans for it: school, cadets, drums, DofE.
  *

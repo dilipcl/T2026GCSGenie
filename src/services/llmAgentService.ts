@@ -6,28 +6,7 @@ import { calculateStreakStats } from './habitEngine';
 import { logAuditEvent } from './auditService';
 import { INITIAL_SUBJECTS } from '../db/seedData';
 import { newId } from '../utils/id';
-
-/** Turns whatever a provider returned into one line a parent can act on. */
-async function describeHttpFailure(provider: string, res: Response): Promise<string> {
-  let detail = '';
-  try {
-    const body = await res.json();
-    detail = body?.error?.message || body?.error?.type || JSON.stringify(body).slice(0, 200);
-  } catch {
-    detail = await res.text().catch(() => '');
-  }
-
-  if (res.status === 401 || res.status === 403) {
-    return `${provider} rejected the API key (HTTP ${res.status}). Check the key in AI Audit Settings.`;
-  }
-  if (res.status === 429) {
-    return `${provider} rate limit or quota reached (HTTP 429). Try again later, or check billing.`;
-  }
-  if (res.status === 404) {
-    return `${provider} does not recognise the model name "${detail ? detail.slice(0, 80) : 'unknown'}" (HTTP 404).`;
-  }
-  return `${provider} returned HTTP ${res.status}. ${detail.slice(0, 160)}`.trim();
-}
+import { askForJson, liveProvider } from './llmClient';
 
 export async function runAgenticAudit(settings: ParentSettings): Promise<AgentAuditReport> {
   const burnout = await calculateBurnoutCapacity();
@@ -81,27 +60,46 @@ export async function runAgenticAudit(settings: ParentSettings): Promise<AgentAu
    */
   let fallbackReason: string | undefined;
 
-  const liveProviders: Record<string, (s: ParentSettings, c: unknown) => Promise<AgentAuditReport>> = {
-    GEMINI: callGeminiAudit,
-    CLAUDE: callClaudeAudit,
-    OPENAI: callOpenAIAudit,
-  };
+  /**
+   * One call, whichever provider is configured.
+   *
+   * This was three functions - Gemini, Claude, OpenAI - each with its own
+   * endpoint, auth header, response shape and JSON parsing, and each repeating
+   * the same prompt with small drifts. `llmClient` owns all of that now, so
+   * what is left here is the question and the schema, which is the only part
+   * that is actually about auditing a fourteen-year-old's week.
+   */
+  const { provider, reason } = liveProvider(settings);
 
-  const caller = liveProviders[settings.llmProvider];
+  if (!provider) {
+    fallbackReason = reason;
+  } else {
+    try {
+      const { data, model } = await askForJson<AuditAnswer>({
+        settings,
+        prompt: auditPrompt(context),
+        schema: AUDIT_SCHEMA as unknown as Record<string, unknown>,
+        maxTokens: 8000,
+      });
 
-  if (caller) {
-    if (!settings.llmApiKey || settings.llmApiKey.trim() === '') {
-      fallbackReason = `${settings.llmProvider} is selected but no API key is saved, so the offline engine ran instead.`;
-    } else {
-      try {
-        const report = await caller(settings, context);
-        await saveAuditReport(report);
-        return report;
-      } catch (err) {
-        fallbackReason =
-          err instanceof Error ? err.message : `The ${settings.llmProvider} call failed for an unknown reason.`;
-        console.warn('Live LLM call failed. Falling back to the deterministic agent engine:', err);
-      }
+      const report: AgentAuditReport = {
+        id: newId('auditreport'),
+        timestamp: Date.now(),
+        generatedBy: `${provider} (${model})`,
+        curriculumStatusSummary: data.curriculumStatusSummary,
+        burnoutStressIndexScore: data.burnoutStressIndexScore || burnout.stressIndex,
+        burnoutStatus: (data.burnoutStatus || burnout.stressStatus) as RAGStatus,
+        subjectBalanceAlerts: data.subjectBalanceAlerts ?? [],
+        actionableRecommendations: data.actionableRecommendations ?? [],
+        rawMarkdown: data.rawMarkdown,
+      };
+
+      await saveAuditReport(report);
+      return report;
+    } catch (err) {
+      fallbackReason =
+        err instanceof Error ? err.message : `The ${provider} call failed for an unknown reason.`;
+      console.warn('Live LLM call failed. Falling back to the deterministic agent engine:', err);
     }
   }
 
@@ -200,177 +198,52 @@ ${recommendations.map((rec, i) => `${i + 1}. ${rec}`).join('\n')}
   };
 }
 
-async function callGeminiAudit(settings: ParentSettings, context: any): Promise<AgentAuditReport> {
-  const model = settings.llmModelName || 'gemini-1.5-pro';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings.llmApiKey}`;
+/** The shape the audit answer has to come back in, for every provider. */
+const AUDIT_SCHEMA = {
+  type: 'object',
+  properties: {
+    curriculumStatusSummary: { type: 'string' },
+    burnoutStressIndexScore: { type: 'number' },
+    burnoutStatus: { type: 'string', enum: ['GREEN', 'AMBER', 'RED'] },
+    subjectBalanceAlerts: { type: 'array', items: { type: 'string' } },
+    actionableRecommendations: { type: 'array', items: { type: 'string' } },
+    rawMarkdown: { type: 'string', description: 'The full report, formatted as markdown.' },
+  },
+  required: [
+    'curriculumStatusSummary',
+    'burnoutStressIndexScore',
+    'burnoutStatus',
+    'subjectBalanceAlerts',
+    'actionableRecommendations',
+    'rawMarkdown',
+  ],
+  additionalProperties: false,
+} as const;
 
-  const prompt = `You are the Parent Agentic Auditor for Tejas Dilip, a Year 10 GCSE student at Guildford County School targeting straight Grade 9s.
-Analyze the following student data and return a JSON object with this exact schema:
-{
-  "curriculumStatusSummary": "string",
-  "burnoutStressIndexScore": number,
-  "burnoutStatus": "GREEN" | "AMBER" | "RED",
-  "subjectBalanceAlerts": ["string"],
-  "actionableRecommendations": ["string"],
-  "rawMarkdown": "string (full markdown report formatted nicely)"
-}
-
-Student Data:
-${JSON.stringify(context, null, 2)}`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json' },
-    }),
-  });
-
-  // Without this an error body falls through to json.candidates[0] and throws a
-  // bare TypeError, which told the parent nothing about the real cause.
-  if (!res.ok) throw new Error(await describeHttpFailure('Google Gemini', res));
-
-  const json = await res.json();
-  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Google Gemini returned an empty response.');
-  const parsed = JSON.parse(text);
-
-  return {
-    id: newId('auditreport'),
-    timestamp: Date.now(),
-    generatedBy: `Google Gemini (${model})`,
-    curriculumStatusSummary: parsed.curriculumStatusSummary,
-    burnoutStressIndexScore: parsed.burnoutStressIndexScore || context.burnout.stressIndex,
-    burnoutStatus: parsed.burnoutStatus || context.burnout.stressStatus,
-    subjectBalanceAlerts: parsed.subjectBalanceAlerts || [],
-    actionableRecommendations: parsed.actionableRecommendations || [],
-    rawMarkdown: parsed.rawMarkdown || text,
-  };
-}
-
-async function callClaudeAudit(settings: ParentSettings, context: any): Promise<AgentAuditReport> {
-  const model = settings.llmModelName || 'claude-opus-5';
-  const url = 'https://api.anthropic.com/v1/messages';
-
-  const prompt = `You are the Parent Agentic Auditor for Tejas Dilip, a Year 10 GCSE student at Guildford County School targeting straight Grade 9s.
-Analyze the following student data and return a JSON object with:
-- curriculumStatusSummary (string)
-- burnoutStressIndexScore (number)
-- burnoutStatus ("GREEN" | "AMBER" | "RED")
-- subjectBalanceAlerts (array of strings)
-- actionableRecommendations (array of strings)
-- rawMarkdown (full markdown report)
-
-Data:
-${JSON.stringify(context, null, 2)}`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': settings.llmApiKey || '',
-      'anthropic-version': '2023-06-01',
-      // The correct opt-in for calling the Anthropic API straight from a page.
-      // This was previously spelled 'dangerously-allow-browser', which is not a
-      // header the API recognises, so every browser call was blocked by CORS.
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model,
-      // A full markdown report does not fit in 1500 tokens; the old ceiling cut
-      // reports off mid-sentence.
-      max_tokens: 8000,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-
-  if (!res.ok) throw new Error(await describeHttpFailure('Anthropic Claude', res));
-
-  const json = await res.json();
-  const text = json?.content?.find((b: { type: string }) => b.type === 'text')?.text;
-  if (!text) throw new Error('Anthropic Claude returned no text content.');
-
-  let parsed;
-  try {
-    parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || text);
-  } catch {
-    parsed = { rawMarkdown: text };
-  }
-
-  return {
-    id: newId('auditreport'),
-    timestamp: Date.now(),
-    generatedBy: `Anthropic Claude (${model})`,
-    curriculumStatusSummary: parsed.curriculumStatusSummary || 'Audit completed via Claude.',
-    burnoutStressIndexScore: parsed.burnoutStressIndexScore || context.burnout.stressIndex,
-    burnoutStatus: parsed.burnoutStatus || context.burnout.stressStatus,
-    subjectBalanceAlerts: parsed.subjectBalanceAlerts || [],
-    actionableRecommendations: parsed.actionableRecommendations || [],
-    rawMarkdown: parsed.rawMarkdown || text,
-  };
+interface AuditAnswer {
+  curriculumStatusSummary: string;
+  burnoutStressIndexScore: number;
+  burnoutStatus: string;
+  subjectBalanceAlerts: string[];
+  actionableRecommendations: string[];
+  rawMarkdown: string;
 }
 
 /**
- * OpenAI was offered in the settings dropdown but had no execution branch, so
- * choosing it silently produced an offline report that claimed to be an audit.
+ * The question, written once.
+ *
+ * It was written three times - once per provider - and the three copies had
+ * already drifted: two asked for an exact JSON schema and the third asked for a
+ * list of fields in prose, so the same week produced a differently shaped report
+ * depending on whose key was saved.
  */
-async function callOpenAIAudit(settings: ParentSettings, context: any): Promise<AgentAuditReport> {
-  const model = settings.llmModelName || 'gpt-4o';
-  const url = 'https://api.openai.com/v1/chat/completions';
+function auditPrompt(context: unknown): string {
+  return `You are the Parent Agentic Auditor for Tejas Dilip, a Year 10 GCSE student at Guildford County School targeting straight Grade 9s.
 
-  const prompt = `You are the Parent Agentic Auditor for Tejas Dilip, a Year 10 GCSE student at Guildford County School targeting straight Grade 9s.
-Analyze the following student data and return a JSON object with this exact schema:
-{
-  "curriculumStatusSummary": "string",
-  "burnoutStressIndexScore": number,
-  "burnoutStatus": "GREEN" | "AMBER" | "RED",
-  "subjectBalanceAlerts": ["string"],
-  "actionableRecommendations": ["string"],
-  "rawMarkdown": "string (full markdown report formatted nicely)"
-}
+Analyse the following student data and report on it. Be specific about which subjects need attention and why, and make every recommendation something that can be done in a week.
 
-Student Data:
+Student data:
 ${JSON.stringify(context, null, 2)}`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${settings.llmApiKey || ''}`,
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 8000,
-      response_format: { type: 'json_object' },
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-
-  if (!res.ok) throw new Error(await describeHttpFailure('OpenAI', res));
-
-  const json = await res.json();
-  const text = json?.choices?.[0]?.message?.content;
-  if (!text) throw new Error('OpenAI returned an empty response.');
-
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    parsed = { rawMarkdown: text };
-  }
-
-  return {
-    id: newId('auditreport'),
-    timestamp: Date.now(),
-    generatedBy: `OpenAI (${model})`,
-    curriculumStatusSummary: parsed.curriculumStatusSummary || 'Audit completed via OpenAI.',
-    burnoutStressIndexScore: parsed.burnoutStressIndexScore || context.burnout.stressIndex,
-    burnoutStatus: parsed.burnoutStatus || context.burnout.stressStatus,
-    subjectBalanceAlerts: parsed.subjectBalanceAlerts || [],
-    actionableRecommendations: parsed.actionableRecommendations || [],
-    rawMarkdown: parsed.rawMarkdown || text,
-  };
 }
 
 async function saveAuditReport(report: AgentAuditReport) {
