@@ -31,7 +31,7 @@ import { TaskManagerView } from './components/tasks/TaskManagerView';
 import { MilestoneCalendarView } from './components/calendar/MilestoneCalendarView';
 import { PlanView } from './components/plan/PlanView';
 import { WeeklyReviewModal } from './components/plan/WeeklyReviewModal';
-import { AssessmentLogView } from './components/assessments/AssessmentLogView';
+import { LibraryView } from './components/library/LibraryView';
 import { Grade9GoalsView } from './components/goals/Grade9GoalsView';
 import { TimetableManager } from './components/timetable/TimetableManager';
 import { RemediationHub } from './components/remediation/RemediationHub';
@@ -350,8 +350,8 @@ export const App: React.FC = () => {
 
         {activeTab === 'IMPROVEMENTS' && <ImprovementsView currentRole={currentRole} />}
 
-        {activeTab === 'PROOF' && (
-          <AssessmentLogView
+        {activeTab === 'LIBRARY' && (
+          <LibraryView
             currentRole={currentRole}
             refreshKey={refreshKey}
             onChanged={refreshData}

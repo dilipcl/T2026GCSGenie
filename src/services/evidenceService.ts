@@ -49,6 +49,17 @@ export interface EvidenceRef {
   mimeType?: string;
   byteSize?: number;
   /**
+   * When the file was captured, which is not when the work was done.
+   *
+   * The library lists material by the day it arrived, and a photo of last
+   * term's notes taken this evening belongs on this evening. Only files carry
+   * one - a link has no capture moment of its own, so the library falls back to
+   * the date of the record it is attached to.
+   */
+  capturedAt?: number;
+  /** The syllabus topic somebody has tagged this to, where one has been. */
+  topicId?: string;
+  /**
    * A file saved into the Drive backup folder that has no URL. The desktop
    * folder transport never learns the id Drive assigns, so the file is safe but
    * unlinkable - which is neither "missing" nor "openable".
@@ -303,6 +314,8 @@ function filesFor(
       attachmentId: a.id,
       mimeType: a.mimeType,
       byteSize: a.byteSize,
+      capturedAt: a.createdAt,
+      topicId: a.topicId,
       savedWithoutLink: !!a.driveMirroredAt && !a.driveViewUrl,
       source: 'Proof photo',
     }));
@@ -442,6 +455,8 @@ export async function evidenceIndex(): Promise<EvidenceSubject[]> {
         attachmentId: a.id,
         mimeType: a.mimeType,
         byteSize: a.byteSize,
+        capturedAt: a.createdAt,
+        topicId: a.topicId,
         savedWithoutLink: !!a.driveMirroredAt && !a.driveViewUrl,
         source: 'Marked paper',
       }));

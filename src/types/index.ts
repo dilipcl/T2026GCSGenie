@@ -428,6 +428,16 @@ export interface ProofAttachment {
   byteSize: number;
   blob: Blob;
   caption?: string;
+  /**
+   * The syllabus topic this file is about.
+   *
+   * Optional and unindexed, so old rows read as `undefined` and no migration is
+   * needed. It exists because a photograph attached to a task knows which piece
+   * of homework it proves and nothing about what it is *of* - and "what is
+   * there for Chemistry bonding" is the question the library is for. Filtered in
+   * memory; the collection is small and an index would buy nothing.
+   */
+  topicId?: string;
   createdAt: number;
   /**
    * Where a copy of this file lives outside the database.
@@ -578,6 +588,15 @@ export interface CheckInOccurrence {
   followUp?: string;
   /** The task the follow-up became, once it has been raised. */
   followUpTaskId?: string;
+  /**
+   * The syllabus topic the lesson covered, where somebody has said.
+   *
+   * A note typed against a Physics lesson is the only record of what was
+   * actually taught that day, and until it can be attached to a topic it cannot
+   * be found by anyone asking about the topic. Optional and unindexed for the
+   * same reason as on an attachment.
+   */
+  topicId?: string;
   /** What this row itself is worth. */
   xpAwarded: number;
   /**

@@ -13,7 +13,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   BookOpen,
-  FileCheck,
+  Library as LibraryIcon,
   MoreHorizontal,
   X,
 } from 'lucide-react';
@@ -25,7 +25,7 @@ export type NavTab =
   | 'PLAN'
   | 'UPDATES'
   | 'RECORD'
-  | 'PROOF'
+  | 'LIBRARY'
   | 'GOALS'
   | 'TIMETABLE'
   | 'REMEDIATIONS'
@@ -77,7 +77,14 @@ export const Navigation: React.FC<NavigationProps> = ({
      */
     { id: 'RECORD', label: 'Record', shortLabel: 'Record', icon: BookOpen, tier: 'daily' },
     // Logged when a marked paper comes back - a weekly rhythm, not a daily one
-    { id: 'PROOF', label: 'Proof Log', shortLabel: 'Proof', icon: FileCheck, tier: 'weekly' },
+    /**
+     * Was "Proof Log", which held marked papers only. It holds everything now -
+     * every photo, link, lesson note and paper - because the thing that was
+     * actually missing was not a place to log a test but a place to look at
+     * what has been captured. Logging a paper is still in there, behind a
+     * switch at the top; it is one act among five rather than the whole tab.
+     */
+    { id: 'LIBRARY', label: 'Library', shortLabel: 'Library', icon: LibraryIcon, tier: 'weekly' },
     { id: 'REWARDS', label: 'Rewards', shortLabel: 'Rewards', icon: Gift, tier: 'weekly' },
     { id: 'TIMETABLE', label: 'Timetable', shortLabel: 'Timetable', icon: Calendar, tier: 'weekly' },
     { id: 'GOALS', label: 'Subjects & Goals', shortLabel: 'Subjects', icon: Target, tier: 'weekly' },
@@ -114,7 +121,7 @@ export const Navigation: React.FC<NavigationProps> = ({
    * second row, below the fold on a phone. Desktop keeps its own order, which
    * is grouped by rhythm rather than by frequency.
    */
-  const overflowPriority = ['REWARDS', 'PARENT', 'PROOF', 'TIMETABLE', 'GOALS', 'GUIDANCE'];
+  const overflowPriority = ['LIBRARY', 'REWARDS', 'PARENT', 'TIMETABLE', 'GOALS', 'GUIDANCE'];
   const sheetItems = [...weeklyItems].sort(
     (a, b) => overflowPriority.indexOf(a.id) - overflowPriority.indexOf(b.id)
   );

@@ -289,3 +289,32 @@ export async function occurrencesBetween(
 ): Promise<CheckInOccurrence[]> {
   return db.checkInOccurrences.where('date').between(start, end, true, true).toArray();
 }
+
+/**
+ * Says which topic a lesson actually covered.
+ *
+ * The note typed against a lesson is often the only record that a topic was
+ * ever taught - for three weeks in September it was the only record of
+ * anything. Until it can be attached to a topic it cannot be found by anybody
+ * asking about the topic, which is most of the reason the September teaching
+ * looked, from inside the app, like it had not happened.
+ */
+export async function tagOccurrenceToTopic(
+  id: string,
+  topicId: string | undefined,
+  user: UserRole = 'STUDENT'
+): Promise<void> {
+  const existing = await db.checkInOccurrences.get(id);
+  if (!existing) return;
+
+  await db.checkInOccurrences.update(id, { topicId });
+  await logAuditEvent({
+    user,
+    action: 'UPDATE',
+    entity: 'CheckInOccurrence',
+    entityId: id,
+    fieldChanged: 'topicId',
+    oldValue: existing.topicId ?? '(none)',
+    newValue: topicId ?? '(cleared)',
+  });
+}

@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { ProofAttachment } from '../types';
+import { ProofAttachment, UserRole } from '../types';
 import { logAuditEvent } from './auditService';
 import { newId } from '../utils/id';
 
@@ -163,6 +163,62 @@ export async function attachmentCountsFor(
     if (wanted.has(row.ownerId)) counts[row.ownerId] = (counts[row.ownerId] || 0) + 1;
   }
   return counts;
+}
+
+/**
+ * Says what a photograph is of.
+ *
+ * The one write the library needs and the app has never had. A photo attached
+ * to a task knows which piece of homework it proves and nothing about its
+ * subject matter, so "everything we have on bonding" could not be answered even
+ * with the photographs sitting right there. Audited like any other change,
+ * because a mis-tag is the kind of thing somebody will want to trace later.
+ */
+export async function tagAttachmentToTopic(
+  id: string,
+  topicId: string | undefined,
+  user: UserRole = 'STUDENT'
+): Promise<void> {
+  const existing = await db.attachments.get(id);
+  if (!existing) return;
+
+  await db.attachments.update(id, { topicId });
+  await logAuditEvent({
+    user,
+    action: 'UPDATE',
+    entity: 'ProofAttachment',
+    entityId: id,
+    fieldChanged: 'topicId',
+    oldValue: existing.topicId ?? '(none)',
+    newValue: topicId ?? '(cleared)',
+  });
+}
+
+/**
+ * One line saying what the file is.
+ *
+ * A filename off a phone camera is `IMG_4821.jpg`, which is no help to anybody
+ * six weeks later. The caption is what the library shows in place of it.
+ */
+export async function captionAttachment(
+  id: string,
+  caption: string,
+  user: UserRole = 'STUDENT'
+): Promise<void> {
+  const existing = await db.attachments.get(id);
+  if (!existing) return;
+
+  const trimmed = caption.trim() || undefined;
+  await db.attachments.update(id, { caption: trimmed });
+  await logAuditEvent({
+    user,
+    action: 'UPDATE',
+    entity: 'ProofAttachment',
+    entityId: id,
+    fieldChanged: 'caption',
+    oldValue: existing.caption ?? '(none)',
+    newValue: trimmed ?? '(cleared)',
+  });
 }
 
 export async function deleteAttachment(id: string): Promise<void> {
