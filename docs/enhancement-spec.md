@@ -1,6 +1,13 @@
 # GCSE Genie — Consolidated Enhancement Spec
 
-Status: draft for build · Date: 2026-08-28 · Baseline: `main` @ 49b9336
+Status: built · Date: 2026-08-28 · Baseline: `main` @ 49b9336
+
+> **Superseded in one place, September 2026.** Part 1 recommends *against* promoting Proof Log into
+> the bottom bar, on the grounds that it is a weekly screen used once a marked paper comes back.
+> That reasoning held for as long as the tab held only marked papers. It now holds every kind of
+> material — photos, links, lesson notes and papers — and is called the Library; logging a paper is
+> one act inside it. The recommendation to keep the daily four unchanged still stands, and the
+> Library is still `tier: 'weekly'`. See `docs/library-and-revision-spec.md`.
 
 This spec reconciles three inputs:
 

@@ -1,6 +1,30 @@
 # One place to see what has been captured — and a text layer under it
 
-Status: draft for build · Date: 2026-09-26 · Baseline: `main` @ fa50e16
+Status: phases 1-3 built and deployed · Date: 2026-09-26 · Baseline: `main` @ fa50e16
+
+> **What shipped, and where it differed from this plan.** Phases 1-3 are in `main` as of 26 Sep
+> (`a2220c7`, `1a0e35e`, `473fb21`). Four deviations, each made while building and each for a reason
+> worth keeping:
+>
+> - **The four-state chip collapsed to one openable style plus a quiet "not backed up".** Deciding a
+>   chip's appearance from whether its blob is present would mean a database read per chip — a dozen
+>   round trips for a badge on a busy day in the Record. The chip resolves on click instead, and says
+>   so honestly if the file has not synced to this device yet.
+> - **`Material.hasText` was dropped.** It was a placeholder for phase 3 and there is no point
+>   shipping a field nothing sets; the insight is read where it is shown.
+> - **Check-in *blockers* are not material.** A question for a teacher is not something to revise
+>   from, and the Record already shows them in full. Only `keyLearning` reaches the Library.
+> - **Links cannot be tagged**, and the panel says so rather than offering a control that would
+>   quietly do nothing. There is nowhere to store a topic on a link without inventing a field.
+>
+> Three faults found by looking at the running app rather than by testing: the viewer sized itself
+> to the evidence row (`backdrop-filter` captures `position: fixed`), every proof-log entry
+> double-counted its evidence, and a `window.open` after an `await` is a silently blocked popup. All
+> three are in `GCSE_Genie_Architecture_Spec.md` § 8.6.
+>
+> **Phases 4 and 5 are not built.** Revision packs and mock tests (Part 5) have the text layer they
+> need and nothing that generates from it. The capture-side work (Part 6, phase 5) is untouched, as
+> are the data corrections, which live in the family's database rather than in the code.
 
 The ask, in the words it arrived in: the recorded content is hard to track or review, a single
 dashboard with drill-down to individual materials is needed, the proof Tejas has uploaded cannot be

@@ -1,5 +1,241 @@
 # Changelog
 
+## September 2026 - A term of photographs nobody could open, and nowhere to see them
+
+Tejas said he could not click the proof he had uploaded. That was one sentence
+about one chip, and following it down found a screen that did not exist, a piece
+of the data model that had never been filled in, and the fact that the app has
+never read a single word of the only content that matters.
+
+### The file was always openable. Four screens said otherwise.
+
+The diagnosis everybody reached - including the one written into the code in
+good faith - was that Drive backup is not connected on his device, so a file
+with no `driveViewUrl` has no address anyone can open, and grey unclickable text
+is the honest thing to draw rather than a dead link.
+
+That reasoning is right about links and wrong about files. The photograph is a
+`Blob` in the device's own database. `ProofUploader` has been opening one with
+`URL.createObjectURL` since the day it was written, and Dexie Cloud offloads and
+syncs blobs, so it is on the other devices too. What the reading screens lacked
+was never an address. It was an id: `filesFor` stamped `url` from `driveViewUrl`
+and dropped `a.id` on the floor, so the activity feed, the Record and the
+Evidence tab each had a filename and nothing to open - and each independently
+concluded that grey text was the honest answer.
+
+Three hand-rolled chips are now one that opens the file. The distinction they
+encoded moves to where it belongs: whether something is openable is no longer a
+visual state, because nearly everything is. Whether a file has been copied out
+of the database - the thing that actually decides whether it survives a restore
+- is the only thing the chip reports, and it reports it quietly, because it is a
+backup fact rather than a reason to distrust the work.
+
+`proofOpenable.test.ts` reads the source, like the checklist and hook guards. The
+fault type checks, builds, passes every service test and looks deliberate on
+screen. The only way to find it is for somebody to try to tap it.
+
+### Two more faults, visible only once the result could be seen
+
+Every entry in the proof log double-counted its evidence. An assessment reaches
+its files by two routes - the ids it keeps, and the attachments naming it as
+owner - and a photo added through the log takes both. Invisible for as long as
+both copies rendered as the same grey filename twice; obvious the moment they
+became things you could click.
+
+And the viewer opened as a 190px letterbox with its footer squeezed out of
+existence. `.glass-card` carries `backdrop-filter: blur(12px)`, and a filtered
+ancestor becomes the containing block for its `position: fixed` descendants - so
+`fixed inset-0` sized itself to the evidence row rather than to the screen.
+Nothing about the markup looks wrong; the cause is three components further up.
+Every other modal in the app is mounted at the top of the tree by `App` and had
+never met it.
+
+A third arrived with the fix and is worth recording because it is the same class
+of silence. The chip reads the database before it knows what it is holding, and
+a browser only treats `window.open` as user-initiated inside the *synchronous*
+part of a click. After an await it is a popup, and it is blocked without a word
+- so a PDF, or any file whose type the app had not recognised as an image, did
+nothing at all when tapped. Everything opens in the viewer now, whose own button
+is a real click on a file it already holds, and the guard fails if
+`window.open(` reappears in that component.
+
+### There was no screen for "what is in here?"
+
+The Evidence tab answers the opposite question - what is missing - one search at
+a time, and a piece of material nobody had thought to ask about was reachable
+only by guessing its filename. Meanwhile four substantial pieces of work sat in
+Drive while the subjects they belong to showed as red and empty.
+
+The **Library** is that screen, at three depths, because "what is in here",
+"what do we have on bonding" and "let me look at that page" are three different
+questions and flattening them answers none of them. A row per subject with the
+gap stated beside the count - four items, and two finished topics with nothing
+attached. One subject, grouped by unit. Then the material itself.
+
+It replaces the Proof Log tab rather than becoming a twelfth. Marked papers are
+one kind of material among five, and logging one is a different act from
+browsing what has been logged, so that screen is unchanged behind a switch.
+
+`materialLibrary` is derived on read like `dayRecords` and the XP total. There is
+no materials table and there must not be one: every item is a view of a row that
+something else owns, and a second copy would be wrong the first time a photo was
+deleted. It unifies five sources, and two of them had never been rendered
+anywhere at all - the note typed against a lesson, and the takeaway line from an
+evening check-in. For the three weeks in September when nothing else was logged,
+those notes are the only record that any teaching happened.
+
+### Tagging, because nothing can be built out of a pile
+
+A photograph attached to a task knows which homework it proves and nothing about
+what it is *of*. So a term of captured work could not answer the only question
+anybody asks of it, with the photographs sitting right there. `topicId` on an
+attachment and on an occurrence - both optional and unindexed, so old rows read
+as `undefined` and no migration is needed.
+
+Untagged material sorts last under its own heading rather than into a unit called
+"Other". It is not a unit, it is a to-do, and burying it among the real ones is
+how it stays that way. A link cannot be tagged and the panel says so rather than
+offering a control that would quietly do nothing: a link is a field on the
+record carrying it, and there is nowhere to put a topic without inventing
+another field.
+
+### The material is handwriting, and nothing had read a word of it
+
+Every substantial piece of work in the September report is biro on paper,
+photographed. Genie could show you the picture and tell you it existed, and that
+was the whole of its relationship with the content. A revision sheet, a set of
+mock questions, a summary of what a term actually covered - all of it is gated on
+text that did not exist.
+
+So each file is read once and the text is kept. That is a deliberate exception to
+"derived, not stored", and the reasons behind that rule do not apply here: an
+extraction costs a paid network call rather than a recomputation, and it derives
+from an immutable blob. Staleness is handled by the id rather than by
+invalidation - `${attachmentId}__${contentHash}`, built from the bytes of the
+file - so a replaced photo produces a new row instead of an old row quietly
+describing a picture that no longer exists, and running the batch twice reads
+nothing twice.
+
+Two rules are load-bearing and both are about not inventing. The prompt says *do
+not infer, complete or correct*: a model handed a half-legible Chemistry page
+will cheerfully supply the rest of the topic from what it knows, and the result
+is a mock test on facts he never wrote, which nobody can detect afterwards. And
+`UNREADABLE` is an answer rather than an error, with its reason on the row - the
+screen says the file is still proof, Genie just cannot build questions from it,
+and a clearer photo would fix that.
+
+The table syncs and the key does not, which is the asymmetry that decides where
+this runs. `llmApiKey` is in `unsyncedProperties` and belongs there, so reading
+happens on the device holding the key; if the results did not sync, the reading
+would happen on a parent's laptop and his phone would never see a word of it.
+
+Opt-in, twenty at a time, from its own section of the Parent Portal rather than
+filed under links and exports. It is the one action in the app that sends his
+schoolwork somewhere else, and that deserves its own consent rather than being
+tidied in among file operations. A background job reading every new photo would
+be a standing charge nobody agreed to, and restoring a backup would silently
+re-read a term of material.
+
+### One place to talk to a model
+
+There were three provider functions - Gemini, Claude, OpenAI - each with its own
+endpoint, auth header, response shape and JSON parsing. Three copies were
+tolerable while there was one thing to ask. They had already drifted: two asked
+for an exact JSON schema and the third asked for a list of fields in prose, so
+the same week produced a differently shaped report depending on whose key was
+saved.
+
+`llmClient` owns transport - where to send it, how to authenticate, how to ask
+for JSON matching a schema, and how to turn a failure into one line a parent can
+act on. It owns no prompt, because a module owning both the question and the
+wire becomes the only place anybody can change either. `llmAgentService` is 207
+lines lighter, and every provider now gets the same schema-constrained answer.
+
+## September 2026 - Sync stopped for a week, and the badge blamed the wifi
+
+Nothing in this entry was a bug in the app. The sync layer worked, the data was
+never at risk, and the thing that was actually broken took two clicks to fix
+once anybody looked at it. What went wrong was that every signal the app gave
+pointed somewhere else, for a week, while a fourteen-year-old's work sat on his
+own laptop reaching nobody.
+
+### "Offline" meant something that had nothing to do with being offline
+
+dexie-cloud returns `phase: 'offline'` the moment `user.license.status !== 'ok'`,
+before it has looked at connectivity at all. The header collapsed that into the
+same word it uses for a phone in a tunnel, so a licence problem - which is
+server-side, and therefore lands on every device in the family within the same
+minute - read as each of them having lost signal. Everyone checked their wifi.
+The wifi was fine.
+
+The two were always distinguishable. `SyncState` carries `license` alongside
+`phase`; the badge was reading the phase and discarding the field that says what
+the phase means. It is checked first now, because when a licence is bad the
+phase is always `'offline'` and a lookup that consults the phase first can never
+reach the licence branch. Expired and deactivated get their own icons rather
+than sharing the warning triangle - the label is `hidden sm:inline`, so on a
+phone the icon is the entire message.
+
+The tap path told the same lie a second way. `db.cloud.sync()` resolves happily
+under an expired licence, because the addon's licence checks on the push path
+are commented out in the shipped build, so an unconditional "Up to date" told a
+family whose data had not moved in days that everything had been sent and
+received. The licence is re-read after the sync and the toast follows it.
+
+### What was actually wrong was two clicks away in someone else's console
+
+The Dexie Cloud subscription was correct the whole time: PRODUCTION, 25 seats,
+none of them occupied. Both users were still typed EVAL, and an EVAL user
+expires on its own clock no matter what the database is paying for. The
+evaluation ran out and every push came back `HttpError: 403` for about a week.
+The fix was the `upgrade` link beside each user in the manager.
+
+Nothing in this repository could have shown that. The client only ever sees the
+answer - a token whose claims read `userType: "eval"`, `license: "expired"`,
+`rl: "free"` - and it keeps minting fresh ones that say the same thing, which
+looks far more like a client fault than an account one. Hours went into the
+client before anyone opened the users page.
+
+### Nothing was lost, and nothing said so
+
+A refused push does not discard anything. The changes stayed queued in each
+device's mutation tables and flushed by themselves the moment the licence was
+valid: a backlog of days - check-ins, tasks, the change log, photo attachments -
+reconciled with no merging by hand and no conflicts. That is the sync layer
+doing exactly what it promises, and it is worth writing down because during the
+week it was refusing everything there was no way to tell from inside the app.
+
+It cost three to four minutes of frozen screen on the device taking the backlog.
+No spinner, no progress, every tap ignored. Everything here is derived on read,
+so several hundred arriving rows are several hundred rows of recomputation. A
+planner that freezes immediately after a sync is exactly what somebody
+force-quits, so it is now in the README's known limitations rather than waiting
+to be rediscovered as a bug.
+
+### The browser was free to throw all of it away
+
+IndexedDB is best-effort storage unless somebody asks otherwise, and nobody ever
+had. Chrome evicts it under storage pressure; Safari is stricter and quieter,
+clearing script-writable storage after seven consecutive days without a visit.
+A half term where Tejas does not open the app would have been enough, and
+nothing warns anyone it is about to happen.
+
+That was survivable while sync worked, because the server held a copy. It
+stopped being survivable the week every push came back 403. `persist()` is now
+requested at startup - before the first render, awaited by nothing, every
+failure path returning rather than throwing, because the API is missing on older
+browsers and reading `navigator.storage` throws outright in some privacy modes.
+It can be refused, so it reduces the risk rather than removing it, and a granted
+request is still not a backup.
+
+### Two documented claims that were true when written
+
+"Treat multi-device as untested" had been overtaken - several devices reconciled
+a week's backlog cleanly, which is the field test it was waiting for. And
+CLAUDE.md called this a PWA, which it has never been: no manifest, no service
+worker. That one was quoted back as advice during the incident, and it invites
+somebody to go hunting a stale cache that cannot exist.
+
 ## September 2026 - Evidence gets a way in, weeks get a way out, and XP gets an account
 
 Everything here came from Tejas and his father using the app for a week and

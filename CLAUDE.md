@@ -42,6 +42,13 @@ tuned, and the drift is silent — both screens keep working while describing
 different things. When you find a second copy, delete it rather than keeping
 them in step.
 
+**One transport for every model call.** `llmClient` owns the endpoint, the auth,
+the schema and the error sentence for all three providers; callers own their
+prompts. This was three copies, and their prompts had drifted far enough that
+the same week produced a differently shaped report depending on which key was
+saved. If a caller needs a new question, that is a prompt — not a fourth copy of
+the request.
+
 **Never block; state the cost and record it.** A week can be over its headroom,
 work can be closed with no evidence, a plan can be sent late. The app says what
 that costs and lets the person decide. Refusing pushes the work somewhere the
@@ -72,6 +79,20 @@ source to catch it. If you move those buttons, move the guard.
 places; a `useLiveQuery` placed beside the value it feeds is a conditional hook.
 `hookOrder.test.ts` catches it.
 
+**A dialog opened from inside a card is not full-screen.** `.glass-card` carries
+`backdrop-filter`, and an element with a filter becomes the containing block for
+its `position: fixed` descendants. `MaterialViewer` opened as a 190px letterbox
+with its footer clipped, and nothing about its markup was wrong — the cause was
+three components up. Every other modal is mounted by `App`, which is why this
+went so long without being met. Portal anything `fixed` to `document.body`.
+
+**`window.open` after an `await` is a blocked popup.** A browser only treats it
+as user-initiated inside the *synchronous* part of a click. `MaterialLink` reads
+the attachment from the database first, so opening a tab there did nothing at
+all: no tab, no error, no console warning. Hand the file to something on screen
+and let a real click open it. `proofOpenable.test.ts` fails if `window.open(`
+reappears in that component.
+
 **Some read paths write.** `deviceLabelMap()` back-fills device registrations.
 Calling it twice inside one `Promise.all` had both halves compute the same
 backfill before either had written it — and inside a `useLiveQuery`, that write
@@ -90,7 +111,10 @@ twice.
   offline merge, and it looks like a sync fault rather than the modelling
   mistake it is.
 - `driveSync` and `seedLedger` are unsynced on purpose — they hold
-  device-specific state.
+  device-specific state, as does `parentSettings.llmApiKey`. That last one has a
+  consequence worth holding on to: reading a photograph can only happen on the
+  device with the key, so anything derived from it (`materialInsights`) must
+  sync, or the work happens on a laptop and never reaches the phone.
 - Seeding only inserts rows the `seedLedger` has never offered, so a deleted
   starter row stays deleted.
 

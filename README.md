@@ -24,7 +24,7 @@ The interface is organised by **how often you actually use something**, not by h
 | Tier | Sections | Typical use |
 | :--- | :--- | :--- |
 | **Every day** | Home · My Work · Plan · Fix My Mistakes · Updates | Check what's due, log the day, tick things off, sign changes off |
-| **Weekly** | Proof Log · Rewards · Timetable · Subjects & Goals · Help & Careers · Report Bugs | Logging marked work, planning, review, spending XP, filing friction |
+| **Weekly** | Library · Rewards · Timetable · Subjects & Goals · Help & Careers · Report Bugs | Reviewing what has been captured, logging marked work, planning, spending XP, filing friction |
 | **Parent only** | Parent Portal | Audits, sanctions, backups, catalogue and profile setup |
 
 Both tiers render the same way on either device: five daily tabs always visible, everything weekly behind one **More** menu. Desktop used to render all thirteen tabs in a single row with `overflow-x-auto` - about 1500px of tabs on a 1280px page, so the Parent Portal was reachable only by scrolling a bar that gave no sign it had more in it. The phone had already solved this; the desktop now shares the same state, so there is one menu with two presentations rather than two things to keep in step. The open weekly tab is pinned beside the menu button, because a bar that highlights nothing tells you nothing about where you are.
@@ -216,8 +216,43 @@ A weak area can spawn a targeted follow-up sub-quest.
 > a single question in a modal is neither real practice nor useful source material, and the app's job
 > is to record where the work lives, not to host a quiz.
 
-### Proof Log — marked work with the evidence attached
-Every class test, mock, past paper or marked homework, recorded as evidence rather than a claim:
+### The Library — everything captured, by subject
+
+The app recorded a great deal and had no screen that could be opened with the question *what is in
+here?*. The Evidence tab answers the opposite one — what is missing — a search at a time, so a piece
+of material nobody had thought to ask about was reachable only by guessing its filename. Meanwhile
+photographs of finished work sat in Drive while the subjects they belong to showed as red and empty.
+
+The Library is that screen, at three depths:
+
+1. **By subject** — how much there is, when it last grew, and how many *finished* topics have
+   nothing attached anywhere. That last number appears on no other screen, because every other
+   screen knows about only one kind of record.
+2. **One subject** — grouped by unit, newest first, with untagged material last under its own
+   heading. Untagged is not a unit, it is a to-do.
+3. **One piece of material** — open it, caption it, and say which topic it is about.
+
+It pulls together five things that used to live in five places: photos, Drive links, marked papers,
+the note typed against a lesson, and the takeaway line from an evening check-in. The last two had
+never been shown anywhere except the row they were typed on — and for a stretch of September when
+nothing else was logged, they are the only record that any teaching happened.
+
+**Everything opens.** A photograph is a file in this device's database, so it opens whether or not
+Drive has a copy of it — in place, offline, from the Library, the Record, the Evidence tab or the
+activity feed. What the chip reports is whether the file has been copied *out* of the database,
+because that is what decides whether it survives a restore.
+
+**Tagging is what makes the rest possible.** A photo attached to a task knows which homework it
+proves and nothing about what it is *of*, so "everything we have on bonding" could not be answered
+with the photographs sitting right there. One tap in the material panel fixes it. A link cannot be
+tagged and the panel says so rather than offering a control that would do nothing: a link is a field
+on the record carrying it, and it is already filed with that record.
+
+#### Marked work with the evidence attached
+
+Logging a marked paper is a different act from browsing what has been logged, so it keeps its own
+screen behind a switch at the top of the Library. Every class test, mock, past paper or marked
+homework, recorded as evidence rather than a claim:
 
 - Score with a live percentage, grade awarded, and the date sat
 - **Question-by-question breakdown** — question number, topic tested, marks scored vs available, and
@@ -572,9 +607,13 @@ assessment. Answering meant exporting the database and reading the JSON.
 
 `evidenceService` defines evidence once, for every kind of record that can carry
 it, and the activity feed and the validation check both read it from there
-rather than each deciding for itself which field counts. The feed now shows
-those links inline, ahead of the photo chips, because a link always opens and a
-photo may not.
+rather than each deciding for itself which field counts.
+
+For a long time the feed put links ahead of photo chips, because a link always
+opened and a photo did not. That reasoning was right about links and wrong about
+files: the photograph is a file in this device's own database, and the reading
+screens were missing its id rather than its address. Every attachment opens now,
+wherever it is listed — see **The Library**.
 
 Search requires **every** word rather than any of them. "Physics electricity"
 matching anything mentioning either returns most of the database and answers
@@ -990,6 +1029,34 @@ Photos captured inside the app stay in the app's database and sync via Dexie Clo
 Drive needs upload permissions Genie doesn't ask for. Quick captures live in Genie; filed material
 lives in Drive.
 
+### Reading the material
+
+The material is handwriting on paper, photographed. Genie can show you the page and tell you it
+exists; until it has been read, that is the whole of what it can do with it — and a revision sheet
+or a set of mock questions needs the words.
+
+**Parent Portal → Reading the material** sends each photograph to the AI provider configured in AI
+Audit Settings, once, and keeps the text: definitions, key facts, worked examples, any spec points
+named on the page, and a suggested topic. The text is what later features will build from, so
+generating a revision pack ten times does not re-send ten photographs.
+
+- **Read once, keyed to the file itself.** The row id is built from the bytes, so running the batch
+  twice reads nothing twice and a re-photographed page is read again.
+- **Nothing is invented.** The instruction is to transcribe what is on the page and not to infer,
+  complete or correct it. A model handed a half-legible page will otherwise supply the rest of the
+  topic from what it knows, and the result is a mock test on facts Tejas never wrote — which nobody
+  can detect afterwards.
+- **"Could not be read" is an answer.** A page too faint or blurred is recorded as unreadable with
+  the reason, and the screen says it is still proof; Genie just cannot build questions from it. A
+  clearer photo would fix that.
+- **Opt-in, twenty at a time.** It is the one action in the app that sends Tejas's schoolwork
+  anywhere, so it is a parent's deliberate act with a sheet saying what leaves the device — never a
+  background job, which would be a standing charge nobody agreed to.
+
+The API key never syncs, so reading runs only on the device holding it. The text it produces *does*
+sync, which is the point: otherwise the reading would happen on a laptop and Tejas's phone would
+never see a word of it.
+
 > ⚠️ `dexie-cloud.key` in the project root authorises administration of the cloud database. It is
 > gitignored — **keep it that way**, and never paste it anywhere.
 
@@ -1100,7 +1167,8 @@ src/
 │   ├── shared/ProofUploader.tsx      # photo & PDF capture, thumbnails, cleanup
 │   ├── shared/EvidencePanel.tsx      # attach a photo, a link, or say why there is none
 │   ├── shared/TaskDetailPanel.tsx    # one piece of work: what is attached, and the thread
-│   ├── assessments/                   # Proof Log: entry modal + log view
+│   ├── assessments/                   # Marked papers: entry modal + log view
+│   ├── library/                       # The Library: coverage, one subject, one material
 │   ├── dashboard/                     # Home: what's next, check-in, schedule, quests
 │   │                                  #   incl. OccurrenceAnswer - the Done/Partly/Missed
 │   │                                  #   control shared by Home and the check-in modal

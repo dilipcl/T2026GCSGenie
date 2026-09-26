@@ -568,7 +568,12 @@ Accessible via a secure 4-digit Parent PIN:
 4. **Change History Viewer** (labelled "Change History" in the UI - see 8.3; it is NOT immutable or hash-chained):
    - Displays all historical events: `[Timestamp | User | Field | Action | Old Value | New Value]`.
 
-### 4.9. Module 9: Proof Log — Ongoing Marked Work *(added August 2026)*
+### 4.9. Module 9: Marked work — the proof log *(added August 2026, moved into the Library September 2026)*
+
+> Reachable from **Library → Log a marked paper** since September 2026. Logging a paper is a
+> different act from browsing what has been logged, so the screen below is unchanged; it simply is
+> no longer a tab of its own. See 4.17.
+
 
 Distinct from Module 4, which digitises a fixed set of Year 9 diagnostic errors. This module captures
 **new marked work as it comes back**, with the evidence attached, and answers the question the RAG
@@ -806,6 +811,70 @@ all and the flag would accuse somebody of skipping a step that did not exist.
 
 The app has no standing to decide a close was not real. The figure sizes the question; reopening
 the task is what corrects the points, and that is a person's decision.
+
+### 4.17. Module 17: The Library *(added September 2026)*
+
+Everything captured, in one list, whatever kind of thing it is — and where the holes are.
+
+`evidenceService` answers whether a piece of *work* can show its working, and is organised by the
+work; a photograph is a leaf on that tree. The Library inverts it: the photograph is the subject of
+the sentence and the work it proves is context, because "show me everything we have for Chemistry"
+cannot be answered by walking a list of tasks. `materialLibrary` unifies five sources — files and
+links from `evidenceIndex`, lesson notes from `checkInOccurrences`, the takeaway line from a
+check-in, and marked papers — and **four of those had never been rendered on any screen**.
+
+Derived on read, like `dayRecords` and the XP total. There is no materials table and there must not
+be one: every item is a view of a row something else owns.
+
+Three depths, because "what is in here", "what do we have on bonding" and "let me look at that page"
+are three different questions:
+
+1. **Coverage** — a row per subject: how much there is, when it last grew, and how many *finished*
+   topics have nothing attached anywhere. That last number is invisible on every other screen,
+   because each one knows only about its own kind of record.
+2. **One subject** — grouped by unit, with untagged material last under its own heading. Untagged is
+   not a unit, it is a to-do.
+3. **The material** — open it, caption it, say which topic it is about.
+
+It replaced the Proof Log tab rather than becoming a twelfth; `AssessmentLogView` is unchanged behind
+a switch at the top of the Library.
+
+**Opening a file.** `MaterialLink` and `MaterialViewer` are the one chip and the one viewer, shared
+by the Library, the Record, the Evidence tab, the activity feed and `ProofUploader`. Whether a file
+is openable is not a visual state — nearly everything is, because the blob is in this device's
+database. The chip reports only whether the file has been copied *out* of it, which is what decides
+whether it survives a restore. Both are portalled to `document.body`: `.glass-card` carries
+`backdrop-filter`, which makes it the containing block for `position: fixed` descendants (8.6).
+
+### 4.18. Module 18: Reading the material *(added September 2026)*
+
+The material this family captures is handwriting on paper. Genie could show the page and confirm it
+existed; it could do nothing else with it, and every later ambition — a revision sheet, a set of mock
+questions — needs the words.
+
+`materialInsightService` reads each image **once** through `llmClient` and keeps the text.
+Structured output constrains generation to a JSON schema rather than requesting a shape politely, so
+the reply is valid JSON by construction on Anthropic; the other two providers are given the schema
+in the prompt, which is an instruction rather than a guarantee, and the difference is stated in the
+code.
+
+Two rules are load-bearing, and both are about not inventing:
+
+- **Do not infer, complete or correct.** A model handed a half-legible page will supply the rest of
+  the topic from what it knows, and the result is a mock test built on facts the student never wrote
+  — undetectable afterwards, and worse than a thin one.
+- **`UNREADABLE` is an answer, not an error.** It is stored with its reason, and the screen says the
+  file is still proof; Genie simply cannot build questions from it.
+
+Read once and keyed to content, so the batch is idempotent and a re-photographed page is read again.
+Opt-in from the Parent Portal, capped per run: it is the only action in the app that sends the
+student's work to a third party, and a background job would be a standing charge nobody agreed to.
+
+`llmClient` is the single transport for every provider — endpoint, auth, schema, and turning a
+failure into one line a parent can act on. It owns no prompt: a module owning both the question and
+the wire becomes the only place anybody can change either. It replaced three provider functions
+whose prompts had already drifted, so the same week produced a differently shaped audit depending on
+which key was saved.
 
 ## 5. Comprehensive Database Schema (IndexedDB / Dexie.js)
 
@@ -1061,14 +1130,55 @@ export interface Assessment {
  */
 export interface ProofAttachment {
   id: string;
-  ownerType: 'ASSESSMENT' | 'TASK' | 'REMEDIATION' | 'MILESTONE';
+  ownerType: 'ASSESSMENT' | 'TASK' | 'REMEDIATION' | 'MILESTONE' | 'TOPIC' | 'GOAL';
   ownerId: string;
   fileName: string;
   mimeType: string;
   byteSize: number;
   blob: Blob;
   caption?: string;
+  /**
+   * What the photograph is *of*, as opposed to what it proves.
+   *
+   * A photo attached to a task knows which homework it belongs to and nothing
+   * about its subject matter, so "everything we have on bonding" could not be
+   * answered with the photographs sitting right there. Optional and unindexed;
+   * filtered in memory, because the collection is small.
+   */
+  topicId?: string;
   createdAt: number;
+  /** Where a copy lives outside the database, when one has been mirrored. */
+  driveMirroredAt?: number;
+  mirrorFileName?: string;
+  driveFileId?: string;
+  driveViewUrl?: string;
+  mirrorError?: string;
+}
+
+/**
+ * What a model read off one photograph.
+ *
+ * Stored, which is a deliberate exception to "derived, not stored" - see 4.18.
+ * The id is `${attachmentId}__${contentHash}`, built from the bytes of the file,
+ * so a replaced photo produces a new row rather than an old row describing a
+ * picture that no longer exists.
+ */
+export interface MaterialInsight {
+  id: string;
+  attachmentId: string;
+  contentHash: string;
+  subjectId?: SubjectId;
+  suggestedTopicTitle?: string;
+  specPoints: string[];
+  definitions: { term: string; meaning: string }[];
+  keyFacts: string[];
+  workedExamples: string[];
+  /** A real outcome, not an error. Nothing is invented for an unreadable page. */
+  legibility: 'CLEAR' | 'PARTIAL' | 'UNREADABLE';
+  unreadableNote?: string;
+  model: string;
+  provider: string;
+  extractedAt: number;
 }
 ```
 
@@ -1095,6 +1205,7 @@ export interface ProofAttachment {
 | 18 | Repairs the databases that ran the first, wrong version of v17. See below |
 | 19 | `seedLedger` — which starter rows this database has already been offered, so a deleted one stays deleted. See below |
 | 20 | `checkInOccurrences` — one row per lesson, activity, study block or promised task, per date. Ids are `${date}__${occurrenceKey}`, built rather than generated, so the same lesson answered on two devices offline merges into one row instead of paying twice |
+| 21 | `materialInsights` — what a model read off each photograph. Ids are `${attachmentId}__${contentHash}`, built from the bytes, so reading the same file twice is free and a re-photographed page is a new row. Synced deliberately: the API key is *not* (5.2), so reading runs only on the device holding it, and unsynced results would never reach the student's phone |
 
 `attachments` carries a compound index `[ownerType+ownerId]`, which is the only lookup that matters.
 Booleans are never indexed — see 8.6.
@@ -1160,7 +1271,9 @@ plan. See 8.6.
 
 The fields added by the August 2026 QA pass — `DailyCheckIn.studySubjectId` / `studyGoalId`,
 `RewardItem.isArchived`, and the student profile on `ParentSettings` — deliberately carry **no**
-version bump. None of them is indexed, IndexedDB stores whatever shape it is handed, and every
+version bump. The same applies to `ProofAttachment.topicId` and `CheckInOccurrence.topicId`, added
+for the Library in September 2026: both are optional, neither is indexed, and every reader treats
+an untagged row as untagged. None of them is indexed, IndexedDB stores whatever shape it is handed, and every
 reader treats them as optional with the previous behaviour as the fallback. A version bump exists to
 change indexes or rewrite rows; adding an optional unindexed field needs neither.
 
@@ -1182,6 +1295,14 @@ db.cloud.configure({
   },
 });
 ```
+
+`driveSync` and `seedLedger` are `unsyncedTables` — both hold state about *this* browser profile
+rather than about the family.
+
+The one asymmetry worth stating explicitly: `llmApiKey` does not sync and `materialInsights` does.
+Reading a photograph therefore happens only on the device holding the key, while the text it
+produces reaches every device. Were the results unsynced too, the reading would happen on a parent's
+laptop and the student's phone would never see a word of it.
 
 The addon is applied only in a browser (`typeof window !== 'undefined'`), so Node tooling that
 exercises the data layer under `fake-indexeddb` gets a plain local Dexie instance.
@@ -1264,7 +1385,7 @@ not rediscovered as bugs. Last reviewed: **August 2026** (post enhancement relea
 | Quick Add | ✅ Homework / key date / **lesson**, chip pickers, multi-day lesson entry. Doubles as the **editor** for all three |
 | Frequency-tiered navigation | ✅ Daily vs weekly tiers, mobile "More" sheet |
 | Diagnostic quests | ✅ Instructions, formula, score, notebook link, photo proof, sub-quests. Claiming XP requires a score **and** proof — see 4.4 |
-| **Proof Log (assessments)** | ✅ Per-question marks, error cause, photo/PDF proof, parent verification, auto fix-up tasks |
+| **Marked work (assessments)** | ✅ Per-question marks, error cause, photo/PDF proof, parent verification, auto fix-up tasks. Lives inside the Library since September 2026 |
 | Subject RAG matrix | ⚠️ Effort-weighted; marked-work average reported but not folded in — see 8.3 |
 | Weekly time-capacity gauge | ✅ Recalibrated, see 4.5 |
 | **Goal approval / locking** | ✅ Draft → discussion → parent Approve & Lock; unlocked goals show struck-through hours. Locked goals are editable by a parent only |
@@ -1289,8 +1410,13 @@ not rediscovered as bugs. Last reviewed: **August 2026** (post enhancement relea
 | Parent PIN + Parent Portal | ⚠️ Works, but gates the UI only — see 8.2 |
 | JSON backup / restore | ✅ Schema-walking export, pre-flight diff, automatic rescue copy, API key stripped |
 | Offline agentic audit engine | ✅ Deterministic rules engine, with a visible reason when it is a fallback |
-| Live LLM audits | ✅ Gemini / Claude / OpenAI all implemented — see 8.4 |
-| **Cross-device sync** | ⚠️ Dexie Cloud wired and verified cold; not yet proven with two real devices |
+| Live LLM audits | ✅ Gemini / Claude / OpenAI, all through one transport (`llmClient`) with a schema-constrained answer — see 4.18 and 8.4 |
+| **The Library** | ✅ Everything captured, by subject, openable, with finished-topic gaps stated — see 4.17 |
+| **Opening a stored file** | ✅ One chip and one viewer everywhere. The blob opens whether or not Drive has a copy; the chip reports only whether it is backed up |
+| **Tagging material to a topic** | ✅ `topicId` on an attachment and on a lesson occurrence, both unindexed and migration-free |
+| **Reading the handwriting** | ✅ One vision call per image, read once and keyed to content, opt-in and capped per run — see 4.18 |
+| **Revision sheets and mock tests** | ❌ Not built. The text layer they need now exists; generating from it does not |
+| **Cross-device sync** | ✅ Proven in the field on 13 Sep 2026: several devices reconciled a backlog of days — check-ins, tasks, change log, photo attachments — after an expired licence had refused every push for a week. Nothing lost, nothing merged by hand. The device taking the backlog was unresponsive for three to four minutes with no progress shown, which is what somebody force-quits |
 | Change log | ✅ Records deletions, and one row per changed field rather than a "record updated" summary |
 | Keyboard / a11y on dialogs | ✅ Escape closes every modal via one layer-stacked hook; `role="dialog"` + `aria-modal` throughout |
 
@@ -1361,7 +1487,7 @@ Diagnostic Remediation Portal" — which defeats the point of the rename.
 | `PLAN` | Plan | Plan | *(added August 2026)* |
 | `CALENDAR` | Key Dates | Key Dates | Academic Milestones, Mocks & Reminders Calendar |
 | `REMEDIATIONS` | Fix My Mistakes | Fix My Mistakes | Year 9 Assessment Diagnostic Remediation Portal |
-| `PROOF` | Proof Log | Proof Log | *(new August 2026)* |
+| `LIBRARY` | Library | The library | Proof Log *(renamed September 2026 — it holds every kind of material now, not only marked papers)* |
 | `REWARDS` | Rewards | Rewards | Parent-Managed Rewards Ledger |
 | `TIMETABLE` | Timetable | Timetable | Guildford County School Rotational Timetable |
 | `GOALS` | Subjects & Goals | Subjects & Goals | GCSE Grade 9 Target Hierarchy |
@@ -1401,6 +1527,21 @@ Mastery Checklist".
   registered last responds. It holds `onClose` in a ref and subscribes on `isOpen` alone, so a
   background re-render cannot re-push a modal to the top of the stack, and it must be called above
   the `if (!isOpen) return null` guard because a hook cannot be called conditionally.
+- **A filtered ancestor captures `position: fixed`.** `.glass-card` carries
+  `backdrop-filter: blur(12px)`, and an element with a filter becomes the containing block for its
+  `fixed` descendants. A dialog opened from a chip *inside* a card therefore sizes itself to the
+  card, not the viewport: `MaterialViewer` rendered a 1400px page of notes in a 190px letterbox with
+  its footer clipped away. Nothing about the markup looks wrong and the cause is three components
+  further up. Every dialog mounted by `App` is unaffected, which is why this went years without
+  being met. Portal to `document.body`.
+- **`window.open` after an `await` is a blocked popup.** A browser only treats it as user-initiated
+  inside the *synchronous* part of a click handler. `MaterialLink` reads the attachment from the
+  database before deciding what to do with it, so opening a tab at that point did nothing at all —
+  no tab, no error, no console warning. Hand the file to something already on screen and let a real
+  click open it. `proofOpenable.test.ts` fails if `window.open(` reappears there.
+- **`flex-1` in an auto-height column contributes no height.** It sets `flex-basis: 0`, so a column
+  sized by its own content collapses to the item's `min-height` — an image area showing 190px of a
+  548px photograph, scrollable, looking like a deliberate thumbnail. Cap the container instead.
 - **`Table.update` with `undefined` deletes the property.** That is what the editors want when a
   field is cleared — an unlinked goal, a removed hours estimate — but it means a partial update
   object built from optional form state silently removes anything left blank. Build the object
