@@ -135,10 +135,75 @@ describe('answering “are the links and images there?”', () => {
 
     const [found] = await findEvidence('electricity');
 
-    // Safe from a restore, but there is nothing to click - a third state, not
-    // a synonym for either of the other two.
+    // Safe from a restore, but there is no URL to share - a third state, not
+    // a synonym for either of the other two. It still opens in the app, from
+    // the blob, which is what `attachmentId` is for.
     expect(found.evidence[0].savedWithoutLink).toBe(true);
     expect(found.evidence[0].url).toBeUndefined();
+    expect(found.evidence[0].attachmentId).toBe('att_task_phys');
+  });
+
+  /**
+   * The id is the whole of the bug Tejas reported as not being able to click
+   * his own proof. Without it a file with no Drive URL reaches the screens as a
+   * label and nothing else, and every one of them correctly refuses to pretend
+   * it is a link. Asserted on the ref rather than through a component, because
+   * this is where it was missing and where it would go missing again.
+   */
+  it('carries the attachment id, so a file with no Drive link can still be opened', async () => {
+    await db.tasks.add(task());
+    await photoOn('task_phys');
+
+    const [found] = await findEvidence('electricity');
+
+    expect(found.evidence[0]).toEqual(
+      expect.objectContaining({
+        attachmentId: 'att_task_phys',
+        mimeType: 'image/jpeg',
+        byteSize: 1024,
+        url: undefined,
+      })
+    );
+  });
+});
+
+describe('a marked paper reaching its photo by both routes', () => {
+  /**
+   * The proof log records the file on the assessment *and* attaches it with
+   * the assessment as owner, so both sides of the index find the same photo.
+   * Counted twice, every entry in the proof log claimed twice the evidence it
+   * had - and said the same filename twice on screen.
+   */
+  it('lists one photograph once', async () => {
+    await db.attachments.add({
+      id: 'att_paper',
+      ownerType: 'ASSESSMENT',
+      ownerId: 'assess_1',
+      fileName: 'marked-paper.jpg',
+      mimeType: 'image/jpeg',
+      byteSize: 2048,
+      blob: new Blob(['x'], { type: 'image/jpeg' }),
+      createdAt: Date.now(),
+    });
+
+    await db.assessments.add({
+      id: 'assess_1',
+      subjectId: 'chemistry',
+      title: 'Crude oil end of topic test',
+      type: 'CLASS_TEST',
+      date: '2026-09-26',
+      marksScored: 38,
+      marksAvailable: 45,
+      percentage: 84,
+      questions: [],
+      attachmentIds: ['att_paper'],
+      createdAt: Date.now(),
+    });
+
+    const [found] = await findEvidence('crude oil');
+
+    expect(found.evidence).toHaveLength(1);
+    expect(found.evidence[0].attachmentId).toBe('att_paper');
   });
 });
 

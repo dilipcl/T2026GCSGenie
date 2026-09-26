@@ -120,6 +120,30 @@ export async function getAttachmentsFor(
   return list.sort((a, b) => a.createdAt - b.createdAt);
 }
 
+export async function getAttachment(id: string): Promise<ProofAttachment | undefined> {
+  return db.attachments.get(id);
+}
+
+/**
+ * Opens a stored file in a new tab.
+ *
+ * This existed inside `ProofUploader` and nowhere else, which is the whole
+ * reason four screens spent a term rendering photographs as unclickable grey
+ * text: the file was always openable, and only the uploader knew how. It lives
+ * here now so a reader and an editor open the same file the same way.
+ *
+ * The object URL is released on a timer rather than immediately. The new tab
+ * holds its own reference by the time it has loaded, but revoking in the same
+ * tick races the browser and produces a blank tab on a slow phone - and a
+ * leaked URL for a few seconds costs nothing next to a photo that will not
+ * open.
+ */
+export function openAttachmentInNewTab(attachment: ProofAttachment): void {
+  const url = URL.createObjectURL(attachment.blob);
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
 /**
  * How many files each owner has, in a single query.
  *

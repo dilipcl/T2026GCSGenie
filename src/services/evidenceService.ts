@@ -35,6 +35,20 @@ export interface EvidenceRef {
   /** Openable address, when there is one. */
   url?: string;
   /**
+   * The row in `attachments` this came from, when it is a file.
+   *
+   * Carried because leaving it out was the whole of the bug Tejas reported as
+   * "I cannot click the proof I uploaded". A file with no `url` was rendered as
+   * grey unclickable text on four screens, all of them reasoning that a dead
+   * link is worse than an honest label - which is true, and was the wrong
+   * conclusion, because the file is a blob sitting in this device's database
+   * and `ProofUploader` had been opening it all along. What was missing was
+   * never a link. It was this id.
+   */
+  attachmentId?: string;
+  mimeType?: string;
+  byteSize?: number;
+  /**
    * A file saved into the Drive backup folder that has no URL. The desktop
    * folder transport never learns the id Drive assigns, so the file is safe but
    * unlinkable - which is neither "missing" nor "openable".
@@ -286,6 +300,9 @@ function filesFor(
       kind: 'FILE' as const,
       label: a.caption?.trim() || a.fileName,
       url: a.driveViewUrl,
+      attachmentId: a.id,
+      mimeType: a.mimeType,
+      byteSize: a.byteSize,
       savedWithoutLink: !!a.driveMirroredAt && !a.driveViewUrl,
       source: 'Proof photo',
     }));
@@ -422,9 +439,32 @@ export async function evidenceIndex(): Promise<EvidenceSubject[]> {
         kind: 'FILE' as const,
         label: a.caption?.trim() || a.fileName,
         url: a.driveViewUrl,
+        attachmentId: a.id,
+        mimeType: a.mimeType,
+        byteSize: a.byteSize,
         savedWithoutLink: !!a.driveMirroredAt && !a.driveViewUrl,
         source: 'Marked paper',
       }));
+
+    /**
+     * A marked paper reaches its files by two routes, and one file usually
+     * takes both.
+     *
+     * `attachmentIds` is the list the entry keeps, and `filesFor` finds
+     * anything owned by the entry - which is every photo added through the log,
+     * because `ProofUploader` writes the assessment id as the owner *and* the
+     * modal records the id. So a single photograph of a test produced two
+     * identical rows of evidence, and the proof log's own entries were the
+     * worst affected: every one of them double-counted.
+     *
+     * Invisible for as long as both copies rendered as inert grey text saying
+     * the same filename twice. Obvious the moment they became things you could
+     * open.
+     */
+    const seen = new Set<string | undefined>(attached.map((ref) => ref.attachmentId));
+    const owned = filesFor(assessment.id, attachments).filter(
+      (ref) => !seen.has(ref.attachmentId)
+    );
 
     push(
       'Assessment',
@@ -433,7 +473,7 @@ export async function evidenceIndex(): Promise<EvidenceSubject[]> {
       true,
       [
         ...attached,
-        ...filesFor(assessment.id, attachments),
+        ...owned,
         ...link(assessment.driveResourceUrl, 'Paper link', assessment.title),
       ],
       // The proof log exists to hold evidence. An entry without any is the

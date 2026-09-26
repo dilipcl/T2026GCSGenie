@@ -8,8 +8,6 @@ import {
 } from '../../services/evidenceService';
 import {
   Search,
-  Link as LinkIcon,
-  Paperclip,
   AlertTriangle,
   CheckCircle2,
   Send,
@@ -19,6 +17,7 @@ import {
   CalendarClock,
 } from 'lucide-react';
 import { EvidencePanel } from '../shared/EvidencePanel';
+import { MaterialLink, materialFromEvidence } from '../shared/MaterialLink';
 import { EVIDENCE_TARGETS } from '../../services/evidenceService';
 import { formatShortDate } from '../../utils/date';
 import { UserRole } from '../../types';
@@ -122,46 +121,12 @@ const EvidenceRow: React.FC<{
 
         {item.evidence.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-1.5">
-            {item.evidence.map((ref, index) =>
-              ref.url ? (
-                <a
-                  key={`${ref.source}-${index}`}
-                  href={ref.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={ref.url}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-[10px] text-indigo-300 hover:bg-indigo-500/20"
-                >
-                  {ref.kind === 'LINK' ? (
-                    <LinkIcon className="w-3 h-3" />
-                  ) : (
-                    <Paperclip className="w-3 h-3" />
-                  )}
-                  <span className="truncate max-w-[12rem]">{ref.label}</span>
-                </a>
-              ) : (
-                /* A photo that exists only as a blob on one device, or one saved
-                   into the Drive folder with no id to link to. Rendering a dead
-                   link would be worse than saying so. */
-                <span
-                  key={`${ref.source}-${index}`}
-                  title={
-                    ref.savedWithoutLink
-                      ? 'Saved into your Drive backup folder. Links need the Drive API, which this device does not use.'
-                      : 'Held on the device it was taken on. Connect Drive backup to keep a copy.'
-                  }
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] ${
-                    ref.savedWithoutLink
-                      ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400/80'
-                      : 'bg-slate-800/60 border-slate-800 text-slate-500'
-                  }`}
-                >
-                  <Paperclip className="w-3 h-3" />
-                  <span className="truncate max-w-[12rem]">{ref.label}</span>
-                  <span className="opacity-70">· no link</span>
-                </span>
-              )
-            )}
+            {/* This tab exists to answer "did he attach the proof?", and until
+                now it could only answer it with a filename. The proof itself
+                opens from the row. */}
+            {item.evidence.map((ref, index) => (
+              <MaterialLink key={`${ref.source}-${index}`} {...materialFromEvidence(ref)} />
+            ))}
           </div>
         )}
 
@@ -435,7 +400,8 @@ export const EvidenceCheck: React.FC<{ currentRole: UserRole }> = ({ currentRole
           <>
             {' '}
             {summary.savedWithoutLink} file{summary.savedWithoutLink === 1 ? ' is' : 's are'} in
-            your Drive backup folder but have no link to open.
+            your Drive backup folder with no shareable Drive link — they open here, but a message
+            cannot carry one.
           </>
         )}
       </p>

@@ -5,7 +5,9 @@ import {
   deleteAttachment,
   getAttachmentsFor,
   formatBytes,
+  openAttachmentInNewTab,
 } from '../../services/attachmentService';
+import { MaterialViewer } from './MaterialViewer';
 import { Camera, FileText, Trash2, Loader2 } from 'lucide-react';
 import { useFeedback } from './FeedbackProvider';
 
@@ -39,6 +41,12 @@ export const ProofUploader: React.FC<ProofUploaderProps> = ({
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The photo being looked at. Shares the viewer every other screen uses, so
+   * the same file opens the same way whether it is reached from the editor that
+   * took it or from a row in the record.
+   */
+  const [viewing, setViewing] = useState<ProofAttachment | undefined>(undefined);
 
   const reload = async () => {
     const list = await getAttachmentsFor(ownerType, ownerId);
@@ -95,11 +103,9 @@ export const ProofUploader: React.FC<ProofUploaderProps> = ({
     await reload();
   };
 
-  const openInTab = (att: ProofAttachment) => {
-    const url = URL.createObjectURL(att.blob);
-    window.open(url, '_blank', 'noopener');
-    // The new tab holds its own reference; release ours once it has loaded
-    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  const openAttachment = (att: ProofAttachment) => {
+    if (att.mimeType.startsWith('image/')) setViewing(att);
+    else openAttachmentInNewTab(att);
   };
 
   const totalBytes = attachments.reduce((sum, a) => sum + a.byteSize, 0);
@@ -157,7 +163,7 @@ export const ProofUploader: React.FC<ProofUploaderProps> = ({
             >
               <button
                 type="button"
-                onClick={() => openInTab(att)}
+                onClick={() => openAttachment(att)}
                 title={`${att.fileName} (${formatBytes(att.byteSize)})`}
                 className="block w-full aspect-square"
               >
@@ -189,6 +195,8 @@ export const ProofUploader: React.FC<ProofUploaderProps> = ({
           ))}
         </div>
       )}
+
+      {viewing && <MaterialViewer attachment={viewing} onClose={() => setViewing(undefined)} />}
     </div>
   );
 };

@@ -20,6 +20,7 @@ import { formatPastDate } from '../../utils/date';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { ActivityComments } from './ActivityComments';
 import { CheckInDetailPanel } from './CheckInDetailPanel';
+import { MaterialLink, materialFromAttachment } from '../shared/MaterialLink';
 import {
   Search,
   Filter,
@@ -28,7 +29,6 @@ import {
   PlusCircle,
   PencilLine,
   ShieldCheck,
-  Paperclip,
   AlertCircle,
   X,
   Laptop,
@@ -115,62 +115,16 @@ const AttachmentLinks: React.FC<{ item: ActivityItem }> = ({ item }) => {
         </a>
       ))}
 
-      {item.attachments?.map((file) => {
-        const href = file.driveViewUrl;
-        const shared = (
-          <>
-            <Paperclip className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate max-w-[10rem]">{file.fileName}</span>
-          </>
-        );
-
-        /**
-         * A file with no Drive copy still exists - it is a blob in this
-         * device's database - but it has no address anyone can open, and a dead
-         * link is worse than an honest label. Once Drive backup is connected,
-         * these become real links.
-         */
-        if (href) {
-          return (
-            <a
-              key={file.attachmentId}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 text-[10px] text-indigo-300 hover:bg-slate-700"
-            >
-              {shared}
-            </a>
-          );
-        }
-
-        /**
-         * Three states, not two. A file saved through the desktop folder is
-         * safe from a restore but has no URL, and calling that "on device"
-         * would understate it just as badly as rendering a dead link would
-         * overstate it.
-         */
-        return (
-          <span
-            key={file.attachmentId}
-            title={
-              file.mirroredWithoutLink
-                ? 'Saved into your Drive backup folder. Links need the Drive API, which this device is not using.'
-                : 'Stored only on the device it was taken on. Connect Drive backup to keep a copy.'
-            }
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] ${
-              file.mirroredWithoutLink
-                ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400/80'
-                : 'bg-slate-800/60 border-slate-800 text-slate-500'
-            }`}
-          >
-            {shared}
-            <span className="opacity-70">
-              {file.mirroredWithoutLink ? '· in Drive folder' : '· on device only'}
-            </span>
-          </span>
-        );
-      })}
+      {/**
+       * Photographs, which open here whether or not Drive has a copy. This row
+       * used to draw a file with no `driveViewUrl` as unclickable grey text on
+       * the grounds that a dead link is worse than an honest label. The label
+       * was honest and the conclusion was still wrong: the file is a blob in
+       * this device's database, and `MaterialLink` opens it.
+       */}
+      {item.attachments?.map((file) => (
+        <MaterialLink key={file.attachmentId} {...materialFromAttachment(file)} />
+      ))}
     </div>
   );
 };

@@ -12,6 +12,11 @@ import { OccurrenceOutcome, UserRole } from '../../types';
 import { TaskDetailPanel } from '../shared/TaskDetailPanel';
 import { formatPastDate, formatShortDate } from '../../utils/date';
 import {
+  MaterialLink,
+  materialFromEvidence,
+  materialFromProofAttachment,
+} from '../shared/MaterialLink';
+import {
   BookOpen,
   Search,
   Check,
@@ -19,8 +24,6 @@ import {
   X,
   MessageSquare,
   ArrowRightCircle,
-  Paperclip,
-  Link as LinkIcon,
   AlertTriangle,
   Sparkles,
   ChevronRight,
@@ -304,32 +307,13 @@ const DayCard: React.FC<{
                   {item.title}
                 </button>
 
-                {item.evidence.map((ref, index) =>
-                  ref.url ? (
-                    <a
-                      key={index}
-                      href={ref.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/30 text-[10px] text-indigo-300"
-                    >
-                      {ref.kind === 'LINK' ? (
-                        <LinkIcon className="w-2.5 h-2.5" />
-                      ) : (
-                        <Paperclip className="w-2.5 h-2.5" />
-                      )}
-                      <span className="truncate max-w-[10rem]">{ref.label}</span>
-                    </a>
-                  ) : (
-                    <span
-                      key={index}
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-400"
-                    >
-                      <Paperclip className="w-2.5 h-2.5" />
-                      <span className="truncate max-w-[10rem]">{ref.label}</span>
-                    </span>
-                  )
-                )}
+                {/* The photograph of the work opens from the row that says the
+                    work was finished. Reading that something was done and
+                    having no way to see it is most of what made this record
+                    feel thin - and for photos, it was never necessary. */}
+                {item.evidence.map((ref, index) => (
+                  <MaterialLink key={index} size="xs" {...materialFromEvidence(ref)} />
+                ))}
 
                 {item.missingEvidence && (
                   <span className="inline-flex items-center gap-1 text-[10px] text-amber-300 font-semibold">
@@ -392,10 +376,20 @@ const DayCard: React.FC<{
         </p>
       )}
 
+      {/* Counted, and now listed. "3 files added this day" was the closest this
+          screen came to showing the material it was built to surface, and a
+          count of photographs nobody can look at answers nothing. */}
       {day.attachments.length > 0 && (
-        <p className="text-[10px] text-slate-500 mt-1">
-          {day.attachments.length} file{day.attachments.length === 1 ? '' : 's'} added this day
-        </p>
+        <div className="mt-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+            Added this day
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {day.attachments.map((file) => (
+              <MaterialLink key={file.id} size="xs" {...materialFromProofAttachment(file)} />
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
