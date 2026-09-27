@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { PlanBucket, Task } from '../types';
-import { addDaysISO, daysUntil, todayISO } from '../utils/date';
+import { addDaysISO, daysUntil, parseISODate, todayISO } from '../utils/date';
 import { logAuditEvent } from './auditService';
 import { currentWeek, isInWeek } from './weekWindow';
 
@@ -108,6 +108,20 @@ export function inferBucket(task: Task): PlanBucket {
   // Beyond a term away it was never a schedule, only a note to self.
   if (days <= 75) return 'FUTURE';
   return 'BACKLOG';
+}
+
+/**
+ * Open work worth offering tonight: due by tomorrow, or in this week's column.
+ *
+ * The check-in's homework list and the focus picker both ask this, and each
+ * first answered it with its own test of the stored bucket - which missed a
+ * next-week task whose week had arrived, and a task with no bucket due within
+ * the week, both of which every other screen already counts as this week.
+ * "This week" belongs to `inferBucket`; this only adds "or due tomorrow".
+ */
+export function isDueSoon(task: Task, date: string = todayISO()): boolean {
+  if (task.completed) return false;
+  return task.dueDate <= addDaysISO(1, parseISODate(date)) || inferBucket(task) === 'THIS_WEEK';
 }
 
 export interface PlanColumns {

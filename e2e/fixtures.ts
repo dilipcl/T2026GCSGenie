@@ -175,3 +175,19 @@ export function homework(id: string, title: string, extra: Record<string, unknow
     ...extra,
   };
 }
+
+/**
+ * A timetable row filed under General, as the live timetable has for Tutor,
+ * PE, PSHE and "Clean up" - which the seed does not, on a Friday.
+ */
+export const CLEAN_UP_FRIDAY = {
+  id: 'cleanup-fri',
+  weekType: 'BOTH',
+  dayOfWeek: 'FRI',
+  slotName: 'After School / Study',
+  startTime: '15:15',
+  endTime: '16:00',
+  subjectId: 'general',
+  activityName: 'Clean up',
+  isHardLocked: false,
+};

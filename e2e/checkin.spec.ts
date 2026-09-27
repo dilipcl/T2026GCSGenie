@@ -8,6 +8,8 @@ import {
   insert,
   homework,
   TODAY,
+  NOW,
+  CLEAN_UP_FRIDAY,
 } from './fixtures';
 import type { Locator } from '@playwright/test';
 
@@ -104,6 +106,57 @@ test.describe('the daily check-in', () => {
 
     await expect(dialog.getByText('Photo of it (optional)')).toBeVisible();
     await expect(dialog.getByText(/waits under Evidence/)).toBeVisible();
+  });
+
+  test('a focus block earlier does not cost the evening its daily +10', async ({ page }) => {
+    await insert(page, 'checkIns', {
+      id: 'block-1',
+      date: TODAY,
+      timestamp: NOW.getTime() - 3_600_000,
+      session: 'STUDY_SESSION',
+      source: 'FOCUS_TIMER',
+      energyLevel: 3,
+      focusRating: 'NORMAL',
+      completedHomeworkIds: [],
+      completedRevisionMinutes: 25,
+      xpEarned: 10,
+      isDailyBaseXPAwarded: false,
+    });
+    const dialog = await openCheckIn(page);
+
+    await expect(dialog.getByRole('button', { name: 'Save Check-in (+10 XP)' })).toBeVisible();
+    await expect(dialog.getByText(/already banked/)).toHaveCount(0);
+    // The block's minutes are still acknowledged, so they are not logged twice.
+    await expect(dialog.getByText(/25 min already logged/)).toBeVisible();
+  });
+
+  test('a lesson filed under General is not asked what topic it covered', async ({ page }) => {
+    await insert(page, 'timetableEntries', CLEAN_UP_FRIDAY);
+    const dialog = await openCheckIn(page);
+    await dialog.getByRole('button', { name: 'Done — Clean up' }).click();
+
+    await expect(dialog.getByRole('button', { name: 'Done — Clean up' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await expect(dialog.getByRole('button', { name: 'Which topic?' })).toHaveCount(0);
+    await expect(dialog.getByText('Covered')).toHaveCount(0);
+  });
+
+  test('homework ticked in the check-in is closed with its audit line', async ({ page }) => {
+    await insert(page, 'tasks', homework('hw-sparx', 'Sparx Maths'));
+    const dialog = await openCheckIn(page);
+    await homeworkRow(dialog, 'Sparx Maths').click();
+    await dialog.getByRole('button', { name: /Save Check-in/ }).click();
+    await confirmSheet(page, 'Save it');
+    await expect(dialog).toBeHidden();
+
+    const task = (await rows<{ id: string; completed: boolean }>(page, 'tasks')).find(
+      (t) => t.id === 'hw-sparx'
+    );
+    expect(task?.completed).toBe(true);
+    const audit = await rows<{ entityId: string; fieldChanged?: string }>(page, 'auditLogs');
+    expect(audit.some((a) => a.entityId === 'hw-sparx' && a.fieldChanged === 'completed')).toBe(true);
   });
 
   test('the homework list leaves out work that is not due yet', async ({ page }) => {

@@ -29,6 +29,8 @@ const SOURCES = [
   'src/components/dashboard/DayOccurrenceChecklist.tsx',
   // The topic chip under each answered lesson, rendered by OccurrenceAnswer.
   'src/components/dashboard/LessonTopic.tsx',
+  // The photo step under each ticked piece of homework in the check-in.
+  'src/components/shared/ProofUploader.tsx',
 ];
 
 const BUTTON_TAG = /<button\b[\s\S]*?>/g;

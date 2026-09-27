@@ -6,6 +6,7 @@ import {
   SubjectId,
   UserRole,
   WeekType,
+  isNonExamSubject,
 } from '../types';
 import {
   DayOccurrence,
@@ -328,6 +329,29 @@ export async function tagOccurrenceToTopic(
     oldValue: existing.topicId ?? '(none)',
     newValue: topicId ?? '(cleared)',
   });
+}
+
+/**
+ * Whether a timetable row is a lesson that teaches syllabus topics.
+ *
+ * Every timetable row not claimed by an activity becomes a LESSON occurrence,
+ * and some of those are filed under General: registration, PE, PSHE - and
+ * "Clean up", which is a chore. Asked "which topic did this cover?" they have
+ * no answer, and offered in the focus picker as "today's lessons" they read as
+ * a joke. The lesson row, the focus picker and the topic view all ask this one
+ * question, so it is answered once, here.
+ */
+export function teachesTopics(occurrence: {
+  kind: CheckInOccurrence['kind'];
+  subjectId?: SubjectId;
+}): boolean {
+  // General and Revision have no syllabus - the same rule that keeps them out
+  // of RAG health and coverage, so it is that rule's owner that answers.
+  return (
+    occurrence.kind === 'LESSON' &&
+    !!occurrence.subjectId &&
+    !isNonExamSubject(occurrence.subjectId)
+  );
 }
 
 /**

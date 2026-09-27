@@ -7,6 +7,7 @@ import {
   recordOccurrence,
   suggestLessonTopic,
   tagOccurrenceToTopic,
+  teachesTopics,
 } from './checkInOccurrenceService';
 import { addSyllabusTopic } from './topicService';
 
@@ -97,5 +98,16 @@ describe('a lesson and its topic', () => {
     });
 
     expect(await suggestLessonTopic('physics', MONDAY)).toBe(recent.id);
+  });
+});
+
+describe('which lessons teach topics', () => {
+  it('asks a subject lesson, and not registration, PE or a chore', () => {
+    expect(teachesTopics({ kind: 'LESSON', subjectId: 'physics' })).toBe(true);
+    // Tutor, PE, PSHE and "Clean up" are all timetabled under General.
+    expect(teachesTopics({ kind: 'LESSON', subjectId: 'general' })).toBe(false);
+    expect(teachesTopics({ kind: 'LESSON', subjectId: 'revision' })).toBe(false);
+    expect(teachesTopics({ kind: 'LESSON' })).toBe(false);
+    expect(teachesTopics({ kind: 'COMMITMENT', subjectId: 'physics' })).toBe(false);
   });
 });

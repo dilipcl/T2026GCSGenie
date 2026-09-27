@@ -32,6 +32,9 @@ import { PlannedActivity } from '../../types';
 import { currentWeek } from '../../services/weekWindow';
 import { DayOccurrenceChecklist } from './DayOccurrenceChecklist';
 import { ProofUploader } from '../shared/ProofUploader';
+import { isTimerBlock } from '../../services/focusSessionService';
+import { isDueSoon } from '../../services/planService';
+import { setTaskCompleted } from '../../services/taskCompletionService';
 import { formatShortDate } from '../../utils/date';
 
 interface DailyCheckInModalProps {
@@ -160,8 +163,16 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     db.checkIns.where('date').equals(checkInDate).toArray().then((existing) => {
-      setHasCheckedInToday(existing.length > 0);
-      setTodayCheckInCount(existing.length);
+      /**
+       * The daily base is for checking in, and a focus block is not a
+       * check-in - it writes a row, but nobody answered anything. Counting
+       * timer rows here withheld the +10 on exactly the evenings the app
+       * had just steered him onto the timer, and told him it was already
+       * banked when it was not.
+       */
+      const answered = existing.filter((c) => !isTimerBlock(c));
+      setHasCheckedInToday(answered.length > 0);
+      setTodayCheckInCount(answered.length);
       setAlreadyLogged({
         minutes: existing.reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0),
         blocks: existing.filter((c) => c.session === 'STUDY_SESSION').length,
@@ -287,11 +298,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
    * tonight's, a long scroll had to be read to find the two that mattered, and
    * a stray tap on a row nobody was looking for closed it.
    */
-  const soonCutoff = addDaysISO(1);
-  const soonTasks = pendingTasks.filter(
-    (t) =>
-      t.dueDate <= soonCutoff || t.bucket === 'THIS_WEEK' || completedTaskIds.includes(t.id)
-  );
+  const soonTasks = pendingTasks.filter((t) => isDueSoon(t) || completedTaskIds.includes(t.id));
   const visibleTasks = showAllTasks ? pendingTasks : soonTasks;
   const hiddenTaskCount = pendingTasks.length - soonTasks.length;
   const isBackfillDay = checkInDate < todayStr;
@@ -377,12 +384,11 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
         }
       }
 
-      // 3. Mark completed tasks
-      for (const taskId of completedTaskIds) {
-        await db.tasks.update(taskId, {
-          completed: true,
-          completedAt: now,
-        });
+      // 3. Mark completed tasks - through the one close path, so each gets
+      //    its audit line and a follow-up's comment is settled with it. A
+      //    raw update here closed work without either.
+      for (const task of pendingTasks.filter((t) => completedTaskIds.includes(t.id))) {
+        await setTaskCompleted(task, true, 'STUDENT');
       }
 
       // 4. Turn the forward-looking answers into tasks for tomorrow, so the

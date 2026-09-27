@@ -10,7 +10,7 @@ import {
 } from '../types';
 import { Material, library } from './materialLibrary';
 import { isTimerBlock } from './focusSessionService';
-import { tagOccurrenceToTopic } from './checkInOccurrenceService';
+import { tagOccurrenceToTopic, teachesTopics } from './checkInOccurrenceService';
 import { tagAttachmentToTopic } from './attachmentService';
 import { tagCheckInToTopic } from './topicService';
 
@@ -86,9 +86,12 @@ export interface SubjectTopics {
   untagged: UntaggedItem[];
 }
 
-/** A missed lesson covered nothing, so it is neither counted nor asked about. */
+/**
+ * A missed lesson covered nothing, and PE covered no syllabus - neither is
+ * counted as teaching or asked which topic it was.
+ */
 function coveredSomething(row: CheckInOccurrence): boolean {
-  return row.kind === 'LESSON' && row.outcome !== 'MISSED';
+  return teachesTopics(row) && row.outcome !== 'MISSED';
 }
 
 export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics> {

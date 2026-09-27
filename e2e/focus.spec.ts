@@ -1,4 +1,13 @@
-import { test, expect, openApp, openTab, rows, insert, homework } from './fixtures';
+import {
+  test,
+  expect,
+  openApp,
+  openTab,
+  rows,
+  insert,
+  homework,
+  CLEAN_UP_FRIDAY,
+} from './fixtures';
 
 /**
  * A focus block, start to wrap-up.
@@ -20,6 +29,18 @@ test.describe('a focus block', () => {
     await page.clock.fastForward('25:02');
     await expect(page.getByText('While you rest - what was that block?')).toBeVisible();
   }
+
+  test('offers the day’s subject lessons, and not a chore filed as one', async ({ page }) => {
+    await insert(page, 'timetableEntries', CLEAN_UP_FRIDAY);
+    // Proof the row has been read: it is on today's schedule. Without this the
+    // negative check below passes before the timetable is re-read, and would
+    // pass on the old code too.
+    await expect(page.getByText('Clean up', { exact: true }).first()).toBeVisible();
+    const picker = page.locator('#focus-target');
+
+    await expect(picker.locator('option', { hasText: 'History (Weimar)' })).toHaveCount(1);
+    await expect(picker.locator('option', { hasText: 'Clean up' })).toHaveCount(0);
+  });
 
   test('logs its minutes before asking anything, against the work chosen', async ({ page }) => {
     await runBlockOn(page, 'Venn diagram worksheet');

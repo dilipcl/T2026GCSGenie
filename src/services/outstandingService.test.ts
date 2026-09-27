@@ -3,6 +3,7 @@ import { db } from '../db';
 import { emptyDatabase } from '../test/harness';
 import { Task } from '../types';
 import { loadOutstanding } from './outstandingService';
+import { logFocusBlock } from './focusSessionService';
 import { todayISO, addDaysISO, parseISODate, startOfWeekISO } from '../utils/date';
 import { addEvidenceNote } from './activityCommentService';
 
@@ -60,6 +61,14 @@ describe('loadOutstanding — student', () => {
     await checkInDone();
     const items = await loadOutstanding('STUDENT');
     expect(ids(items)).not.toContain('checkin:today');
+  });
+
+  it('still asks for the check-in after a focus block', async () => {
+    // A timer block writes a check-in row but nobody answered anything, and
+    // the daily +10 is still unclaimed - the prompt must stay.
+    await logFocusBlock({ subjectId: 'maths' });
+    const items = await loadOutstanding('STUDENT');
+    expect(ids(items)).toContain('checkin:today');
   });
 
   it('surfaces overdue work with the titles named', async () => {

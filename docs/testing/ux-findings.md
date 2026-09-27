@@ -57,13 +57,6 @@ delete one.
 
 ### Check-in and lessons
 
-- **major - Timetable rows filed under General count as lessons.** Tutor,
-  PE, PSHE and "Clean up" (a chore) are LESSON occurrences: the topic chip
-  asks "Which topic?" under PE, the focus picker offers "Clean up" as one of
-  today's lessons, and they inflate the day's list. Introduced by the step 1
-  and 2 work for the chip and picker; the underlying modelling predates it.
-  `dayPlan.ts`, `LessonTopic` render condition in `OccurrenceAnswer.tsx`,
-  `focusThreads` in `focusSessionService.ts`. Found 27 Sep 2026.
 - **minor - The same homework appears twice in one check-in.** Work promised
   this week and due today is listed under "How did the day go?" as committed
   work and again under "Homework completed", and can be ticked in either.
@@ -99,6 +92,33 @@ delete one.
 Nothing audited yet - the first `data-consistency-auditor` run goes here.
 
 ## Closed
+
+Unless noted, fixed in `fix: a focus block never costs the check-in, and PE is
+not a lesson with a topic` (27 Sep 2026).
+
+- **major - Timetable rows filed under General counted as lessons.** Tutor,
+  PE, PSHE and "Clean up" were asked "Which topic?" and offered in the focus
+  picker. One rule now, `teachesTopics` in `checkInOccurrenceService`, built on
+  the existing `isNonExamSubject` and used by the lesson row, the focus picker
+  and the topic view. Covered by unit and e2e
+  tests. Fixed 27 Sep 2026.
+- **major - A focus block cost the evening check-in its daily +10 XP.** The
+  check-in counted timer rows as check-ins and said the base was "already
+  banked" when it was not, and the outstanding list dropped "Do today's
+  check-in" for the same reason. Timer rows are now left out of both. Found by
+  the release-gate; fixed 27 Sep 2026, with tests shown to fail on the old
+  code.
+- **minor - "Due soon" had its own copy of "this week".** The check-in and
+  the focus picker tested the stored bucket, missing a next-week task whose
+  week had arrived. Both now use `isDueSoon` in `planService`, built on
+  `inferBucket`. Found by the release-gate; fixed 27 Sep 2026.
+- **minor - Homework ticked in the check-in closed with no audit line** and
+  without settling a follow-up's comment. Now goes through
+  `setTaskCompleted`. Found by the release-gate; fixed 27 Sep 2026, with an
+  e2e test shown to fail on the old code.
+- **polish - The check-in form's button guard did not read ProofUploader**,
+  which now renders inside it. Added to `checklistButtons.test.ts`. Found by
+  the release-gate; fixed 27 Sep 2026.
 
 - **"Fractional Distillation and crude oil" filed under General** - moved to
   Chemistry through the edit sheet on 27 Sep 2026 (live data, no commit).

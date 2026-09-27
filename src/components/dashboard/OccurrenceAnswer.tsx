@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CheckInOccurrence, ExceptionReasonCategory, OccurrenceOutcome } from '../../types';
 import { DayOccurrence } from '../../services/dayPlan';
-import { recordOccurrence } from '../../services/checkInOccurrenceService';
+import { recordOccurrence, teachesTopics } from '../../services/checkInOccurrenceService';
 import { REASON_LABEL, REASON_ICON } from '../../services/commitmentService';
 import { Check, Minus, X, MessageSquarePlus } from 'lucide-react';
 import { LessonTopic } from './LessonTopic';
@@ -201,12 +201,9 @@ export const OccurrenceAnswer: React.FC<OccurrenceAnswerProps> = ({
         </p>
       )}
 
-      {existing &&
-        existing.outcome !== 'MISSED' &&
-        occurrence.kind === 'LESSON' &&
-        occurrence.subjectId && (
-          <LessonTopic date={date} occurrence={occurrence} existing={existing} />
-        )}
+      {existing && existing.outcome !== 'MISSED' && teachesTopics(occurrence) && (
+        <LessonTopic date={date} occurrence={occurrence} existing={existing} />
+      )}
     </div>
   );
 };

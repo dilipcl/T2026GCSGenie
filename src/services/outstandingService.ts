@@ -6,6 +6,7 @@ import { PlanHorizon, horizonWeekStart, readFinalisationState } from './planBase
 import { inferBucket } from './planService';
 import { pendingConfirmation } from './changeLogService';
 import { daysNeedingBackfill } from './checkInOccurrenceService';
+import { isTimerBlock } from './focusSessionService';
 import { openWeeks } from './weekLedger';
 import { workNeedingEvidence } from './evidenceService';
 import { currentWeek } from './weekWindow';
@@ -327,7 +328,11 @@ async function checkInItems(): Promise<OutstandingItem[]> {
   const today = todayISO();
   const items: OutstandingItem[] = [];
 
-  const done = await db.checkIns.where('date').equals(today).count();
+  // A focus block writes a check-in row but is not a check-in: counted here,
+  // it took the prompt away on exactly the evenings the +10 was still unclaimed.
+  const done = (await db.checkIns.where('date').equals(today).toArray()).filter(
+    (c) => !isTimerBlock(c)
+  ).length;
   if (done === 0) {
     items.push({
       id: 'checkin:today',

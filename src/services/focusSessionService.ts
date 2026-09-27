@@ -2,11 +2,12 @@ import { db } from '../db';
 import { DailyCheckIn, SubjectId, Task } from '../types';
 import { dayShape } from './dayPlan';
 import { resolveWeekType } from './weekType';
-import { occurrenceId } from './checkInOccurrenceService';
+import { occurrenceId, teachesTopics } from './checkInOccurrenceService';
+import { isDueSoon } from './planService';
 import { logAuditEvent } from './auditService';
 import { FOCUS_MINUTES } from './breakEngine';
 import { newId } from '../utils/id';
-import { addDaysISO, parseISODate, todayISO } from '../utils/date';
+import { addDaysISO, todayISO } from '../utils/date';
 
 /**
  * The focus block as the place where detail gets written down.
@@ -78,7 +79,7 @@ export async function focusThreads(date: string = todayISO()): Promise<FocusThre
   const threads: FocusThread[] = [];
 
   for (const occurrence of shape.occurrences) {
-    if (occurrence.kind !== 'LESSON' || !occurrence.subjectId) continue;
+    if (!teachesTopics(occurrence)) continue;
     const answer = await db.checkInOccurrences.get(occurrenceId(date, occurrence.key));
     if (answer?.outcome === 'MISSED') continue;
 
@@ -86,14 +87,13 @@ export async function focusThreads(date: string = todayISO()): Promise<FocusThre
       key: `lesson:${occurrence.key}`,
       kind: 'LESSON',
       label: occurrence.label,
-      subjectId: occurrence.subjectId,
+      subjectId: occurrence.subjectId!,
       topicId: answer?.topicId,
     });
   }
 
-  const soon = addDaysISO(1, parseISODate(date));
-  const open = (await db.tasks.orderBy('dueDate').toArray()).filter(
-    (t: Task) => !t.completed && (t.dueDate <= soon || t.bucket === 'THIS_WEEK')
+  const open = (await db.tasks.orderBy('dueDate').toArray()).filter((t: Task) =>
+    isDueSoon(t, date)
   );
 
   for (const task of open.slice(0, 6)) {
