@@ -67,7 +67,7 @@ describe('a subject by its topics', () => {
     const row = data.topics.find((t) => t.topic.id === topic.id)!;
 
     expect(row.lessons).toBe(1);
-    expect(row.focusMinutes).toBe(25);
+    expect(row.studyMinutes).toBe(25);
     expect(row.work).toBe(1);
     expect(row.entries.map((e) => e.kind)).toEqual(['WORK', 'FOCUS', 'LESSON']);
     // The lesson note is the lesson's own detail - not listed again as material.

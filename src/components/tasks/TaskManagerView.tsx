@@ -3,7 +3,7 @@ import { db } from '../../db';
 import { Task, PriorityLevel, SubjectId, Goal } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent } from '../../services/auditService';
-import { closeTask as finishTask, setTaskCompleted } from '../../services/taskCompletionService';
+import { setTaskCompleted } from '../../services/taskCompletionService';
 import { triggerCelebration } from '../../utils/confetti';
 import { todayISO, formatFriendlyDate } from '../../utils/date';
 import {
@@ -22,7 +22,7 @@ import {
 import { useFeedback } from '../shared/FeedbackProvider';
 import { useChangeGuard } from '../shared/ChangeGuardProvider';
 import { WeekCommitmentBanner } from './WeekCommitmentBanner';
-import { TaskCloseModal } from './TaskCloseModal';
+import { TaskCloseSheet } from './TaskCloseSheet';
 import { UserRole } from '../../types';
 
 interface TaskManagerViewProps {
@@ -47,7 +47,7 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
   onOpenLegacyFixups,
   currentRole = 'STUDENT',
 }) => {
-  const { confirm, toast } = useFeedback();
+  const { confirm } = useFeedback();
   const { confirmChange } = useChangeGuard();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -479,29 +479,15 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
       </div>
 
       {closing && (
-        <TaskCloseModal
+        <TaskCloseSheet
           task={closing}
           role={currentRole}
-          onCancel={() => {
+          onDone={() => {
             setClosing(null);
-            // Evidence may have been attached and then the close abandoned.
-            // Re-read, or the row keeps the state it had when the sheet opened.
+            // Re-read either way: evidence may have been attached and then the
+            // close abandoned, and the row keeps the state it had when the sheet
+            // opened otherwise.
             loadData();
-          }}
-          onConfirm={async (hadEvidence) => {
-            const task = closing;
-            setClosing(null);
-            await finishTask(task, currentRole, hadEvidence);
-            triggerCelebration({ particleCount: 50 });
-            loadData();
-            if (hadEvidence) {
-              toast.success(`+${task.xpValue} XP`, 'Done, with the proof attached.');
-            } else {
-              toast.info(
-                `+${task.xpValue} XP`,
-                'Done. It is listed under Updates → Evidence until something is attached.'
-              );
-            }
           }}
         />
       )}

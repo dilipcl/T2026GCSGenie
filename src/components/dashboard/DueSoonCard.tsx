@@ -1,10 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { useChangeGuard } from '../shared/ChangeGuardProvider';
-import { Task, MilestoneReminder } from '../../types';
-import { logAuditEvent } from '../../services/auditService';
-import { triggerCelebration } from '../../utils/confetti';
+import { Task, MilestoneReminder, UserRole } from '../../types';
+import { TaskCloseSheet } from '../tasks/TaskCloseSheet';
 import { todayISO, daysUntil, formatFriendlyDate, formatCountdown } from '../../utils/date';
 import {
   Circle,
@@ -20,6 +18,7 @@ interface DueSoonCardProps {
   onAdd: () => void;
   onSeeAllTasks: () => void;
   onSeeCalendar: () => void;
+  currentRole?: UserRole;
 }
 
 /**
@@ -31,8 +30,15 @@ export const DueSoonCard: React.FC<DueSoonCardProps> = ({
   onAdd,
   onSeeAllTasks,
   onSeeCalendar,
+  currentRole = 'STUDENT',
 }) => {
-  const { confirmChange } = useChangeGuard();
+  /**
+   * The work being closed. This card used to write `completed: true` behind a
+   * yes/no confirm, so work ticked from Home carried no proof and no time -
+   * and finished work only counts towards a goal through the time asked for
+   * in the close sheet.
+   */
+  const [closing, setClosing] = useState<Task | null>(null);
   const tasks = useLiveQuery<Task[]>(
     async () => (await db.tasks.orderBy('dueDate').toArray()).filter((t) => !t.completed),
     []
@@ -62,32 +68,6 @@ export const DueSoonCard: React.FC<DueSoonCardProps> = ({
     })
     .slice(0, 3);
 
-  const toggleComplete = async (task: Task) => {
-    const confirmed = await confirmChange({
-      title: 'Mark this as done?',
-      subject: task.title,
-      effect: `+${task.xpValue} XP`,
-      category: 'HOMEWORK',
-      entity: 'Task',
-      entityId: task.id,
-      confirmLabel: 'Yes, done',
-      summary: `Finished "${task.title}" (+${task.xpValue} XP)`,
-      run: async () => {
-        await db.tasks.update(task.id, { completed: true, completedAt: Date.now() });
-        await logAuditEvent({
-          user: 'STUDENT',
-          action: 'UPDATE',
-          entity: 'Task',
-          entityId: task.id,
-          fieldChanged: 'completed',
-          oldValue: 'false',
-          newValue: 'true',
-        });
-      },
-    });
-    if (confirmed) triggerCelebration({ particleCount: 50 });
-  };
-
   const renderTask = (task: Task, isOverdue: boolean) => (
     <div
       key={task.id}
@@ -98,7 +78,7 @@ export const DueSoonCard: React.FC<DueSoonCardProps> = ({
       }`}
     >
       <button
-        onClick={() => toggleComplete(task)}
+        onClick={() => setClosing(task)}
         aria-label={`Mark "${task.title}" as done`}
         className="p-1.5 -m-1.5 text-slate-500 hover:text-emerald-400 hover:scale-110 transition-all flex-shrink-0"
       >
@@ -223,6 +203,10 @@ export const DueSoonCard: React.FC<DueSoonCardProps> = ({
           </button>
         )}
       </div>
+
+      {closing && (
+        <TaskCloseSheet task={closing} role={currentRole} onDone={() => setClosing(null)} />
+      )}
     </div>
   );
 };

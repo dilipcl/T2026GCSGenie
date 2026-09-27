@@ -8,6 +8,8 @@ import { resolveTopicFolder } from '../../db/driveFolders';
 import { attachmentCountsFor } from '../../services/attachmentService';
 import { TopicMaterialPanel } from './TopicMaterialPanel';
 import { addSyllabusTopic } from '../../services/topicService';
+import { setTaskCompleted } from '../../services/taskCompletionService';
+import { TaskCloseSheet } from '../tasks/TaskCloseSheet';
 import { triggerCelebration } from '../../utils/confetti';
 import { addDaysISO } from '../../utils/date';
 import {
@@ -82,6 +84,8 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
   // so a typo in a syllabus title meant deleting the row - and with it the
   // mastery rating and any material attached to it.
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
+  /** Work being closed through the shared sheet, which asks for proof and time. */
+  const [closing, setClosing] = useState<Task | null>(null);
   const [topicDraftTitle, setTopicDraftTitle] = useState('');
   const [topicDraftUnit, setTopicDraftUnit] = useState('');
   const [topicDraftPractical, setTopicDraftPractical] = useState(false);
@@ -307,6 +311,14 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
   const toggleTaskCompleted = async (task: Task) => {
     const newCompleted = !task.completed;
 
+    // Closing goes through the one close sheet - proof, and the time that
+    // makes the work count towards its goal. This path used to write the close
+    // itself behind a yes/no, the last of seven that did.
+    if (newCompleted) {
+      setClosing(task);
+      return;
+    }
+
     const done = await confirmChange({
       title: newCompleted ? 'Mark this as done?' : 'Put this back on the list?',
       subject: task.title,
@@ -320,23 +332,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
       summary: newCompleted
         ? `Finished "${task.title}" (+${task.xpValue} XP)`
         : `Reopened "${task.title}"`,
-      run: async () => {
-        await db.tasks.update(task.id, {
-          completed: newCompleted,
-          completedAt: newCompleted ? Date.now() : undefined,
-        });
-        await logAuditEvent({
-          user: 'STUDENT',
-          action: 'UPDATE',
-          entity: 'Task',
-          entityId: task.id,
-          fieldChanged: 'completed',
-          oldValue: task.completed ? 'completed' : 'not completed',
-          newValue: newCompleted
-            ? `Completed "${task.title}" (+${task.xpValue} XP)`
-            : `Reopened "${task.title}"`,
-        });
-      },
+      run: () => setTaskCompleted(task, false, 'STUDENT'),
     });
 
     if (!done) return;
@@ -914,6 +910,18 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {closing && (
+        <TaskCloseSheet
+          task={closing}
+          role="STUDENT"
+          onDone={(closed) => {
+            setClosing(null);
+            loadSubjectData();
+            if (closed) onRefresh();
+          }}
+        />
+      )}
     </div>
   );
 };

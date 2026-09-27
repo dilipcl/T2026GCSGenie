@@ -62,6 +62,12 @@ delete one.
   work and again under "Homework completed", and can be ticked in either.
   `DailyCheckInModal.tsx`, `dayPlan.ts`. Found by the e2e suite, 27 Sep 2026.
 
+- **minor - My Work does not update live.** It reads its list when the tab
+  opens, so work added elsewhere - another tab, or a sync from the other
+  device - does not appear until the tab is opened again. Every other list
+  uses a live query. `TaskManagerView.tsx` (`loadData`). Found by the e2e
+  suite, 27 Sep 2026.
+
 ### Home
 
 - **minor - Home is very long on a phone.** Ticker, six health signals, two
@@ -87,11 +93,36 @@ delete one.
   new phone starts here. `WelcomeTourModal.tsx`. Found by the e2e suite, 27
   Sep 2026.
 
+## Test suite health
+
+- **Flake watch - "homework ticked in the check-in is closed with its audit
+  line"** (phone) failed once in about seventy runs under full parallel load
+  on 27 Sep 2026 and did not reproduce in the next 72. Every write in that path
+  is awaited before the dialog closes, so no app fault is known; the spec now
+  polls. If it fails again, keep the trace - `e2e-runner` should treat a second
+  occurrence as real.
+
 ## Data consistency
 
 Nothing audited yet - the first `data-consistency-auditor` run goes here.
 
 ## Closed
+
+- **major - Finished work counted towards no goal.** Goal hours came only
+  from check-in minutes, one subject per check-in, so the week of 21 Sep
+  finished thirteen pieces of work (about 9h by its own estimates) and read
+  "3.3h of 21.5h - 7 of 9 goals behind". Closing work now asks how long it
+  took, starting on its estimate, and never re-asks for time the focus timer
+  recorded; `studyLedger` counts check-ins, focus blocks and finished work,
+  and all seven screens that added up hours read from it. Work closed before
+  this shipped (27 Sep 2026) keeps counting nothing, because its time is
+  already in the check-ins of the time; a catch-up check-in dates its work time
+  to the day it describes. All seven ways of closing work now go through one
+  close sheet, so proof and time are asked wherever the tap happens - except
+  the "committed work" row in the day's list, which closes the work without
+  asking its time (the homework list below it asks). Fixed in `feat: finished
+  work counts towards its goal, and every close asks the same two things` (27
+  Sep 2026).
 
 Unless noted, fixed in `fix: a focus block never costs the check-in, and PE is
 not a lesson with a topic` (27 Sep 2026).

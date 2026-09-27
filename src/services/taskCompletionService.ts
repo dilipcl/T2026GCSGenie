@@ -13,10 +13,25 @@ import { recordChange } from './changeLogService';
  * copy in the timer would have closed work without settling the question it
  * answered, leaving somebody waiting on a thread the work says is done.
  */
-export async function setTaskCompleted(task: Task, done: boolean, actor: UserRole): Promise<void> {
+export async function setTaskCompleted(
+  task: Task,
+  done: boolean,
+  actor: UserRole,
+  /**
+   * Time on the work that no focus block recorded, confirmed at the close.
+   * Left out, whatever was stored stays - so reopening and closing again does
+   * not lose it, and a close path that does not ask does not erase it.
+   */
+  loggedMinutes?: number,
+  /** The day the time was spent, when that is not today - see `Task.workedOn`. */
+  workedOn?: string
+): Promise<void> {
   await db.tasks.update(task.id, {
     completed: done,
     completedAt: done ? Date.now() : undefined,
+    // Time and its day are written together, so a re-close today does not
+    // inherit the day a catch-up check-in once gave it.
+    ...(done && loggedMinutes !== undefined ? { loggedMinutes, workedOn } : {}),
   });
 
   await logAuditEvent({
@@ -44,14 +59,21 @@ export async function setTaskCompleted(task: Task, done: boolean, actor: UserRol
  * The change-log line says whether it went with evidence, because that is the
  * part a parent reading the feed actually wants to know.
  */
-export async function closeTask(task: Task, actor: UserRole, hadEvidence: boolean): Promise<void> {
-  await setTaskCompleted(task, true, actor);
+export async function closeTask(
+  task: Task,
+  actor: UserRole,
+  hadEvidence: boolean,
+  loggedMinutes?: number
+): Promise<void> {
+  await setTaskCompleted(task, true, actor, loggedMinutes);
+  const time = loggedMinutes ? ` ${loggedMinutes} min logged.` : '';
   await recordChange({
     category: 'HOMEWORK',
     summary: `Finished "${task.title}" (+${task.xpValue} XP)`,
-    detail: hadEvidence
-      ? 'Closed with its evidence attached.'
-      : 'Closed with nothing attached — it is listed under Evidence.',
+    detail:
+      (hadEvidence
+        ? 'Closed with its evidence attached.'
+        : 'Closed with nothing attached — it is listed under Evidence.') + time,
     entity: 'Task',
     entityId: task.id,
     actor,

@@ -140,8 +140,11 @@ export async function openCheckIn(page: Page) {
  */
 export async function confirmSheet(page: Page, label: string): Promise<void> {
   const button = page.getByRole('button', { name: label, exact: true });
-  await expect(button).toBeEnabled();
+  await expect(button).toBeVisible();
+  // The arming delay runs on the test's clock, so it has to be moved on before
+  // the button can be - waiting first was a race that lost under load.
   await page.clock.runFor(400);
+  await expect(button).toBeEnabled();
   await button.click();
 }
 

@@ -1,4 +1,4 @@
-import { test, expect, openApp, openTab, rows } from './fixtures';
+import { test, expect, openApp, openTab, rows, insert, homework } from './fixtures';
 
 /**
  * Adding work and closing it - the loop every XP and evidence number rests on.
@@ -68,5 +68,28 @@ test.describe('my work', () => {
       (t) => t.title === 'Sparx Maths'
     );
     expect(saved?.completed).toBe(true);
+  });
+
+  test('closing work asks how long it took, starting on its estimate', async ({ page }) => {
+    await insert(page, 'tasks', homework('hw-crude', 'Crude oil worksheet', { estimatedHours: 0.75 }));
+    // My Work reads its list when the tab opens, not live (a finding of its
+    // own), so the row arrives by opening the tab again.
+    await openTab(page, 'Home');
+    await openTab(page, 'My Work');
+    const row = page
+      .locator('div.rounded-xl', { has: page.getByRole('heading', { name: 'Crude oil worksheet' }) })
+      .last();
+    await row.getByRole('button').first().click();
+
+    const sheet = page.getByRole('dialog', { name: /Finished “Crude oil worksheet”\?/ });
+    await expect(sheet.getByRole('button', { name: '45m' })).toHaveAttribute('aria-pressed', 'true');
+    await sheet.getByRole('button', { name: '1h', exact: true }).click();
+    await sheet.getByRole('button', { name: 'Mark it done anyway' }).click();
+    await expect(sheet).toBeHidden();
+
+    const saved = (await rows<{ id: string; completed: boolean; loggedMinutes?: number }>(page, 'tasks')).find(
+      (t) => t.id === 'hw-crude'
+    );
+    expect(saved).toMatchObject({ completed: true, loggedMinutes: 60 });
   });
 });

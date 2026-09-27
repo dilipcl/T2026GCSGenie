@@ -1,4 +1,5 @@
 import { db } from '../db';
+import { studyEntries, totalMinutes } from './studyLedger';
 import { calculateTotalXP } from './ragCalculator';
 import { calculateBurnoutCapacity, safeStudyHours } from './burnoutEngine';
 import { loadWeekCommitment } from './planService';
@@ -45,7 +46,7 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
  * people open most.
  */
 export async function readHeadlines(today: string = todayISO()): Promise<Headline[]> {
-  const [xp, capacity, commitment, baseline, activity, burndown, sanctions, checkIns, goals] =
+  const [xp, capacity, commitment, baseline, activity, burndown, sanctions, goals] =
     await Promise.all([
       calculateTotalXP(),
       calculateBurnoutCapacity(),
@@ -54,7 +55,6 @@ export async function readHeadlines(today: string = todayISO()): Promise<Headlin
       readActivityLoad(),
       portfolioBurndown(today),
       readSanctionStanding(today),
-      db.checkIns.toArray(),
       db.goals.toArray(),
     ]);
 
@@ -146,9 +146,8 @@ export async function readHeadlines(today: string = todayISO()): Promise<Headlin
   }
 
   // --- Study actually logged this week ---
-  const weekMinutes = checkIns
-    .filter((c) => c.date >= week.start && c.date <= week.end)
-    .reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0);
+  // Every source of study time, not just check-in minutes - see studyLedger.
+  const weekMinutes = totalMinutes(await studyEntries({ start: week.start, end: week.end }));
   if (weekMinutes > 0) {
     out.push({
       id: 'studied',

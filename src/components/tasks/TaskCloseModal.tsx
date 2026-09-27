@@ -4,6 +4,8 @@ import { Task } from '../../types';
 import { db } from '../../db';
 import { getAttachmentsFor } from '../../services/attachmentService';
 import { EvidencePanel } from '../shared/EvidencePanel';
+import { WorkTimeChips, defaultWorkMinutes } from '../shared/WorkTimeChips';
+import { timerMinutesByTask } from '../../services/focusSessionService';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import { formatShortDate } from '../../utils/date';
 import { UserRole } from '../../types';
@@ -43,8 +45,12 @@ interface TaskCloseModalProps {
   task: Task;
   role: UserRole;
   onCancel: () => void;
-  /** Marks it done. The modal has already taken care of the evidence. */
-  onConfirm: (hadEvidence: boolean) => Promise<void>;
+  /**
+   * Marks it done. The modal has already taken care of the evidence, and says
+   * how long the work took beyond any focus blocks - undefined when nobody
+   * chose, which counts nothing.
+   */
+  onConfirm: (hadEvidence: boolean, loggedMinutes: number | undefined) => Promise<void>;
 }
 
 export const TaskCloseModal: React.FC<TaskCloseModalProps> = ({
@@ -89,6 +95,24 @@ export const TaskCloseModal: React.FC<TaskCloseModalProps> = ({
 
   const explained = notes.length > 0;
 
+  /**
+   * Time beyond the focus timer. Starts on the work's estimate - or on "no
+   * more" when blocks were run on it - once the timer total has been read,
+   * and never again after a chip has been tapped.
+   */
+  const timerMinutes = useLiveQuery(
+    async () => (await timerMinutesByTask()).get(task.id) ?? 0,
+    [task.id]
+  );
+  const [minutes, setMinutes] = useState<number | undefined>(undefined);
+  const [minutesTouched, setMinutesTouched] = useState(false);
+  useEffect(() => {
+    if (minutesTouched || timerMinutes === undefined) return;
+    // Minutes confirmed at an earlier close win: a reopened-and-closed task
+    // should show what was said, not a fresh guess beside a stored answer.
+    setMinutes(task.loggedMinutes ?? defaultWorkMinutes(task.estimatedHours, timerMinutes));
+  }, [timerMinutes, minutesTouched, task.estimatedHours, task.loggedMinutes]);
+
   const kind = useMemo(
     () => (task.isRemediation ? 'Fix-up' : task.isHomework ? 'Homework' : 'Task'),
     [task]
@@ -98,7 +122,7 @@ export const TaskCloseModal: React.FC<TaskCloseModalProps> = ({
     if (!isArmed || busy) return;
     setBusy(true);
     try {
-      await onConfirm(hasEvidence);
+      await onConfirm(hasEvidence, minutes);
     } finally {
       setBusy(false);
     }
@@ -144,6 +168,16 @@ export const TaskCloseModal: React.FC<TaskCloseModalProps> = ({
         </div>
 
         <div className="px-5 py-4 space-y-4">
+          <WorkTimeChips
+            value={minutes}
+            onChange={(next) => {
+              setMinutesTouched(true);
+              setMinutes(next);
+            }}
+            timerMinutes={timerMinutes ?? 0}
+            countsTowards={task.subjectId.replace(/_/g, ' ')}
+          />
+
           <div
             className={`rounded-xl border p-3 flex items-start gap-2 ${
               hasEvidence

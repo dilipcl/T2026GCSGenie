@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { Material, library } from './materialLibrary';
 import { isTimerBlock } from './focusSessionService';
+import { entryFromTask } from './studyLedger';
 import { tagOccurrenceToTopic, teachesTopics } from './checkInOccurrenceService';
 import { tagAttachmentToTopic } from './attachmentService';
 import { tagCheckInToTopic } from './topicService';
@@ -54,7 +55,8 @@ export interface TopicEntry {
 export interface TopicSummary {
   topic: SyllabusTopic;
   lessons: number;
-  focusMinutes: number;
+  /** Focus blocks and check-ins tagged to the topic, plus time on its finished work. */
+  studyMinutes: number;
   work: number;
   materials: number;
   /** Newest entry, so a topic that has gone quiet says so. */
@@ -144,6 +146,9 @@ export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics
       date: task.dueDate,
       title: task.title,
       completed: task.completed,
+      // Counted by the ledger's rule, so the cut-over and the timer's own
+      // minutes are respected here exactly as on the goal cards.
+      minutes: entryFromTask(task)?.minutes,
     });
   }
 
@@ -171,8 +176,8 @@ export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics
     return {
       topic,
       lessons: list.filter((e) => e.kind === 'LESSON').length,
-      focusMinutes: list
-        .filter((e) => e.kind === 'FOCUS')
+      studyMinutes: list
+        .filter((e) => e.kind === 'FOCUS' || e.kind === 'WORK')
         .reduce((sum, e) => sum + (e.minutes ?? 0), 0),
       work: list.filter((e) => e.kind === 'WORK').length,
       materials: list.filter((e) => e.kind === 'MATERIAL').length,

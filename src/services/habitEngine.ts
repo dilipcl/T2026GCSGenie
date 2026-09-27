@@ -1,4 +1,5 @@
 import { db } from '../db';
+import { studyEntriesFrom, totalMinutes as sumMinutes } from './studyLedger';
 import { todayISO, addDaysISO, daysBetween, toLocalISODate, parseISODate } from '../utils/date';
 import { currentWeek, rolling7Days } from './weekWindow';
 
@@ -142,29 +143,28 @@ export async function calculateEffortStats(): Promise<EffortStats> {
     db.tasks.toArray(),
     db.remediations.toArray(),
   ]);
+  const entries = studyEntriesFrom(checkIns, tasks);
 
   const tasksCompleted = tasks.filter((t) => t.completed).length;
   const questsCompleted = remediations.filter((r) => r.isCompleted).length;
   const checkInDays = new Set(checkIns.map((c) => c.date)).size;
 
-  const totalMinutes = checkIns.reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0);
+  const allMinutes = sumMinutes(entries);
 
   const week = currentWeek();
-  const weekMinutes = checkIns
-    .filter((c) => c.date >= week.start && c.date <= week.end)
-    .reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0);
+  const weekMinutes = sumMinutes(entries.filter((e) => e.date >= week.start && e.date <= week.end));
 
   const trailing = rolling7Days();
-  const trailingMinutes = checkIns
-    .filter((c) => c.date >= trailing.start && c.date <= trailing.end)
-    .reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0);
+  const trailingMinutes = sumMinutes(
+    entries.filter((e) => e.date >= trailing.start && e.date <= trailing.end)
+  );
 
   return {
     votes: tasksCompleted + questsCompleted + checkInDays,
     tasksCompleted,
     questsCompleted,
     checkInDays,
-    hoursLogged: Math.round((totalMinutes / 60) * 10) / 10,
+    hoursLogged: Math.round((allMinutes / 60) * 10) / 10,
     hoursThisWeek: Math.round((weekMinutes / 60) * 10) / 10,
     hoursLast7Days: Math.round((trailingMinutes / 60) * 10) / 10,
   };
@@ -179,14 +179,20 @@ export async function calculateEffortStats(): Promise<EffortStats> {
  * whole weeks.
  */
 export async function buildCheckInHeatmap(weeks = 12): Promise<HeatmapDay[]> {
-  const checkIns = await db.checkIns.toArray();
+  const [checkIns, tasks] = await Promise.all([db.checkIns.toArray(), db.tasks.toArray()]);
 
+  // Check-ins are counted as check-ins; the minutes are every source of study,
+  // so a day of finished homework with no timer still shows its time.
   const byDate = new Map<string, { checkIns: number; minutes: number }>();
   for (const c of checkIns) {
     const entry = byDate.get(c.date) || { checkIns: 0, minutes: 0 };
     entry.checkIns++;
-    entry.minutes += c.completedRevisionMinutes || 0;
     byDate.set(c.date, entry);
+  }
+  for (const e of studyEntriesFrom(checkIns, tasks)) {
+    const entry = byDate.get(e.date) || { checkIns: 0, minutes: 0 };
+    entry.minutes += e.minutes;
+    byDate.set(e.date, entry);
   }
 
   const today = todayISO();

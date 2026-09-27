@@ -32,7 +32,9 @@ import { PlannedActivity } from '../../types';
 import { currentWeek } from '../../services/weekWindow';
 import { DayOccurrenceChecklist } from './DayOccurrenceChecklist';
 import { ProofUploader } from '../shared/ProofUploader';
-import { isTimerBlock } from '../../services/focusSessionService';
+import { WorkTimeChips, defaultWorkMinutes } from '../shared/WorkTimeChips';
+import { isTimerBlock, timerMinutesByTask } from '../../services/focusSessionService';
+import { studyEntries, totalMinutes } from '../../services/studyLedger';
 import { isDueSoon } from '../../services/planService';
 import { setTaskCompleted } from '../../services/taskCompletionService';
 import { formatShortDate } from '../../utils/date';
@@ -69,6 +71,15 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   const [pendingTasks, setPendingTasks] = useState<Task[]>([]);
   const [completedTaskIds, setCompletedTaskIds] = useState<string[]>([]);
   /**
+   * Time on each ticked piece of work, beyond anything the focus timer already
+   * recorded on it. This is what makes finished homework count towards its
+   * goal - see `studyLedger` - and it starts on the work's own estimate, so an
+   * honest estimate costs no taps at all.
+   */
+  const [workMinutes, setWorkMinutes] = useState<Record<string, number | undefined>>({});
+  /** Null until read for this opening - ticking before then reads it directly. */
+  const [timerByTask, setTimerByTask] = useState<Map<string, number> | null>(null);
+  /**
    * Time studied that is not already on record for this day - zero until
    * somebody says otherwise.
    *
@@ -79,7 +90,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
    * these minutes, so the error went everywhere at once.
    */
   const [revisionMinutes, setRevisionMinutes] = useState<number>(0);
-  /** Minutes already logged for the day being answered - the timer's blocks and earlier check-ins. */
+  /** Minutes already logged for the day being answered, from every source `studyLedger` counts. */
   const [alreadyLogged, setAlreadyLogged] = useState<{ minutes: number; blocks: number }>({
     minutes: 0,
     blocks: 0,
@@ -173,11 +184,16 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       const answered = existing.filter((c) => !isTimerBlock(c));
       setHasCheckedInToday(answered.length > 0);
       setTodayCheckInCount(answered.length);
-      setAlreadyLogged({
-        minutes: existing.reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0),
+      setAlreadyLogged((prev) => ({
+        ...prev,
         blocks: existing.filter((c) => c.session === 'STUDY_SESSION').length,
-      });
+      }));
     });
+    // Every source the goal cards count - check-ins, focus blocks and work
+    // already closed with its time - so "already logged" means the same here.
+    studyEntries({ start: checkInDate, end: checkInDate }).then((entries) =>
+      setAlreadyLogged((prev) => ({ ...prev, minutes: totalMinutes(entries) }))
+    );
   }, [isOpen, checkInDate]);
 
   useEffect(() => {
@@ -195,6 +211,9 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       // Clear anything left over from a previous check-in - several can happen
       // in one day, and stale text would silently be logged again
       setCompletedTaskIds([]);
+      setWorkMinutes({});
+      setTimerByTask(null);
+      timerMinutesByTask().then(setTimerByTask);
       setKeyLearning('');
       setBlockersAndQuestions('');
       setActionForTomorrow('');
@@ -261,11 +280,26 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
 
   if (!isOpen) return null;
 
-  const toggleTask = (id: string) => {
+  const toggleTask = async (id: string) => {
+    const ticking = !completedTaskIds.includes(id);
     setCompletedTaskIds((prev) =>
       prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
     );
+    if (ticking && !(id in workMinutes)) {
+      const task = pendingTasks.find((t) => t.id === id);
+      // Read the timer totals now if they have not landed yet. Defaulting to
+      // the estimate before they had would count the timer's minutes twice.
+      const timers = timerByTask ?? (await timerMinutesByTask());
+      setWorkMinutes((prev) => ({
+        ...prev,
+        [id]:
+          task?.loggedMinutes ?? defaultWorkMinutes(task?.estimatedHours, timers.get(id) ?? 0),
+      }));
+    }
   };
+
+  /** Minutes on the work ticked in this check-in - counted through each task. */
+  const tickedWorkMinutes = completedTaskIds.reduce((sum, id) => sum + (workMinutes[id] ?? 0), 0);
 
   /**
    * XP is split in two so it is never counted twice.
@@ -388,7 +422,9 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       //    its audit line and a follow-up's comment is settled with it. A
       //    raw update here closed work without either.
       for (const task of pendingTasks.filter((t) => completedTaskIds.includes(t.id))) {
-        await setTaskCompleted(task, true, 'STUDENT');
+        // Dated to the day this check-in describes, so catching up Tuesday on
+        // Thursday puts Tuesday's work time on Tuesday.
+        await setTaskCompleted(task, true, 'STUDENT', workMinutes[task.id], checkInDate);
       }
 
       // 4. Turn the forward-looking answers into tasks for tomorrow, so the
@@ -666,7 +702,15 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
                         quiet way round the evidence step. Beside the row rather
                         than inside it, because a tap inside the row toggles it. */}
                     {isChecked && (
-                      <div className="ml-6 p-2 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <div className="ml-6 p-2 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2.5">
+                        <WorkTimeChips
+                          value={workMinutes[task.id]}
+                          onChange={(minutes) =>
+                            setWorkMinutes((prev) => ({ ...prev, [task.id]: minutes }))
+                          }
+                          timerMinutes={timerByTask?.get(task.id) ?? 0}
+                          countsTowards={task.subjectId.replace(/_/g, ' ')}
+                        />
                         <ProofUploader
                           ownerType="TASK"
                           ownerId={task.id}
@@ -699,7 +743,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
             <div className="flex justify-between items-center mb-1">
               <label className="text-xs font-semibold text-slate-300 uppercase flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Extra study time</span>
+                <span>Other study, not on any work</span>
               </label>
               <span className="text-xs font-bold text-indigo-400 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800">
                 {revisionMinutes} Minutes
@@ -714,6 +758,12 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
               onChange={(e) => setRevisionMinutes(Number(e.target.value))}
               className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
+            {tickedWorkMinutes > 0 && (
+              <p className="mt-1 text-[10px] text-teal-300">
+                {tickedWorkMinutes} min on the work ticked above is counted with it — this is for
+                anything else.
+              </p>
+            )}
             <p className="mt-1 text-[10px] text-slate-400">
               {alreadyLogged.minutes > 0
                 ? `${alreadyLogged.minutes} min already logged for this day${

@@ -1,5 +1,6 @@
 import { db } from '../db';
-import { addDaysISO, todayISO } from '../utils/date';
+import { addDaysISO, parseISODate, todayISO } from '../utils/date';
+import { studyEntries, totalMinutes } from './studyLedger';
 import { calculateStreakStats } from './habitEngine';
 
 /**
@@ -62,8 +63,8 @@ export async function readPlanPulse(): Promise<PlanPulse> {
   const daysSinceMonday = dow === 0 ? 6 : dow - 1;
   const weekStart = addDaysISO(-daysSinceMonday);
 
-  const thisWeek = checkIns.filter((c) => c.date >= weekStart);
-  const studiedThisWeek = thisWeek.reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0);
+  const entries = await studyEntries({ start: weekStart, end: addDaysISO(6, parseISODate(weekStart)) });
+  const studiedThisWeek = totalMinutes(entries);
 
   const plannedHours = goals
     .filter((g) => g.status === 'APPROVED_LOCKED' && g.category === 'ACADEMIC_GRADE_9')
@@ -78,7 +79,7 @@ export async function readPlanPulse(): Promise<PlanPulse> {
   // Today: rest logged against study logged
   const today = todayISO();
   const todayCheckIns = checkIns.filter((c) => c.date === today);
-  const studyToday = todayCheckIns.reduce((s, c) => s + (c.completedRevisionMinutes || 0), 0);
+  const studyToday = totalMinutes(entries.filter((e) => e.date === today));
   const restToday = todayCheckIns
     .filter((c) => c.structuredNotes?.category === 'WELL_BEING')
     .length * 30; // a logged rest check-in stands for roughly half an hour

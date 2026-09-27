@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TaskCloseSheet } from '../tasks/TaskCloseSheet';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { Task, UserRole, WeekType } from '../../types';
@@ -7,7 +8,6 @@ import { lockedGoalProgress } from '../../services/goalProgress';
 import { goalTrend, type Trend } from '../../services/goalTrend';
 import { choresForDay, setChoreDone } from '../../services/choreService';
 import { occasionsOn, CommitmentOccasion } from '../../services/commitmentService';
-import { logAuditEvent } from '../../services/auditService';
 import { daysUntil, todayISO } from '../../utils/date';
 import { PaceBar, PACE_TEXT } from '../shared/PaceBar';
 import { Sparkline } from '../shared/Sparkline';
@@ -63,6 +63,12 @@ export const WeeklyCockpitCard: React.FC<WeeklyCockpitCardProps> = ({
   const { toast } = useFeedback();
   const { confirmChange } = useChangeGuard();
   const [exceptionFor, setExceptionFor] = useState<CommitmentOccasion | null>(null);
+  /**
+   * The work being closed, through the shared sheet - which asks for proof and
+   * time. This card used to write `completed: true` behind a yes/no, so work
+   * ticked here counted no time towards its goal.
+   */
+  const [closing, setClosing] = useState<Task | null>(null);
 
   const settings = useLiveQuery(() => db.parentSettings.get('active_settings'), []);
   const capacity = useLiveQuery(() => calculateBurnoutCapacity(), []);
@@ -105,31 +111,6 @@ export const WeeklyCockpitCard: React.FC<WeeklyCockpitCardProps> = ({
 
   const hasTriad = !!(topTask || nextOccasion || nextChore);
   const hasAnything = goals.length > 0 || capacity.commitmentBreakdown.length > 0 || hasTriad;
-
-  const completeTask = async (task: Task) => {
-    const done = await confirmChange({
-      title: 'Mark this as done?',
-      subject: task.title,
-      effect: `+${task.xpValue} XP`,
-      category: 'HOMEWORK',
-      entity: 'Task',
-      entityId: task.id,
-      confirmLabel: 'Yes, done',
-      summary: `Finished "${task.title}" (+${task.xpValue} XP)`,
-      run: async () => {
-        await db.tasks.update(task.id, { completed: true, completedAt: Date.now() });
-        await logAuditEvent({
-          user: 'STUDENT',
-          action: 'UPDATE',
-          entity: 'Task',
-          entityId: task.id,
-          fieldChanged: 'completed',
-          newValue: `Completed — "${task.title}"`,
-        });
-      },
-    });
-    if (done) toast.success(`+${task.xpValue} XP`, task.title);
-  };
 
   const toggleChore = async (choreId: string) => {
     const item = chores.find((c) => c.chore.id === choreId);
@@ -371,7 +352,7 @@ export const WeeklyCockpitCard: React.FC<WeeklyCockpitCardProps> = ({
               {topTask && (
                 <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900/70 border border-slate-800">
                   <button
-                    onClick={() => completeTask(topTask)}
+                    onClick={() => setClosing(topTask)}
                     aria-label={`Mark "${topTask.title}" done`}
                     className="w-6 h-6 rounded-lg border-2 border-slate-600 hover:border-emerald-400 hover:bg-emerald-500/20 flex items-center justify-center flex-shrink-0 transition-all"
                   >
@@ -460,6 +441,10 @@ export const WeeklyCockpitCard: React.FC<WeeklyCockpitCardProps> = ({
         onClose={() => setExceptionFor(null)}
         currentRole={currentRole}
       />
+
+      {closing && (
+        <TaskCloseSheet task={closing} role={currentRole} onDone={() => setClosing(null)} />
+      )}
     </>
   );
 };

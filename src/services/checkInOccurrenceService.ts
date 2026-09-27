@@ -16,6 +16,7 @@ import {
   dayShape,
 } from './dayPlan';
 import { logAuditEvent } from './auditService';
+import { setTaskCompleted } from './taskCompletionService';
 import { newId } from '../utils/id';
 import { addDaysISO, parseISODate, todayISO } from '../utils/date';
 import { resolveWeekType } from './weekType';
@@ -193,7 +194,10 @@ export async function recordOccurrence(
   if (occurrence.taskId && outcome === 'HAPPENED') {
     const task = await db.tasks.get(occurrence.taskId);
     if (task && !task.completed) {
-      await db.tasks.update(occurrence.taskId, { completed: true, completedAt: Date.now() });
+      // Through the one close path, for its audit line and a follow-up's
+      // comment. No time is asked on this row, so none is recorded - the
+      // homework list below it in the check-in is where time is given.
+      await setTaskCompleted(task, true, input.loggedBy ?? 'STUDENT');
     }
   }
 

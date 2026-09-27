@@ -34,7 +34,7 @@ const STATUS_LABEL: Record<string, string> = {
 function counts(row: TopicSummary): string {
   const parts: string[] = [];
   if (row.lessons) parts.push(`${row.lessons} lesson${row.lessons === 1 ? '' : 's'}`);
-  if (row.focusMinutes) parts.push(`${row.focusMinutes} min studied`);
+  if (row.studyMinutes) parts.push(`${row.studyMinutes} min studied`);
   if (row.work) parts.push(`${row.work} work`);
   if (row.materials) parts.push(`${row.materials} captured`);
   return parts.length ? parts.join(' · ') : 'Nothing recorded yet';

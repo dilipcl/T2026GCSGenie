@@ -1,8 +1,8 @@
 import { db } from '../db';
 import { calculateBurnoutCapacity, safeStudyHours } from './burnoutEngine';
 import { readActivityLoad } from './activityPlanService';
-import { DailyCheckIn, Goal } from '../types';
-import { minutesForGoalFromCheckIn } from './goalProgress';
+import { Goal } from '../types';
+import { StudyEntry, minutesForGoal, studyEntries } from './studyLedger';
 import { addDaysISO, parseISODate, startOfWeekISO, todayISO } from '../utils/date';
 
 /**
@@ -163,7 +163,7 @@ function statusOf(
   return varianceHours >= -(TOLERANCE_HOURS * 4) ? 'SLIPPING' : 'BEHIND';
 }
 
-function buildGoal(goal: Goal, checkIns: DailyCheckIn[], today: string): GoalBurndown {
+function buildGoal(goal: Goal, entries: StudyEntry[], today: string): GoalBurndown {
   const startWeek = startWeekOf(goal);
   const targetDate = goal.targetDate || today;
   const currentWeekStart = startOfWeekISO(today);
@@ -176,8 +176,8 @@ function buildGoal(goal: Goal, checkIns: DailyCheckIn[], today: string): GoalBur
   // Minutes bucketed by the Monday of the week they fall in.
   const byWeek = new Map<string, number>();
   let loggedMinutes = 0;
-  for (const entry of checkIns) {
-    const minutes = minutesForGoalFromCheckIn(entry, goal);
+  for (const entry of entries) {
+    const minutes = minutesForGoal(entry, goal);
     if (minutes <= 0) continue;
     const week = startOfWeekISO(entry.date);
     byWeek.set(week, (byWeek.get(week) ?? 0) + minutes);
@@ -283,37 +283,29 @@ function aggregate(goals: GoalBurndown[], today: string): BurndownPoint[] {
  * which over a school year would be hundreds of round trips to draw one chart.
  */
 export async function portfolioBurndown(today: string = todayISO()): Promise<PortfolioBurndown> {
-  const [allGoals, checkIns] = await Promise.all([
-    db.goals.toArray(),
-    db.checkIns.toArray(),
-  ]);
+  const [allGoals, entries] = await Promise.all([db.goals.toArray(), studyEntries()]);
 
   const approved = allGoals
     .filter((g) => g.status === 'APPROVED_LOCKED' || g.status === 'COMPLETED')
     .sort((a, b) => a.createdAt - b.createdAt);
 
   const budgeted = approved.filter((g) => (g.weeklyHoursRequired || 0) > 0);
-  const goals = budgeted.map((goal) => buildGoal(goal, checkIns, today));
+  const goals = budgeted.map((goal) => buildGoal(goal, entries, today));
 
   const sum = (pick: (g: GoalBurndown) => number) => round1(goals.reduce((a, g) => a + pick(g), 0));
 
-  // Time that reached no approved goal. Counted per check-in rather than by
+  // Time that reached no approved goal. Counted per entry rather than by
   // subtracting totals: subject-level attribution can credit one entry to
   // several goals, so a subtraction would under-report the orphaned time.
   let unattributedMinutes = 0;
-  for (const entry of checkIns) {
-    const logged = entry.completedRevisionMinutes || 0;
-    if (logged <= 0) continue;
-    const reached = budgeted.some((goal) => minutesForGoalFromCheckIn(entry, goal) > 0);
-    if (!reached) unattributedMinutes += logged;
+  for (const entry of entries) {
+    const reached = budgeted.some((goal) => minutesForGoal(entry, goal) > 0);
+    if (!reached) unattributedMinutes += entry.minutes;
   }
 
   const currentWeekStart = startOfWeekISO(today);
   const historyWeeks = new Set(
-    checkIns
-      .filter((c) => (c.completedRevisionMinutes || 0) > 0)
-      .map((c) => startOfWeekISO(c.date))
-      .filter((w) => w < currentWeekStart)
+    entries.map((e) => startOfWeekISO(e.date)).filter((w) => w < currentWeekStart)
   );
 
   return {

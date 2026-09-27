@@ -41,7 +41,10 @@ depends on can change behind you — it usually can.
 
 **One definition, in one place.** "This week" lives in `weekWindow`. What counts
 as evidence lives in `evidenceService`, both directions. Which bucket a task is
-in lives in `inferBucket`. Two copies of a rule drift the moment either is
+in lives in `inferBucket`. What counts as study time, and which goal it is
+credited to, lives in `studyLedger` - never add up `completedRevisionMinutes`
+yourself. Closing a piece of work goes through `TaskCloseSheet` /
+`setTaskCompleted`, never a raw `completed: true`. Two copies of a rule drift the moment either is
 tuned, and the drift is silent — both screens keep working while describing
 different things. When you find a second copy, delete it rather than keeping
 them in step.

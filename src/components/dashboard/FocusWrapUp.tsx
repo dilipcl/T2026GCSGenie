@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { wrapUpFocusBlock } from '../../services/focusSessionService';
-import { closeTask } from '../../services/taskCompletionService';
 import { ProofUploader } from '../shared/ProofUploader';
-import { TaskCloseModal } from '../tasks/TaskCloseModal';
+import { TaskCloseSheet } from '../tasks/TaskCloseSheet';
 import { useFeedback } from '../shared/FeedbackProvider';
-import { triggerCelebration } from '../../utils/confetti';
 import { CheckCircle2, NotebookPen } from 'lucide-react';
 
 /**
@@ -195,25 +192,11 @@ export const FocusWrapUp: React.FC<FocusWrapUpProps> = ({ checkInId, onDone }) =
         </button>
       </div>
 
-      {/* Portalled: this card is a .glass-card, whose backdrop-filter makes it
-          the containing block for anything position: fixed inside it. The
-          close sheet would open as a letterbox the size of the card. */}
-      {closing &&
-        task &&
-        createPortal(
-          <TaskCloseModal
-            task={task}
-            role="STUDENT"
-            onCancel={() => setClosing(false)}
-            onConfirm={async (hadEvidence) => {
-              setClosing(false);
-              await closeTask(task, 'STUDENT', hadEvidence);
-              triggerCelebration({ particleCount: 50 });
-              toast.success(`+${task.xpValue} XP`, hadEvidence ? 'Done, with the proof attached.' : 'Done.');
-            }}
-          />,
-          document.body
-        )}
+      {/* The shared close sheet portals itself - this card is a .glass-card,
+          which would otherwise trap it as a letterbox the size of the card. */}
+      {closing && task && (
+        <TaskCloseSheet task={task} role="STUDENT" onDone={() => setClosing(false)} />
+      )}
     </div>
   );
 };

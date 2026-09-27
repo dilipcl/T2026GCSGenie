@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TaskCloseSheet } from '../tasks/TaskCloseSheet';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import {
@@ -133,6 +134,12 @@ export const PlanView: React.FC<PlanViewProps> = ({
 
   const [bringingIn, setBringingIn] = useState<{ task: Task; plan: AmendmentPlan } | null>(null);
   const [planningFor, setPlanningFor] = useState<MilestoneReminder | null>(null);
+  /**
+   * Work being closed from the board, through the shared sheet. The Done button
+   * here wrote `completed: true` directly - no proof, no time, and not even the
+   * audit line every other close path writes.
+   */
+  const [closing, setClosing] = useState<Task | null>(null);
 
   /**
    * Which horizon the week on screen corresponds to, if any.
@@ -800,13 +807,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
 
                           {bucket.id === 'THIS_WEEK' && (
                             <button
-                              onClick={async () => {
-                                await db.tasks.update(task.id, {
-                                  completed: true,
-                                  completedAt: Date.now(),
-                                });
-                                toast.celebrate(`Done: ${task.title}`, `+${task.xpValue} XP`);
-                              }}
+                              onClick={() => setClosing(task)}
                               className="ml-auto flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold hover:bg-emerald-600/30 transition-colors"
                             >
                               <Circle className="w-3 h-3" />
@@ -960,6 +961,10 @@ export const PlanView: React.FC<PlanViewProps> = ({
         onCancel={() => setPlanningFor(null)}
         onConfirm={createWorkForKeyDate}
       />
+
+      {closing && (
+        <TaskCloseSheet task={closing} role={currentRole} onDone={() => setClosing(null)} />
+      )}
     </div>
   );
 };

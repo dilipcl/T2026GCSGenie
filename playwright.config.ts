@@ -27,6 +27,10 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   timeout: 60_000,
+  // The dev server compiles on first request and every worker shares it, so a
+  // live query can take longer than the default five seconds to settle under a
+  // full parallel run - which failed specs that pass alone.
+  expect: { timeout: 10_000 },
   use: {
     baseURL: 'http://localhost:3000/T2026GCSGenie/',
     // Dates are local-date strings everywhere in the app, so the zone is fixed

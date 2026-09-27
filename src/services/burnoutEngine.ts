@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { CommitmentException, FixedCommitment, RAGStatus } from '../types';
 import { todayISO } from '../utils/date';
+import { studyEntries, totalMinutes } from './studyLedger';
 import { currentWeek, isInWeek, WeekWindow } from './weekWindow';
 import { bespokeActivityHours } from './activityPlanService';
 
@@ -149,13 +150,9 @@ export async function calculateBurnoutCapacity(): Promise<BurnoutCapacityResult>
    * the capacity gauge is the last number in the app that can afford to look
    * wrong.
    */
-  const weekCheckIns = await db.checkIns
-    .where('date')
-    .between(week.start, week.end, true, true)
-    .toArray();
-  const loggedRevisionMinutes = weekCheckIns.reduce(
-    (sum, c) => sum + (c.completedRevisionMinutes || 0),
-    0
+  // Every source of study time, not just check-in minutes - see studyLedger.
+  const loggedRevisionMinutes = totalMinutes(
+    await studyEntries({ start: week.start, end: week.end })
   );
   const loggedRevisionHours = round1(loggedRevisionMinutes / 60);
 

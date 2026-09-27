@@ -31,6 +31,8 @@ const SOURCES = [
   'src/components/dashboard/LessonTopic.tsx',
   // The photo step under each ticked piece of homework in the check-in.
   'src/components/shared/ProofUploader.tsx',
+  // The time chips beside it.
+  'src/components/shared/WorkTimeChips.tsx',
 ];
 
 const BUTTON_TAG = /<button\b[\s\S]*?>/g;

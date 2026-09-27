@@ -77,6 +77,15 @@ test.describe('a focus block', () => {
     await expect(page.getByText('While you rest - what was that block?')).toBeVisible();
   });
 
+  test('does not ask again for time the timer already counted', async ({ page }) => {
+    await runBlockOn(page, 'Venn diagram worksheet');
+    await page.getByRole('button', { name: /^Finished “Venn diagram worksheet/ }).click();
+
+    const sheet = page.getByRole('dialog', { name: /Finished “Venn diagram worksheet”\?/ });
+    await expect(sheet.getByText('25 min on the focus timer — already counted.')).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'No more' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   test('opens the close sheet over the whole screen, not inside the card', async ({ page }) => {
     await runBlockOn(page, 'Venn diagram worksheet');
     await page.getByRole('button', { name: /^Finished “Venn diagram worksheet/ }).click();

@@ -292,6 +292,19 @@ export interface Task {
   createdAt: number;
   driveProofUrl?: string;
   score?: { scored: number; total: number };
+  /**
+   * Minutes spent on this work that no focus block recorded, confirmed when it
+   * was closed. Counts towards its subject and goal through `studyLedger`, from
+   * `WORK_TIME_FROM` on. Optional and unindexed: older rows read as undefined
+   * and count nothing, which is what they always counted.
+   */
+  loggedMinutes?: number;
+  /**
+   * The day that time was spent, when it was not the day the work was closed:
+   * a check-in catching up Tuesday on Thursday closes the work on Thursday,
+   * but the time belongs to Tuesday. Unset means the day it was closed.
+   */
+  workedOn?: string;
 }
 
 export interface Goal {

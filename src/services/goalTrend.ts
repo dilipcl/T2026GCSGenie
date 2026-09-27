@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { Goal, SubjectId } from '../types';
 import { weeklyMinutesForGoal } from './goalProgress';
+import { studyEntries } from './studyLedger';
 import { lastWeeks, WeekWindow } from './weekWindow';
 
 /**
@@ -102,20 +103,19 @@ async function minutesByWeekAndSubject(
   windows: WeekWindow[]
 ): Promise<Map<string, Map<string, number>>> {
   const span = { start: windows[0].start, end: windows[windows.length - 1].end };
-  const checkIns = await db.checkIns.where('date').between(span.start, span.end, true, true).toArray();
+  const entries = await studyEntries(span);
 
   const byWeek = new Map<string, Map<string, number>>();
   for (const window of windows) byWeek.set(window.start, new Map());
 
-  for (const entry of checkIns) {
-    const minutes = entry.completedRevisionMinutes || 0;
-    if (minutes <= 0 || !entry.studySubjectId) continue;
+  for (const entry of entries) {
+    if (!entry.subjectId) continue;
 
     const window = windows.find((w) => entry.date >= w.start && entry.date <= w.end);
     if (!window) continue;
 
     const subjects = byWeek.get(window.start)!;
-    subjects.set(entry.studySubjectId, (subjects.get(entry.studySubjectId) || 0) + minutes);
+    subjects.set(entry.subjectId, (subjects.get(entry.subjectId) || 0) + entry.minutes);
   }
 
   return byWeek;

@@ -251,6 +251,7 @@ export const App: React.FC = () => {
               onAdd={() => setIsQuickAddOpen(true)}
               onSeeAllTasks={() => setActiveTab('TASKS')}
               onSeeCalendar={() => setActiveTab('CALENDAR')}
+              currentRole={currentRole}
             />
 
             {/* 3. Log the day - the other daily action */}

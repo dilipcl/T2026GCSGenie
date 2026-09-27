@@ -151,12 +151,62 @@ test.describe('the daily check-in', () => {
     await confirmSheet(page, 'Save it');
     await expect(dialog).toBeHidden();
 
-    const task = (await rows<{ id: string; completed: boolean }>(page, 'tasks')).find(
-      (t) => t.id === 'hw-sparx'
+    // Polled rather than read once: failed once in ~70 runs under full load
+    // and could not be reproduced (see docs/testing/ux-findings.md).
+    await expect
+      .poll(async () =>
+        (await rows<{ id: string; completed: boolean }>(page, 'tasks')).find((t) => t.id === 'hw-sparx')
+          ?.completed
+      )
+      .toBe(true);
+    await expect
+      .poll(async () =>
+        (await rows<{ entityId: string; fieldChanged?: string }>(page, 'auditLogs')).some(
+          (a) => a.entityId === 'hw-sparx' && a.fieldChanged === 'completed'
+        )
+      )
+      .toBe(true);
+  });
+
+  test('ticked homework asks for its time, and saves it with the work', async ({ page }) => {
+    await insert(page, 'tasks', homework('hw-quad', 'Quadratics sheet', { estimatedHours: 0.5 }));
+    const dialog = await openCheckIn(page);
+    await homeworkRow(dialog, 'Quadratics sheet').click();
+
+    await expect(dialog.getByRole('button', { name: '30m' })).toHaveAttribute('aria-pressed', 'true');
+    await dialog.getByRole('button', { name: '45m' }).click();
+    await expect(dialog.getByText(/45 min on the work ticked above is counted with it/)).toBeVisible();
+
+    await dialog.getByRole('button', { name: /Save Check-in/ }).click();
+    await confirmSheet(page, 'Save it');
+    await expect(dialog).toBeHidden();
+
+    const task = (await rows<{ id: string; loggedMinutes?: number }>(page, 'tasks')).find(
+      (t) => t.id === 'hw-quad'
     );
-    expect(task?.completed).toBe(true);
-    const audit = await rows<{ entityId: string; fieldChanged?: string }>(page, 'auditLogs');
-    expect(audit.some((a) => a.entityId === 'hw-sparx' && a.fieldChanged === 'completed')).toBe(true);
+    expect(task?.loggedMinutes).toBe(45);
+    // The check-in's own minutes stay the "other study" figure - zero here -
+    // so the same 45 minutes is not also counted through the check-in.
+    const saved = await rows<{ completedRevisionMinutes: number }>(page, 'checkIns');
+    expect(saved[0].completedRevisionMinutes).toBe(0);
+  });
+
+  test('a catch-up check-in dates its work time to the day it describes', async ({ page }) => {
+    await insert(page, 'tasks', homework('hw-late', 'Combustion revision', { estimatedHours: 0.5 }));
+    const dialog = await openCheckIn(page);
+    await dialog.locator('input[type="date"]').fill('2026-09-23');
+    await homeworkRow(dialog, 'Combustion revision').click();
+    await dialog.getByRole('button', { name: /Save Check-in/ }).click();
+    await confirmSheet(page, 'Save it');
+    await expect(dialog).toBeHidden();
+
+    await expect
+      .poll(async () =>
+        (await rows<{ id: string; workedOn?: string; loggedMinutes?: number }>(page, 'tasks')).find(
+          (t) => t.id === 'hw-late'
+        )
+      )
+      .toMatchObject({ workedOn: '2026-09-23', loggedMinutes: 30 });
   });
 
   test('the homework list leaves out work that is not due yet', async ({ page }) => {

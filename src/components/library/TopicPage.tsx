@@ -163,7 +163,7 @@ export const TopicPage: React.FC<TopicPageProps> = ({ summary, role, onBack, onO
 
       <p className="text-[11px] text-slate-300">
         {summary.lessons} lesson{summary.lessons === 1 ? '' : 's'} ·{' '}
-        {summary.focusMinutes} min studied · {summary.work} piece
+        {summary.studyMinutes} min studied · {summary.work} piece
         {summary.work === 1 ? '' : 's'} of work · {summary.materials} captured
       </p>
 

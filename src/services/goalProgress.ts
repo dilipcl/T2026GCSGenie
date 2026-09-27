@@ -1,6 +1,7 @@
 import { db } from '../db';
-import { DailyCheckIn, Goal } from '../types';
+import { Goal } from '../types';
 import { currentWeek, WeekWindow } from './weekWindow';
+import { StudyEntry, minutesForGoal, studyEntries } from './studyLedger';
 
 /**
  * Whether a locked goal is getting the time it reserved.
@@ -69,82 +70,46 @@ const EARLIEST_STALL_WEEKDAY = 5;
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
- * Check-ins inside a Monday-to-Sunday week.
+ * Study time inside a Monday-to-Sunday week, from every source `studyLedger`
+ * knows - check-ins, focus blocks, and finished work.
  *
- * The upper bound is new and matters: this used to filter with
- * `.aboveOrEqual(weekStart)` alone, so a check-in dated into next week - a
- * phone whose clock had run ahead, or a restored backup - counted towards this
+ * Bounded above as well as below: a check-in dated into next week - a phone
+ * whose clock had run ahead, or a restored backup - once counted towards this
  * week's budget and kept counting.
  */
-async function checkInsInWeek(window: WeekWindow) {
-  return db.checkIns.where('date').between(window.start, window.end, true, true).toArray();
+function entriesInWeek(window: WeekWindow): Promise<StudyEntry[]> {
+  return studyEntries({ start: window.start, end: window.end });
 }
 
-/**
- * Minutes logged per subject during a week.
- *
- * Reads check-ins rather than a separate log table: the focus timer and the
- * daily check-in both already write their minutes there, so attribution is one
- * new field on a row that exists rather than a second source of truth that can
- * disagree with the first.
- */
+/** Minutes logged per subject during a week. */
 export async function weeklyMinutesBySubject(
   window: WeekWindow = currentWeek()
 ): Promise<Record<string, number>> {
-  const checkIns = await checkInsInWeek(window);
-
   const totals: Record<string, number> = {};
-  for (const entry of checkIns) {
-    const minutes = entry.completedRevisionMinutes || 0;
-    if (minutes <= 0 || !entry.studySubjectId) continue;
-    totals[entry.studySubjectId] = (totals[entry.studySubjectId] || 0) + minutes;
+  for (const entry of await entriesInWeek(window)) {
+    if (!entry.subjectId) continue;
+    totals[entry.subjectId] = (totals[entry.subjectId] || 0) + entry.minutes;
   }
   return totals;
 }
 
 /**
- * Minutes logged against one goal during a week.
+ * Minutes logged against one goal during a week, by the one attribution rule
+ * (`minutesForGoal` in `studyLedger`).
  *
- * Time attributed to the goal directly wins; otherwise time on the goal's
- * subject counts towards it. Two locked goals sharing a subject would each be
- * credited the same subject minutes, which is generous rather than wrong - the
- * alternative is asking a fourteen year old to split a revision session across
- * goals, and a number nobody enters is worse than one that is slightly kind.
- *
- * It does mean per-goal hours must never be presented as summing to a weekly
- * total; the capacity gauge is the only total.
+ * Two locked goals sharing a subject are each credited the same subject
+ * minutes, which is generous rather than wrong - the alternative is asking a
+ * fourteen year old to split a revision session across goals, and a number
+ * nobody enters is worse than one that is slightly kind. It does mean per-goal
+ * hours must never be presented as summing to a weekly total; the capacity
+ * gauge is the only total.
  */
-/**
- * Minutes on one check-in that belong to one goal.
- *
- * The single definition of attribution in the app. It was inline in
- * `weeklyMinutesForGoal` until the burn-down needed the same rule over a year
- * rather than a week; two copies of this would eventually disagree, and a
- * weekly card and a long-range chart contradicting each other about the same
- * hours is worse than either being absent.
- *
- * Goal-level tagging wins outright. Subject-level only counts when the entry
- * names no goal at all - otherwise an hour tagged to the Maths goal would also
- * be credited to every other Maths goal, and a portfolio total would report
- * more hours than the day contained.
- */
-export function minutesForGoalFromCheckIn(entry: DailyCheckIn, goal: Goal): number {
-  const logged = entry.completedRevisionMinutes || 0;
-  if (logged <= 0) return 0;
-
-  if (entry.studyGoalId === goal.id) return logged;
-  if (goal.subjectId && entry.studySubjectId === goal.subjectId && !entry.studyGoalId) {
-    return logged;
-  }
-  return 0;
-}
-
 export async function weeklyMinutesForGoal(
   goal: Goal,
   window: WeekWindow = currentWeek()
 ): Promise<number> {
-  const checkIns = await checkInsInWeek(window);
-  return checkIns.reduce((sum, entry) => sum + minutesForGoalFromCheckIn(entry, goal), 0);
+  const entries = await entriesInWeek(window);
+  return entries.reduce((sum, entry) => sum + minutesForGoal(entry, goal), 0);
 }
 
 /** Turns hours against a budget into a pace, given how far into the week it is. */

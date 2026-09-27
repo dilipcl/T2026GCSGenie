@@ -258,3 +258,20 @@ export async function wrapUpFocusBlock(checkInId: string, wrapUp: FocusWrapUp): 
     newValue: `Focus block wrapped up${note ? ': ' + note : ''}`,
   });
 }
+
+/**
+ * Minutes the focus timer has already recorded against each piece of work.
+ *
+ * Asked when work is closed, so the close sheet can say "50 minutes on the
+ * timer - already counted" and ask only about time beyond that. Asking for the
+ * whole time again would have the same hour counted twice: once as the
+ * block's check-in row, once as the work's own `loggedMinutes`.
+ */
+export async function timerMinutesByTask(): Promise<Map<string, number>> {
+  const totals = new Map<string, number>();
+  for (const block of (await db.checkIns.toArray()).filter(isTimerBlock)) {
+    if (!block.taskId) continue;
+    totals.set(block.taskId, (totals.get(block.taskId) ?? 0) + (block.completedRevisionMinutes || 0));
+  }
+  return totals;
+}
