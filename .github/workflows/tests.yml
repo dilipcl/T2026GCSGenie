@@ -1,0 +1,63 @@
+name: Tests
+
+# Everything the deploy does not check: the unit suite and the end-to-end
+# suite, on every push to any branch and on every pull request.
+#
+# Deliberately separate from deploy.yml, and deliberately not (yet) a gate on
+# it. The `github-pages` environment only accepts deployments from main, so a
+# change to the deploy workflow cannot be rehearsed on a branch - and a gate
+# that misfires would stop every release until someone noticed. Running here
+# first, where a red run blocks nothing, is how it earns the right to gate.
+# Making deploy wait on it is one `needs:` once it has been green for a while.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npx tsc --noEmit && npm run typecheck:e2e
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests (phone and desktop)
+        run: npm run e2e
+        env:
+          CI: 'true'
+
+      # The report and the per-test traces are what make a red run
+      # diagnosable without re-running it locally. Kept a week.
+      - name: Keep the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

@@ -10,14 +10,18 @@ Most were learned by getting them wrong.
 ## Commands
 
 ```
-npm test              # vitest, ~870 tests, fake-indexeddb
+npm test              # vitest, ~930 tests, fake-indexeddb
 npx tsc --noEmit      # typecheck; run before every commit
 npm run build         # tsc && vite build
 npm run dev           # localhost:3000/T2026GCSGenie/
+npm run e2e           # Playwright, phone + desktop, starts the dev server
+npm run e2e:phone     # phone layout only
+npm run explore       # the journey tester's throwaway specs in e2e/explore/
 ```
 
-CI runs `npm run build` on push to `main` and nothing else — the tests are not
-gated anywhere, so whether to run them before committing is a judgement call.
+The deploy workflow runs `npm run build` on push to `main` and nothing else.
+`tests.yml` runs typecheck, unit and e2e on every push and PR, but does not
+gate the deploy yet - a red run there blocks nothing, so read it.
 
 ## How code is written here
 
@@ -130,6 +134,31 @@ They cover faults no type can see: a missing `type="button"`, a conditional
 hook, a nav layer, the wrong date formatter. When the code they watch moves,
 move them — a guard pointed at the old location still passes, which is worse
 than no guard.
+
+## End-to-end tests and the testing agents
+
+`e2e/` drives the real app in Chromium at phone (Pixel 7) and desktop sizes.
+`e2e/fixtures.ts` is the contract: every test starts on a fresh, empty
+IndexedDB, with the clock pinned to Friday 25 September 2026 17:30 London,
+every request to Dexie Cloud refused, and any uncaught page error failing the
+test. Arrange with `insert()`, act through the screen, assert with `rows()`
+as well as what is drawn. A new device opens on the welcome tour; `openApp()`
+closes it.
+
+Five agents in `.claude/agents/` share the work:
+
+- `e2e-runner` - runs everything and triages failures (app / test / flake).
+- `e2e-author` - writes specs for a new or changed journey.
+- `journey-tester` - walks a journey as Tejas or a parent and files findings.
+- `data-consistency-auditor` - checks numbers agree across screens and rows.
+- `release-gate` - GO / NO-GO before a push to `main`, and verifies the deploy.
+
+Findings live in `docs/testing/ux-findings.md`. An open blocker is a NO-GO.
+
+Two rules the agents carry and so should you: tests run against localhost
+only, never the live site - answering a lesson writes on the tap - and a hung
+process is stopped by its PID, never by image name. `taskkill /IM node.exe`
+stops every Node process on the machine, and it has been done.
 
 ## Deploying
 

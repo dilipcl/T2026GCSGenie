@@ -26,3 +26,9 @@ dist-ssr
 # Dexie Cloud client credentials - dexie-cloud.key authorises administration of
 # the cloud database (whitelisting origins, managing users). Never commit it.
 dexie-cloud.key
+
+# Playwright output, and the journey tester's throwaway exploration specs
+test-results/
+playwright-report/
+blob-report/
+e2e/explore/

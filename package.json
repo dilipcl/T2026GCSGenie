@@ -8,7 +8,12 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "e2e:phone": "playwright test --project=phone",
+    "e2e:report": "playwright show-report",
+    "explore": "playwright test --config playwright.explore.config.ts",
+    "typecheck:e2e": "tsc -p tsconfig.e2e.json"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
@@ -23,6 +28,7 @@
     "tailwind-merge": "^3.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^22.13.5",
     "@types/react": "^19.0.10",
