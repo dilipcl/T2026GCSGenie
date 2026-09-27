@@ -81,6 +81,13 @@ export interface SyllabusTopic {
   yearGroup?: 'YEAR_9' | 'YEAR_10' | 'YEAR_11';
   dateTaught?: string; // YYYY-MM-DD
   driveNotesUrl?: string; // Link to Google Notebook / Drive file for this topic
+  /**
+   * The exam board's own reference for this topic - "4.2.1", "P6.3" - where it
+   * is known. A title is what Tejas calls it; the spec reference is what a past
+   * paper, a mark scheme and a revision guide call it, and without it the three
+   * cannot be matched up. Optional and unindexed, so old rows need nothing.
+   */
+  specRef?: string;
 }
 
 export interface StructuredCheckInNotes {

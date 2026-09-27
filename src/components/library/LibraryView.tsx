@@ -11,6 +11,7 @@ import {
 } from '../../services/materialLibrary';
 import { AssessmentLogView } from '../assessments/AssessmentLogView';
 import { MaterialDetail } from './MaterialDetail';
+import { SubjectTopicsPane } from './SubjectTopicsPane';
 import { MaterialLink, materialFromEvidence } from '../shared/MaterialLink';
 import { formatShortDate } from '../../utils/date';
 import {
@@ -64,6 +65,13 @@ const KIND_LABEL: Record<MaterialKind, string> = {
 };
 
 type Pane = 'MATERIAL' | 'PAPERS';
+
+/**
+ * How one subject is shown. By topic is the default because it is the question
+ * a topic list answers - what was taught, and what is there to revise from -
+ * and the flat list of material stays one tap away for "where is that photo".
+ */
+type SubjectView = 'TOPICS' | 'MATERIAL';
 
 const PaneTab: React.FC<{
   active: boolean;
@@ -218,6 +226,7 @@ export const LibraryView: React.FC<{
   const [query, setQuery] = useState('');
   const [kinds, setKinds] = useState<MaterialKind[]>([]);
   const [openId, setOpenId] = useState<string | undefined>(undefined);
+  const [subjectView, setSubjectView] = useState<SubjectView>('TOPICS');
 
   /**
    * Every hook is above the first return, including this one. `refreshKey` is
@@ -245,6 +254,9 @@ export const LibraryView: React.FC<{
     );
 
   const subjectRow = snapshot?.coverage.find((c) => c.subjectId === subject);
+  // A search or a kind filter is a question about material, so it shows the
+  // material list whichever view was chosen.
+  const effectiveView: SubjectView = query || kinds.length ? 'MATERIAL' : subjectView;
   const totals = snapshot?.materials.length ?? 0;
 
   return (
@@ -257,9 +269,9 @@ export const LibraryView: React.FC<{
           <h2 className="text-xl font-bold text-white">The library</h2>
         </div>
         <p className="text-xs text-slate-300 max-w-2xl">
-          Every photo, link, lesson note and marked paper that has ever been recorded — by
-          subject, and openable. Tagging something to a topic is what lets Genie build revision
-          from it later.
+          Every lesson, photo, link, note and marked paper that has ever been recorded. Open a
+          subject to see it topic by topic — when each was taught, what was done on it since, and
+          what there is to revise from.
         </p>
       </div>
 
@@ -342,6 +354,34 @@ export const LibraryView: React.FC<{
               <p className="text-sm font-bold text-white mb-0.5">
                 {subjectRow?.icon} {subjectRow?.name}
               </p>
+
+              <div className="flex gap-1 my-2 p-1 rounded-xl bg-slate-950/60 border border-slate-800">
+                <PaneTab
+                  active={effectiveView === 'TOPICS'}
+                  onClick={() => {
+                    setSubjectView('TOPICS');
+                    setQuery('');
+                    setKinds([]);
+                  }}
+                >
+                  By topic
+                </PaneTab>
+                <PaneTab
+                  active={effectiveView === 'MATERIAL'}
+                  onClick={() => setSubjectView('MATERIAL')}
+                >
+                  All material ({subjectRow?.materials ?? 0})
+                </PaneTab>
+              </div>
+
+              {effectiveView === 'TOPICS' ? (
+                <SubjectTopicsPane
+                  subjectId={subject}
+                  role={currentRole}
+                  onOpenMaterial={setOpenId}
+                />
+              ) : (
+              <>
               <p className="text-[10px] text-slate-400 mb-3">
                 {shown.length} of {subjectRow?.materials ?? 0} shown
                 {subjectRow?.finishedTopicsWithoutMaterial
@@ -388,6 +428,8 @@ export const LibraryView: React.FC<{
                     </div>
                   ))}
                 </div>
+              )}
+              </>
               )}
             </div>
           )}

@@ -12,6 +12,10 @@ export interface NewTopicInput {
   driveNotesUrl?: string;
   /** Defaults to today. A topic added from Tuesday's lesson was taught on Tuesday. */
   dateTaught?: string;
+  specRef?: string;
+  isImportantForGrade9?: boolean;
+  confidenceRating?: SyllabusTopic['confidenceRating'];
+  yearGroup?: SyllabusTopic['yearGroup'];
 }
 
 /**
@@ -33,12 +37,13 @@ export async function addSyllabusTopic(
     unit: input.unit?.trim() || 'Year 10',
     title: input.title.trim(),
     isCompleted: false,
-    confidenceRating: 3,
-    isImportantForGrade9: true,
+    confidenceRating: input.confidenceRating ?? 3,
+    isImportantForGrade9: input.isImportantForGrade9 ?? true,
     isRequiredPractical: input.isRequiredPractical ?? false,
-    yearGroup: 'YEAR_10',
+    yearGroup: input.yearGroup ?? 'YEAR_10',
     dateTaught: input.dateTaught ?? todayISO(),
     driveNotesUrl: input.driveNotesUrl?.trim() || undefined,
+    specRef: input.specRef?.trim() || undefined,
   };
 
   await db.syllabusTopics.add(topic);
@@ -51,4 +56,58 @@ export async function addSyllabusTopic(
   });
 
   return topic;
+}
+
+/**
+ * Says which topic a check-in's note was about.
+ *
+ * A focus block chooses its topic as it starts; an evening "what I took away"
+ * never had anywhere to say it. Both are notes worth finding from the topic, so
+ * both can be tagged afterwards, with the same audit line as a file or a lesson.
+ */
+export async function tagCheckInToTopic(
+  id: string,
+  topicId: string | undefined,
+  user: UserRole = 'STUDENT'
+): Promise<void> {
+  const existing = await db.checkIns.get(id);
+  if (!existing) return;
+
+  await db.checkIns.update(id, { topicId });
+  await logAuditEvent({
+    user,
+    action: 'UPDATE',
+    entity: 'DailyCheckIn',
+    entityId: id,
+    fieldChanged: 'topicId',
+    oldValue: existing.topicId ?? '(none)',
+    newValue: topicId ?? '(cleared)',
+  });
+}
+
+/**
+ * How sure he is about a topic, set from the topic's own page.
+ *
+ * The same field the subject screen's stars and the focus wrap-up both move,
+ * so all three show one number. Logged, because a rating that drifts from 2 to
+ * 5 in a week is worth being able to trace back to what moved it.
+ */
+export async function setTopicConfidence(
+  id: string,
+  rating: SyllabusTopic['confidenceRating'],
+  user: UserRole = 'STUDENT'
+): Promise<void> {
+  const existing = await db.syllabusTopics.get(id);
+  if (!existing || existing.confidenceRating === rating) return;
+
+  await db.syllabusTopics.update(id, { confidenceRating: rating });
+  await logAuditEvent({
+    user,
+    action: 'UPDATE',
+    entity: 'SyllabusTopic',
+    entityId: id,
+    fieldChanged: 'confidenceRating',
+    oldValue: String(existing.confidenceRating),
+    newValue: String(rating),
+  });
 }
