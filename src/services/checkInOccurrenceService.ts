@@ -3,6 +3,7 @@ import {
   CheckInOccurrence,
   ExceptionReasonCategory,
   OccurrenceOutcome,
+  SubjectId,
   UserRole,
   WeekType,
 } from '../types';
@@ -49,6 +50,8 @@ export interface RecordOccurrenceInput {
   /** Why it did not fully happen. Only carried on PARTIAL and MISSED answers. */
   reasonCategory?: ExceptionReasonCategory;
   followUp?: string;
+  /** Which topic a lesson covered. Left out, whatever is already on the row is kept. */
+  topicId?: string;
   loggedBy?: UserRole;
 }
 
@@ -163,6 +166,14 @@ export async function recordOccurrence(
     reasonCategory: outcome === 'HAPPENED' ? undefined : input.reasonCategory,
     followUp,
     followUpTaskId,
+    /**
+     * Carried over, because this is a `put` and not a merge. The topic is
+     * usually tagged after the answer - from the lesson row or the Library -
+     * and before this line existed, changing "Done" to "Partly" or adding a
+     * note afterwards silently wiped it, so the lesson dropped out of its
+     * topic with nothing on screen to say so.
+     */
+    topicId: input.topicId ?? existing?.topicId,
     xpAwarded: rowXp(occurrence),
     dayBonusXp: existing?.dayBonusXp ?? 0,
     loggedOnDate: existing?.loggedOnDate ?? todayISO(),
@@ -317,4 +328,44 @@ export async function tagOccurrenceToTopic(
     oldValue: existing.topicId ?? '(none)',
     newValue: topicId ?? '(cleared)',
   });
+}
+
+/**
+ * The topic a lesson most probably covered, offered for one tap.
+ *
+ * Tagging used to happen only afterwards, in the Library, one item at a time -
+ * which is to say it did not happen: sixty-four lessons were answered in
+ * September and not one carried a topic. The fix is to ask at the moment the
+ * lesson is answered, and to make the likely answer the cheap one.
+ *
+ * Lessons run in sequence, so the best guess is whatever this subject's last
+ * tagged lesson covered. With no history, the most recently taught unfinished
+ * topic is next best. It is a suggestion shown beside a picker, never a tag -
+ * nothing is written until somebody accepts it.
+ */
+export async function suggestLessonTopic(
+  subjectId: SubjectId,
+  date: string,
+  excludeId?: string
+): Promise<string | undefined> {
+  const earlier = (await db.checkInOccurrences.where('date').belowOrEqual(date).toArray())
+    .filter(
+      (row) =>
+        row.kind === 'LESSON' &&
+        row.subjectId === subjectId &&
+        row.topicId &&
+        row.id !== excludeId
+    )
+    .sort((a, b) => b.date.localeCompare(a.date) || b.loggedAt - a.loggedAt);
+
+  const topics = await db.syllabusTopics.where('subjectId').equals(subjectId).toArray();
+  const known = new Set(topics.map((t) => t.id));
+
+  // A tag pointing at a deleted topic is no suggestion at all.
+  const last = earlier.find((row) => known.has(row.topicId!));
+  if (last) return last.topicId;
+
+  return topics
+    .filter((t) => !t.isCompleted && t.dateTaught && t.dateTaught <= date)
+    .sort((a, b) => b.dateTaught!.localeCompare(a.dateTaught!))[0]?.id;
 }

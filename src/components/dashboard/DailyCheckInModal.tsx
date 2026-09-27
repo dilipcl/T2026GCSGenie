@@ -31,6 +31,8 @@ import {
 import { PlannedActivity } from '../../types';
 import { currentWeek } from '../../services/weekWindow';
 import { DayOccurrenceChecklist } from './DayOccurrenceChecklist';
+import { ProofUploader } from '../shared/ProofUploader';
+import { formatShortDate } from '../../utils/date';
 
 interface DailyCheckInModalProps {
   isOpen: boolean;
@@ -63,7 +65,24 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
   const [focus, setFocus] = useState<'LOW' | 'NORMAL' | 'HIGH'>('NORMAL');
   const [pendingTasks, setPendingTasks] = useState<Task[]>([]);
   const [completedTaskIds, setCompletedTaskIds] = useState<string[]>([]);
-  const [revisionMinutes, setRevisionMinutes] = useState<number>(30);
+  /**
+   * Time studied that is not already on record for this day - zero until
+   * somebody says otherwise.
+   *
+   * This started at 30, so every check-in that nobody dragged down logged half
+   * an hour of study whether or not any had happened, and a check-in after two
+   * focus blocks counted the same time twice: once from the timer, once from
+   * the slider. Weekly hours, goal burndown and the burnout gauge all read
+   * these minutes, so the error went everywhere at once.
+   */
+  const [revisionMinutes, setRevisionMinutes] = useState<number>(0);
+  /** Minutes already logged for the day being answered - the timer's blocks and earlier check-ins. */
+  const [alreadyLogged, setAlreadyLogged] = useState<{ minutes: number; blocks: number }>({
+    minutes: 0,
+    blocks: 0,
+  });
+  /** The homework list shows what is due soon; this reveals everything else that is open. */
+  const [showAllTasks, setShowAllTasks] = useState(false);
   /**
    * Which subject the logged minutes belong to. Empty means "don't attribute" -
    * honest, and better than silently filing an hour under whatever happened to
@@ -131,13 +150,30 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
 
   const todayStr = todayISO();
 
+  /**
+   * Everything already logged for the day being answered, re-read when the day
+   * changes. The check-in row used to be written against today whatever day
+   * was chosen, so catching up on Tuesday from Thursday filed Tuesday's lessons
+   * under Tuesday and its study time, homework and energy under Thursday - one
+   * check-in split across two days.
+   */
+  useEffect(() => {
+    if (!isOpen) return;
+    db.checkIns.where('date').equals(checkInDate).toArray().then((existing) => {
+      setHasCheckedInToday(existing.length > 0);
+      setTodayCheckInCount(existing.length);
+      setAlreadyLogged({
+        minutes: existing.reduce((sum, c) => sum + (c.completedRevisionMinutes || 0), 0),
+        blocks: existing.filter((c) => c.session === 'STUDY_SESSION').length,
+      });
+    });
+  }, [isOpen, checkInDate]);
+
   useEffect(() => {
     if (isOpen) {
-      // 1. Check existing check-ins today
-      db.checkIns.where('date').equals(todayStr).toArray().then((existing) => {
-        setHasCheckedInToday(existing.length > 0);
-        setTodayCheckInCount(existing.length);
-      });
+      setCheckInDate(initialDate ?? todayISO());
+      setRevisionMinutes(0);
+      setShowAllTasks(false);
 
       // 2. Fetch pending tasks, soonest due first.
       // Booleans are not indexable in IndexedDB - filter in memory (see db/index.ts).
@@ -176,6 +212,9 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       else if (hour < 17) setSession('AFTERNOON');
       else setSession('EVENING');
     }
+    // initialDate is read only on open: changing the day inside the dialog
+    // must not be undone by a re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, todayStr]);
 
   /**
@@ -242,6 +281,21 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
 
   const xp = calculateXPEarned();
 
+  /**
+   * Due by tomorrow, promised this week, or already ticked here. The list used
+   * to be every open task, soonest first - so work due in October sat among
+   * tonight's, a long scroll had to be read to find the two that mattered, and
+   * a stray tap on a row nobody was looking for closed it.
+   */
+  const soonCutoff = addDaysISO(1);
+  const soonTasks = pendingTasks.filter(
+    (t) =>
+      t.dueDate <= soonCutoff || t.bucket === 'THIS_WEEK' || completedTaskIds.includes(t.id)
+  );
+  const visibleTasks = showAllTasks ? pendingTasks : soonTasks;
+  const hiddenTaskCount = pendingTasks.length - soonTasks.length;
+  const isBackfillDay = checkInDate < todayStr;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -286,7 +340,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       const checkInId = pendingCheckInId;
       await db.checkIns.add({
         id: checkInId,
-        date: todayStr,
+        date: checkInDate,
         timestamp: now,
         session,
         energyLevel: energy,
@@ -425,10 +479,12 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-white">Log today</h2>
+              <h2 className="text-xl font-bold text-white">
+                {isBackfillDay ? `Log ${formatShortDate(checkInDate)}` : 'Log today'}
+              </h2>
               {todayCheckInCount > 0 && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800">
-                  Log #{todayCheckInCount + 1} Today
+                  Log #{todayCheckInCount + 1} {isBackfillDay ? 'that day' : 'today'}
                 </span>
               )}
             </div>
@@ -441,7 +497,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
           <div className="p-2.5 bg-indigo-950/40 border border-indigo-500/40 rounded-xl mb-4 text-[11px] text-indigo-300 flex items-center gap-2">
             <BookmarkCheck className="w-4 h-4 text-indigo-400 flex-shrink-0" />
             <span>
-              Daily base +10 XP was already banked earlier today. Homework and study time still count!
+              Daily base +10 XP was already banked for this day. Homework and study time still count!
             </span>
           </div>
         )}
@@ -547,21 +603,23 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
             <label className="block text-xs font-semibold text-slate-300 uppercase mb-1.5 flex items-center justify-between">
               <span>Homework Completed in this Session</span>
               <span className="text-[11px] text-indigo-400 font-normal">
-                {pendingTasks.length} still to do
+                {soonTasks.length} due soon
               </span>
             </label>
-            {pendingTasks.length === 0 ? (
+            {visibleTasks.length === 0 ? (
               <div className="p-2.5 bg-slate-800/40 rounded-xl border border-slate-800 text-xs text-slate-400 text-center">
-                🎉 No pending tasks! All clear.
+                {pendingTasks.length === 0
+                  ? '🎉 No pending tasks! All clear.'
+                  : 'Nothing due by tomorrow.'}
               </div>
             ) : (
               <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-                {pendingTasks.map((task) => {
+                {visibleTasks.map((task) => {
                   const isChecked = completedTaskIds.includes(task.id);
                   const isOverdue = task.dueDate < todayStr;
                   return (
+                    <React.Fragment key={task.id}>
                     <div
-                      key={task.id}
                       onClick={() => toggleTask(task.id)}
                       className={`p-2 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition-all ${
                         isChecked
@@ -595,9 +653,38 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
                         +{task.xpValue} XP
                       </span>
                     </div>
+
+                    {/* The proof step, inline. Ticking work here used to close
+                        it with nothing attached, skipping the photo prompt the
+                        Work tab gives the same tick - so the check-in was the
+                        quiet way round the evidence step. Beside the row rather
+                        than inside it, because a tap inside the row toggles it. */}
+                    {isChecked && (
+                      <div className="ml-6 p-2 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <ProofUploader
+                          ownerType="TASK"
+                          ownerId={task.id}
+                          label="Photo of it (optional)"
+                          hint="Without one it waits under Evidence until a photo or a reason is added."
+                        />
+                      </div>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </div>
+            )}
+
+            {hiddenTaskCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAllTasks((prev) => !prev)}
+                className="mt-1.5 text-[11px] text-slate-400 hover:text-slate-200 underline"
+              >
+                {showAllTasks
+                  ? 'Only show what is due soon'
+                  : `Show ${hiddenTaskCount} more due later`}
+              </button>
             )}
           </div>
 
@@ -606,7 +693,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
             <div className="flex justify-between items-center mb-1">
               <label className="text-xs font-semibold text-slate-300 uppercase flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Session Study Duration</span>
+                <span>Extra study time</span>
               </label>
               <span className="text-xs font-bold text-indigo-400 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800">
                 {revisionMinutes} Minutes
@@ -621,6 +708,15 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
               onChange={(e) => setRevisionMinutes(Number(e.target.value))}
               className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
+            <p className="mt-1 text-[10px] text-slate-400">
+              {alreadyLogged.minutes > 0
+                ? `${alreadyLogged.minutes} min already logged for this day${
+                    alreadyLogged.blocks > 0
+                      ? ` (${alreadyLogged.blocks} study session${alreadyLogged.blocks === 1 ? '' : 's'})`
+                      : ''
+                  } - only add time that is not counted yet.`
+                : 'Only time not already logged on the focus timer. Leave at 0 if there was none.'}
+            </p>
 
             {/* Where those minutes are credited. A locked goal reserves weekly
                 hours; without this the app can never say whether any were

@@ -162,7 +162,7 @@ export const TodayScheduleCard: React.FC<TodayScheduleCardProps> = ({
                   }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-[10rem] flex-1">
                       {occurrence.startTime && (
                         <span className="text-xs font-mono font-semibold text-slate-400 bg-slate-800/80 px-2 py-1 rounded flex-shrink-0">
                           {occurrence.startTime}
@@ -199,7 +199,7 @@ export const TodayScheduleCard: React.FC<TodayScheduleCardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-1.5 flex-shrink-0">
+                    <div className="flex items-start gap-1.5 flex-shrink-0 max-w-full">
                       {entry?.room && !occasion && (
                         <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded self-center">
                           <MapPin className="w-3 h-3 text-slate-500" />

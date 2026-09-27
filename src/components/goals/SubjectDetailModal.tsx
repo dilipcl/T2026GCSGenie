@@ -7,8 +7,9 @@ import { logAuditEvent, logFieldChanges } from '../../services/auditService';
 import { resolveTopicFolder } from '../../db/driveFolders';
 import { attachmentCountsFor } from '../../services/attachmentService';
 import { TopicMaterialPanel } from './TopicMaterialPanel';
+import { addSyllabusTopic } from '../../services/topicService';
 import { triggerCelebration } from '../../utils/confetti';
-import { todayISO, addDaysISO } from '../../utils/date';
+import { addDaysISO } from '../../utils/date';
 import {
   X,
   CheckCircle2,
@@ -190,27 +191,12 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     e.preventDefault();
     if (!newTopicTitle.trim()) return;
 
-    const newTopic: SyllabusTopic = {
-      id: newId('topic'),
+    await addSyllabusTopic({
       subjectId: subject.id,
-      unit: newTopicUnit.trim() || 'Year 10',
-      title: newTopicTitle.trim(),
-      isCompleted: false,
-      confidenceRating: 3,
-      isImportantForGrade9: true,
+      title: newTopicTitle,
+      unit: newTopicUnit,
       isRequiredPractical: newTopicIsPractical,
-      yearGroup: 'YEAR_10',
-      dateTaught: todayISO(),
-      driveNotesUrl: newTopicDriveUrl.trim() || undefined,
-    };
-
-    await db.syllabusTopics.add(newTopic);
-    await logAuditEvent({
-      user: 'STUDENT',
-      action: 'INSERT',
-      entity: 'SyllabusTopic',
-      entityId: newTopic.id,
-      newValue: `Added Year 10 Topic: ${newTopic.title} [${newTopic.unit}]`,
+      driveNotesUrl: newTopicDriveUrl,
     });
 
     setNewTopicTitle('');

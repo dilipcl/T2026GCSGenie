@@ -4,6 +4,7 @@ import { DayOccurrence } from '../../services/dayPlan';
 import { recordOccurrence } from '../../services/checkInOccurrenceService';
 import { REASON_LABEL, REASON_ICON } from '../../services/commitmentService';
 import { Check, Minus, X, MessageSquarePlus } from 'lucide-react';
+import { LessonTopic } from './LessonTopic';
 
 /**
  * Answering one thing that was supposed to happen.
@@ -120,13 +121,17 @@ export const OccurrenceAnswer: React.FC<OccurrenceAnswerProps> = ({
             }}
             title="Add a note, or something to follow up"
             aria-label={`Add a note about ${occurrence.label}`}
-            className={`p-1.5 rounded-lg transition-all ${
-              existing?.followUp
+            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+              existing?.followUp || existing?.notes
                 ? 'bg-violet-500/30 text-violet-200'
-                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
             }`}
           >
             <MessageSquarePlus className="w-3 h-3" />
+            {/* Labelled, not icon-only. A bare icon that appeared after
+                answering is why sixty-four lessons were answered in September
+                and not one had a note: nobody knew it was there. */}
+            <span>Note</span>
           </button>
         )}
       </div>
@@ -186,11 +191,22 @@ export const OccurrenceAnswer: React.FC<OccurrenceAnswerProps> = ({
         </div>
       )}
 
+      {!noteOpen && existing?.notes && (
+        <p className="mt-1 text-[10px] text-slate-300 truncate">{existing.notes}</p>
+      )}
+
       {!noteOpen && existing?.followUp && (
         <p className="mt-1 text-[10px] text-violet-300 truncate">
           Follow-up: {existing.followUp}
         </p>
       )}
+
+      {existing &&
+        existing.outcome !== 'MISSED' &&
+        occurrence.kind === 'LESSON' &&
+        occurrence.subjectId && (
+          <LessonTopic date={date} occurrence={occurrence} existing={existing} />
+        )}
     </div>
   );
 };

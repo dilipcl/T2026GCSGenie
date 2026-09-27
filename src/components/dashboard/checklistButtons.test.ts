@@ -27,6 +27,8 @@ import { readFileSync } from 'fs';
 const SOURCES = [
   'src/components/dashboard/OccurrenceAnswer.tsx',
   'src/components/dashboard/DayOccurrenceChecklist.tsx',
+  // The topic chip under each answered lesson, rendered by OccurrenceAnswer.
+  'src/components/dashboard/LessonTopic.tsx',
 ];
 
 const BUTTON_TAG = /<button\b[\s\S]*?>/g;

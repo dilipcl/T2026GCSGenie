@@ -106,7 +106,7 @@ export const DayOccurrenceChecklist: React.FC<DayOccurrenceChecklistProps> = ({
               }`}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
+                <div className="min-w-[8rem] flex-1">
                   <p className="text-[11px] font-semibold text-white truncate">
                     {occurrence.label}
                   </p>
