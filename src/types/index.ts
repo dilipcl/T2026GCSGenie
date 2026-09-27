@@ -112,6 +112,19 @@ export interface DailyCheckIn {
   studySubjectId?: SubjectId;
   /** Set when the session was worked against one specific goal. */
   studyGoalId?: string;
+  /**
+   * Written by the focus timer rather than by a person answering questions.
+   *
+   * Timer rows carry placeholder energy and focus, because nobody was asked -
+   * and read as real readings they diluted the energy signal: four blocks in an
+   * evening pushed three genuine "exhausted" answers out of its window. Old
+   * timer rows predate this field; `isTimerBlock` recognises them by shape.
+   */
+  source?: 'FOCUS_TIMER';
+  /** The syllabus topic a focus block was spent on, where one was chosen. */
+  topicId?: string;
+  /** The piece of work a focus block was spent on, where one was chosen. */
+  taskId?: string;
   structuredNotes?: StructuredCheckInNotes;
   notes?: string; // Legacy fallback
   xpEarned: number;

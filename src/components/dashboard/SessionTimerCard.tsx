@@ -2,10 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { SubjectId } from '../../types';
-import { newId } from '../../utils/id';
 import { todayISO } from '../../utils/date';
-import { logAuditEvent } from '../../services/auditService';
 import { useFeedback } from '../shared/FeedbackProvider';
+import {
+  FocusThread,
+  focusThreads,
+  logFocusBlock,
+  timerBlocksOn,
+} from '../../services/focusSessionService';
+import { FocusWrapUp } from './FocusWrapUp';
 import {
   FOCUS_MINUTES,
   nextPhase,
@@ -19,6 +24,32 @@ import { Play, Pause, RotateCcw, Coffee, Brain } from 'lucide-react';
  * whole point of asking is that the minutes land somewhere.
  */
 const LAST_SUBJECT_KEY = 'genie.focus.lastSubject';
+
+/**
+ * The block whose wrap-up has not been answered or skipped yet.
+ *
+ * Kept outside the component because the break is exactly when somebody
+ * wanders to another tab, and leaving Home unmounts this card - the wrap-up
+ * vanished with it, and the question it asked was never seen again.
+ */
+const PENDING_WRAP_UP_KEY = 'genie.focus.pendingWrapUp';
+
+function readPendingWrapUp(): string | undefined {
+  try {
+    return window.localStorage.getItem(PENDING_WRAP_UP_KEY) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writePendingWrapUp(id: string | undefined): void {
+  try {
+    if (id) window.localStorage.setItem(PENDING_WRAP_UP_KEY, id);
+    else window.localStorage.removeItem(PENDING_WRAP_UP_KEY);
+  } catch {
+    // Storage blocked: the wrap-up still shows until the card unmounts.
+  }
+}
 
 function readLastSubject(): SubjectId | '' {
   try {
@@ -46,16 +77,58 @@ export const SessionTimerCard: React.FC = () => {
   const [phase, setPhase] = useState<TimerPhase>('FOCUS');
   const [secondsLeft, setSecondsLeft] = useState(FOCUS_MINUTES * 60);
   const [running, setRunning] = useState(false);
-  const [blocksToday, setBlocksToday] = useState(0);
-  const [subjectId, setSubjectId] = useState<SubjectId | ''>(readLastSubject);
+  /**
+   * What the block is on: `lesson:…` or `task:…` from today's threads, or
+   * `subject:…` for a subject with nothing more specific. Starts on the last
+   * subject used, as the subject-only picker did.
+   */
+  const [target, setTarget] = useState<string>(() => {
+    const last = readLastSubject();
+    return last ? `subject:${last}` : '';
+  });
+  /** The block just finished, while its wrap-up is on screen. */
+  const [wrapUpId, setWrapUpIdState] = useState<string | undefined>(readPendingWrapUp);
+  const setWrapUpId = (id: string | undefined) => {
+    setWrapUpIdState(id);
+    writePendingWrapUp(id);
+  };
 
   const subjects = useLiveQuery(() => db.subjects.toArray(), [], []);
+  const threads = useLiveQuery(() => focusThreads(todayISO()), [], [] as FocusThread[]);
+  /**
+   * Read from the database rather than counted in memory. The count used to be
+   * component state, so a reload mid-evening reset it to zero and the fourth
+   * block never earned its long break.
+   */
+  const blocksToday = useLiveQuery(
+    async () => (await timerBlocksOn(todayISO())).length,
+    [],
+    0
+  );
 
-  const chooseSubject = (next: SubjectId | '') => {
-    setSubjectId(next);
+  const resolveTarget = (): { subjectId?: SubjectId; topicId?: string; taskId?: string } => {
+    if (target.startsWith('subject:')) return { subjectId: target.slice(8) as SubjectId };
+    const thread = threads.find((t) => t.key === target);
+    return thread
+      ? { subjectId: thread.subjectId, topicId: thread.topicId, taskId: thread.taskId }
+      : {};
+  };
+
+  /**
+   * Read through a ref, because `finishPhase` runs from an interval created
+   * when the timer started. Called directly, a block begun on Maths and
+   * switched to Physics halfway through was logged as Maths.
+   */
+  const resolveTargetRef = useRef(resolveTarget);
+  resolveTargetRef.current = resolveTarget;
+
+  const chooseTarget = (next: string) => {
+    setTarget(next);
+    const subject = next.startsWith('subject:')
+      ? next.slice(8)
+      : threads.find((t) => t.key === next)?.subjectId;
     try {
-      if (next) window.localStorage.setItem(LAST_SUBJECT_KEY, next);
-      else window.localStorage.removeItem(LAST_SUBJECT_KEY);
+      if (subject) window.localStorage.setItem(LAST_SUBJECT_KEY, subject);
     } catch {
       // Nothing to do - the picker still works for this session.
     }
@@ -102,37 +175,11 @@ export const SessionTimerCard: React.FC = () => {
 
   const finishPhase = async () => {
     if (phase === 'FOCUS') {
-      const completed = blocksToday + 1;
-      setBlocksToday(completed);
-
-      // The block is the log. Nothing to remember at check-in time.
-      await db.checkIns.add({
-        id: newId('checkin'),
-        date: todayISO(),
-        timestamp: Date.now(),
-        session: 'STUDY_SESSION',
-        energyLevel: 3,
-        focusRating: 'NORMAL',
-        completedHomeworkIds: [],
-        completedRevisionMinutes: FOCUS_MINUTES,
-        // What the minutes were spent on. Without this they land in a global
-        // bucket and no goal can ever be shown as worked.
-        studySubjectId: subjectId || undefined,
-        // The daily base XP belongs to a real check-in, not to a timer block
-        xpEarned: 10,
-        isDailyBaseXPAwarded: false,
-        structuredNotes: { category: 'ACADEMIC' },
-      });
-
-      await logAuditEvent({
-        user: 'STUDENT',
-        action: 'INSERT',
-        entity: 'DailyCheckIn',
-        entityId: 'session-timer',
-        newValue:
-          `Focus block completed (${FOCUS_MINUTES} min), block ${completed} today` +
-          (subjectId ? ` on ${subjectId}` : ''),
-      });
+      // The block is the log. Nothing to remember at check-in time, and
+      // nothing lost if the wrap-up below is skipped.
+      const id = await logFocusBlock(resolveTargetRef.current());
+      const completed = (await timerBlocksOn(todayISO())).length;
+      setWrapUpId(id);
 
       const next = nextPhase(completed);
       toast.celebrate(
@@ -225,25 +272,51 @@ export const SessionTimerCard: React.FC = () => {
         </div>
       </div>
 
-      {/* Which subject this block counts towards. Asked here rather than at
-          check-in because it is known now and forgotten by then. */}
+      {/* What this block counts towards. Asked here rather than at check-in
+          because it is known now and forgotten by then - and offered as the
+          day's own lessons and work, so choosing one brings its topic and its
+          task with it instead of just a subject. */}
       {!isBreak && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <label htmlFor="focus-subject" className="text-[11px] text-slate-400">
+          <label htmlFor="focus-target" className="text-[11px] text-slate-400">
             Working on
           </label>
           <select
-            id="focus-subject"
-            value={subjectId}
-            onChange={(e) => chooseSubject(e.target.value as SubjectId | '')}
-            className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white"
+            id="focus-target"
+            value={target}
+            onChange={(e) => chooseTarget(e.target.value)}
+            className="flex-1 min-w-[12rem] bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white"
           >
             <option value="">Not set - counts towards nothing</option>
-            {subjects.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
+            {threads.some((t) => t.kind === 'LESSON') && (
+              <optgroup label="Going over today's lessons">
+                {threads
+                  .filter((t) => t.kind === 'LESSON')
+                  .map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.label}
+                    </option>
+                  ))}
+              </optgroup>
+            )}
+            {threads.some((t) => t.kind === 'TASK') && (
+              <optgroup label="Work due soon">
+                {threads
+                  .filter((t) => t.kind === 'TASK')
+                  .map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.label}
+                    </option>
+                  ))}
+              </optgroup>
+            )}
+            <optgroup label="Just a subject">
+              {subjects.map((sub) => (
+                <option key={sub.id} value={`subject:${sub.id}`}>
+                  {sub.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </div>
       )}
@@ -256,6 +329,10 @@ export const SessionTimerCard: React.FC = () => {
           style={{ width: `${progress}%` }}
         />
       </div>
+
+      {wrapUpId && (
+        <FocusWrapUp key={wrapUpId} checkInId={wrapUpId} onDone={() => setWrapUpId(undefined)} />
+      )}
     </div>
   );
 };

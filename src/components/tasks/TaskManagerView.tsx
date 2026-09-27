@@ -3,8 +3,7 @@ import { db } from '../../db';
 import { Task, PriorityLevel, SubjectId, Goal } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent } from '../../services/auditService';
-import { recordChange } from '../../services/changeLogService';
-import { resolveCommentForTask } from '../../services/activityCommentService';
+import { closeTask as finishTask, setTaskCompleted } from '../../services/taskCompletionService';
 import { triggerCelebration } from '../../utils/confetti';
 import { todayISO, formatFriendlyDate } from '../../utils/date';
 import {
@@ -95,32 +94,7 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
    * decided on.
    */
   const setCompleted = async (task: Task, done: boolean) => {
-    await db.tasks.update(task.id, {
-      completed: done,
-      completedAt: done ? Date.now() : undefined,
-    });
-
-    await logAuditEvent({
-      user: currentRole,
-      action: 'UPDATE',
-      entity: 'Task',
-      entityId: task.id,
-      fieldChanged: 'completed',
-      // "true" tells a parent auditing the log nothing. Say what happened.
-      oldValue: task.completed ? 'completed' : 'not completed',
-      newValue: done
-        ? `Completed "${task.title}" (+${task.xpValue} XP)`
-        : `Reopened "${task.title}"`,
-    });
-
-    /**
-     * A follow-up exists to answer somebody. Ticking it off without settling
-     * the question leaves the work saying done and the comment still saying
-     * somebody is waiting - and a flag that outlives what it was about is how
-     * a review flag becomes furniture.
-     */
-    if (done && task.isFollowUp) await resolveCommentForTask(task.id, currentRole);
-
+    await setTaskCompleted(task, done, currentRole);
     if (done) triggerCelebration({ particleCount: 50 });
     loadData();
   };
@@ -517,17 +491,9 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
           onConfirm={async (hadEvidence) => {
             const task = closing;
             setClosing(null);
-            await setCompleted(task, true);
-            await recordChange({
-              category: 'HOMEWORK',
-              summary: `Finished "${task.title}" (+${task.xpValue} XP)`,
-              detail: hadEvidence
-                ? 'Closed with its evidence attached.'
-                : 'Closed with nothing attached — it is listed under Evidence.',
-              entity: 'Task',
-              entityId: task.id,
-              actor: currentRole,
-            });
+            await finishTask(task, currentRole, hadEvidence);
+            triggerCelebration({ particleCount: 50 });
+            loadData();
             if (hadEvidence) {
               toast.success(`+${task.xpValue} XP`, 'Done, with the proof attached.');
             } else {

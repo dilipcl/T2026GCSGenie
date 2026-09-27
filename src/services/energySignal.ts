@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { DailyCheckIn } from '../types';
+import { isTimerBlock } from './focusSessionService';
 
 /**
  * Reading the energy that every check-in has always collected.
@@ -57,8 +58,8 @@ const EMPTY: EnergySignal = {
 /**
  * The most recent check-ins, newest first.
  *
- * Several check-ins can happen in one day - the focus timer writes one too - so
- * this counts check-ins rather than days on purpose. Three low readings inside
+ * Several check-ins can happen in one day, so this counts check-ins rather
+ * than days on purpose. Three low readings inside
  * one exhausted evening is still a signal worth having, and requiring three
  * separate days would wait until Wednesday to notice a Monday.
  */
@@ -67,7 +68,13 @@ function recent(checkIns: DailyCheckIn[]): DailyCheckIn[] {
 }
 
 export async function readEnergySignal(): Promise<EnergySignal> {
-  const all = await db.checkIns.toArray();
+  /**
+   * Only answers somebody gave. The focus timer writes a check-in per block
+   * with a placeholder energy of 3, and four blocks in an evening used to push
+   * three real "exhausted" readings out of the window - the signal went quiet
+   * on exactly the nights it existed for.
+   */
+  const all = (await db.checkIns.toArray()).filter((c) => !isTimerBlock(c));
   if (all.length === 0) return EMPTY;
 
   const window = recent(all);

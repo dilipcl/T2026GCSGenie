@@ -3,6 +3,7 @@ import { SubjectConfig, SubjectId, SyllabusTopic } from '../types';
 import { EvidenceEntity, EvidenceRef, evidenceIndex } from './evidenceService';
 import { INITIAL_SUBJECTS } from '../db/seedData';
 import { toLocalISODate } from '../utils/date';
+import { isTimerBlock } from './focusSessionService';
 
 /**
  * Everything Tejas has captured, in one list, whatever kind of thing it is.
@@ -192,12 +193,18 @@ export async function library(): Promise<LibrarySnapshot> {
     const text = checkIn.structuredNotes?.keyLearning?.trim();
     if (!text) continue;
 
+    // A focus block's note knows its topic, so it files under it rather than
+    // joining the untagged pile at the bottom of the subject.
+    const topic = checkIn.topicId ? topicById.get(checkIn.topicId) : undefined;
+
     materials.push({
       id: `checkin__${checkIn.id}`,
       kind: 'NOTE',
-      subjectId: checkIn.studySubjectId,
+      subjectId: checkIn.studySubjectId ?? topic?.subjectId,
+      topicId: topic?.id,
+      unit: topic?.unit,
       capturedOn: checkIn.date,
-      title: 'What I took away',
+      title: isTimerBlock(checkIn) ? 'Focus block' : 'What I took away',
       excerpt: text,
       owner: { entity: 'Check-in', id: checkIn.id, title: `Check-in ${checkIn.date}` },
     });
