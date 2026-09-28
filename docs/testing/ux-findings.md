@@ -122,6 +122,13 @@ delete one.
     every failing trace is most likely React's development double-run of
     effects: two `touchThisDevice` calls both find no device row and the
     second `add` fails. Dev only, not yet confirmed, not the cause of the stall.
+- **Flake watch - "an answered lesson can be tagged to a topic in one tap"**
+  (phone) failed once, 28 Sep 2026, in a full run that took 5.6 minutes
+  against the usual 3.6: the "Same topic as the last lesson" suggestion had
+  not appeared after 10s. It then passed 20 of 20 alone. The pending change
+  was in closing fix-ups and does not touch the check-in. Same shape as the
+  save flake - a check-in step slow under load - so if it recurs, look at what
+  the suggestion waits on before calling it a flake.
 
 ## Data consistency
 

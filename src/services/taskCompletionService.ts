@@ -66,6 +66,22 @@ export interface FixUpOutcome {
   weakAreas?: string;
 }
 
+/**
+ * The follow-up a fix-up close raised or changed, for the sheet to describe.
+ *
+ * `isNew` exists because the two cases need different sentences. The sheet had
+ * only an id and said "a new fix-up, due" a week from today every time - so a
+ * second close that changed the shaky part on an existing follow-up announced a
+ * new one, with a due date the follow-up did not have. Returned whenever a
+ * shaky part was named, including when the open follow-up already said it, so
+ * the sheet never goes quiet about where the shaky part went.
+ */
+export interface FollowUpResult {
+  id: string;
+  isNew: boolean;
+  dueDate: string;
+}
+
 /** A follow-up is named for the mistake it came from, plus the shaky part. */
 function followUpTitle(task: Task, weakArea: string): string {
   const root = task.parentTaskId ? task.title.split(': ')[0] : task.title;
@@ -83,7 +99,7 @@ export async function closeTask(
   hadEvidence: boolean,
   loggedMinutes?: number,
   fixUp?: FixUpOutcome
-): Promise<string | undefined> {
+): Promise<FollowUpResult | undefined> {
   await setTaskCompleted(task, true, actor, loggedMinutes);
 
   /**
@@ -92,7 +108,7 @@ export async function closeTask(
    * could. Written into a note it would be read by nobody; as work it is on
    * the list, in the plan, and worth XP.
    */
-  let followUpId: string | undefined;
+  let followUp: FollowUpResult | undefined;
   if (task.isRemediation && fixUp) {
     const weakAreas = fixUp.weakAreas?.trim() || undefined;
     await db.tasks.update(task.id, {
@@ -100,27 +116,52 @@ export async function closeTask(
       workingNotes: fixUp.workingNotes?.trim() || undefined,
       weakAreas,
     });
-    // One follow-up per fix-up, with an id built from it: reopening and closing
-    // again with the same shaky part filled in used to mint another one - and
-    // another 50 XP - each time.
-    const builtId = `followup__${task.id}`;
-    const existingFollowUp = weakAreas ? await db.tasks.get(builtId) : undefined;
-    // A different shaky part on a later close updates the open follow-up
-    // rather than being dropped in silence - the field promises it becomes one.
-    if (weakAreas && existingFollowUp && !existingFollowUp.completed && existingFollowUp.whatWentWrong !== weakAreas) {
-      await db.tasks.update(builtId, {
-        whatWentWrong: weakAreas,
-        title: followUpTitle(task, weakAreas),
-      });
-      followUpId = builtId;
+    /**
+     * One open follow-up per fix-up, with an id built from it: reopening and
+     * closing again with the same shaky part filled in used to mint another one
+     * - and another 50 XP - each time.
+     *
+     * A follow-up that is already done does not count as the open one. Stopping
+     * at it dropped the new shaky part in silence - no work, no message - while
+     * the field promises it becomes a fix-up. So the id walks on to the first
+     * link in `followup__X`, `followup__followup__X`… that is not done. Still
+     * built, never random, so two devices closing the same fix-up land on the
+     * same row; and a repeated close finds the open link and stops there.
+     */
+    let builtId = `followup__${task.id}`;
+    let existingFollowUp = weakAreas ? await db.tasks.get(builtId) : undefined;
+    while (weakAreas && existingFollowUp?.completed) {
+      builtId = `followup__${builtId}`;
+      existingFollowUp = await db.tasks.get(builtId);
+    }
+    if (weakAreas && existingFollowUp) {
+      // A different shaky part on a later close updates the open follow-up,
+      // with its own history line: the row a parent reads changes, so the log
+      // says so rather than the title shifting under them.
+      if (existingFollowUp.whatWentWrong !== weakAreas) {
+        await db.tasks.update(builtId, {
+          whatWentWrong: weakAreas,
+          title: followUpTitle(task, weakAreas),
+        });
+        await logAuditEvent({
+          user: actor,
+          action: 'UPDATE',
+          entity: 'Task',
+          entityId: builtId,
+          fieldChanged: 'whatWentWrong',
+          oldValue: existingFollowUp.whatWentWrong ?? '(none)',
+          newValue: `${weakAreas} [shaky part named when "${task.title}" was closed again]`,
+        });
+      }
+      followUp = { id: builtId, isNew: false, dueDate: existingFollowUp.dueDate };
     }
     if (weakAreas && !existingFollowUp) {
-      followUpId = builtId;
+      followUp = { id: builtId, isNew: true, dueDate: addDaysISO(7) };
       await db.tasks.add({
-        id: followUpId,
+        id: builtId,
         subjectId: task.subjectId,
         title: followUpTitle(task, weakAreas),
-        dueDate: addDaysISO(7),
+        dueDate: followUp.dueDate,
         priority: 'MEDIUM',
         isHomework: false,
         isRemediation: true,
@@ -139,7 +180,7 @@ export async function closeTask(
         user: actor,
         action: 'INSERT',
         entity: 'Task',
-        entityId: followUpId,
+        entityId: builtId,
         newValue: `Follow-up fix-up from "${task.title}": ${weakAreas}`,
       });
     }
@@ -156,5 +197,5 @@ export async function closeTask(
     entityId: task.id,
     actor,
   });
-  return followUpId;
+  return followUp;
 }

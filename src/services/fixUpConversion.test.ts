@@ -187,17 +187,18 @@ describe('converting fix-up quests', () => {
     await convertQuestsToFixUps();
     const fixUp = (await db.tasks.get(fixUpIdFor('rem-maths-1')))!;
 
-    const followUpId = await closeTask(fixUp, 'STUDENT', false, 30, {
+    const followUp = await closeTask(fixUp, 'STUDENT', false, 30, {
       score: { scored: 5, total: 6 },
       weakAreas: 'part (b) comparison',
     });
+    expect(followUp).toEqual({ id: expect.any(String), isNew: true, dueDate: '2026-10-04' });
 
     expect(await db.tasks.get(fixUp.id)).toMatchObject({
       completed: true,
       score: { scored: 5, total: 6 },
       weakAreas: 'part (b) comparison',
     });
-    expect(await db.tasks.get(followUpId!)).toMatchObject({
+    expect(await db.tasks.get(followUp!.id)).toMatchObject({
       title: 'Venn Diagram Probability Proofs: part (b) comparison',
       isRemediation: true,
       parentTaskId: fixUp.id,
@@ -222,12 +223,59 @@ describe('converting fix-up quests', () => {
     await convertQuestsToFixUps();
     const fixUp = (await db.tasks.get(fixUpIdFor('rem-maths-1')))!;
 
-    await closeTask(fixUp, 'STUDENT', false, undefined, { weakAreas: 'part (b)' });
-    await closeTask({ ...fixUp, completed: false }, 'STUDENT', false, undefined, { weakAreas: 'part (c)' });
+    const first = await closeTask(fixUp, 'STUDENT', false, undefined, { weakAreas: 'part (b)' });
+    // A day later, so "a week from now" and the follow-up's real due date differ.
+    vi.setSystemTime(new Date('2026-09-28T17:30:00'));
+    const second = await closeTask({ ...fixUp, completed: false }, 'STUDENT', false, undefined, {
+      weakAreas: 'part (c)',
+    });
 
     const followUps = (await db.tasks.toArray()).filter((t) => t.parentTaskId === fixUp.id);
     expect(followUps).toHaveLength(1);
     expect(followUps[0].whatWentWrong).toBe('part (c)');
+    // The sheet words its toast from this: the same follow-up, not a new one,
+    // and still due when it was first due.
+    expect(second).toEqual({ id: first!.id, isNew: false, dueDate: first!.dueDate });
+
+    // And the change is in the history, not just in the row.
+    const logged = (await db.auditLogs.toArray()).filter(
+      (a) => a.entityId === first!.id && a.fieldChanged === 'whatWentWrong'
+    );
+    expect(logged).toHaveLength(1);
+    expect(logged[0].oldValue).toBe('part (b)');
+    expect(logged[0].newValue).toContain('part (c)');
+  });
+
+  /**
+   * Stopping at the one built id meant a finished follow-up swallowed the next
+   * shaky part: no new work, no message, only a note on the fix-up itself.
+   */
+  it('raises a new follow-up when the last one is already done', async () => {
+    await db.remediations.add(quest());
+    await convertQuestsToFixUps();
+    const fixUp = (await db.tasks.get(fixUpIdFor('rem-maths-1')))!;
+
+    const first = await closeTask(fixUp, 'STUDENT', false, undefined, { weakAreas: 'part (b)' });
+    await db.tasks.update(first!.id, { completed: true });
+
+    const second = await closeTask({ ...fixUp, completed: false }, 'STUDENT', false, undefined, {
+      weakAreas: 'part (b) again',
+    });
+    expect(second).toMatchObject({ isNew: true });
+    expect(second!.id).not.toBe(first!.id);
+    expect(await db.tasks.get(second!.id)).toMatchObject({
+      completed: false,
+      parentTaskId: fixUp.id,
+      whatWentWrong: 'part (b) again',
+    });
+
+    // Closing once more finds the open one rather than minting a third.
+    const third = await closeTask({ ...fixUp, completed: false }, 'STUDENT', false, undefined, {
+      weakAreas: 'part (b) again',
+    });
+    expect(third).toMatchObject({ id: second!.id, isNew: false });
+    const followUps = (await db.tasks.toArray()).filter((t) => t.parentTaskId === fixUp.id);
+    expect(followUps).toHaveLength(2);
   });
 
   it('parks converted fix-ups in "later", so they do not all land in one week', async () => {

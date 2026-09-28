@@ -5,7 +5,7 @@ import { TaskCloseModal } from './TaskCloseModal';
 import { closeTask } from '../../services/taskCompletionService';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { triggerCelebration } from '../../utils/confetti';
-import { addDaysISO, formatShortDate } from '../../utils/date';
+import { formatShortDate } from '../../utils/date';
 
 /**
  * Closing a piece of work, from anywhere.
@@ -47,7 +47,11 @@ export const TaskCloseSheet: React.FC<TaskCloseSheetProps> = ({ task, role, onDo
         triggerCelebration({ particleCount: 50 });
         const time =
           (loggedMinutes ? ` ${loggedMinutes} min counted.` : '') +
-          (followUp ? ` The shaky part is a new fix-up, due ${formatShortDate(addDaysISO(7))}.` : '');
+          (followUp?.isNew
+            ? ` The shaky part is a new fix-up, due ${formatShortDate(followUp.dueDate)}.`
+            : followUp
+            ? ` The shaky part is on its open follow-up fix-up, still due ${formatShortDate(followUp.dueDate)}.`
+            : '');
         if (hadEvidence) {
           toast.success(`+${task.xpValue} XP`, `Done, with the proof attached.${time}`);
         } else {
