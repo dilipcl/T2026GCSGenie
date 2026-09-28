@@ -308,7 +308,9 @@ describe('the handover reset', () => {
     expect(await db.chores.get('chore-1')).toBeTruthy();
     expect(await db.commitments.count()).toBeGreaterThan(0);
     expect(await db.rewards.count()).toBeGreaterThan(0);
-  });
+    // Seeds and resets a full database: about a second alone, over the 5s
+    // default when the whole suite runs in parallel. Load, not a fault.
+  }, 20_000);
 
   it('keeps the parent passphrase unless asked to clear it', async () => {
     await resetDatabase();

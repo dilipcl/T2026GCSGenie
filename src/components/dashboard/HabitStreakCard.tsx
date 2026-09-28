@@ -149,7 +149,7 @@ export const HabitStreakCard: React.FC<HabitStreakCardProps> = ({
           who does the work
           <span className="text-slate-500">
             {' '}
-            · {effort.tasksCompleted} tasks · {effort.questsCompleted} quests ·{' '}
+            · {effort.tasksCompleted} tasks ·{' '}
             {effort.checkInDays} check-ins
           </span>
         </p>

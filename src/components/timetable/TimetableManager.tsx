@@ -193,11 +193,18 @@ export const TimetableManager: React.FC<TimetableManagerProps> = ({
                     </span>
                   )}
 
-                  {!entry.isHardLocked && onEdit && (
+                  {/* A fixed block - Cadets, Drums, DofE, Art support - can be
+                      moved, not removed. It had no edit button and the Parent
+                      Portal changes only its name and hours, so when a club
+                      changed night there was nowhere in the app to say so.
+                      Removing one is still stopping the commitment, which is
+                      the Parent Portal's call. */}
+                  {onEdit && (
                     <button
+                      type="button"
                       onClick={() => onEdit(entry)}
                       aria-label={`Edit ${entry.activityName}`}
-                      title="Edit this lesson"
+                      title={entry.isHardLocked ? 'Change its day or time' : 'Edit this lesson'}
                       className="p-1.5 text-slate-500 hover:text-indigo-300 rounded-lg hover:bg-slate-800 transition-colors"
                     >
                       <PencilLine className="w-4 h-4" />

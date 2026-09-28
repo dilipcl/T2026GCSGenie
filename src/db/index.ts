@@ -39,7 +39,6 @@ import {
 import {
   INITIAL_SUBJECTS,
   INITIAL_SYLLABUS_TOPICS,
-  INITIAL_REMEDIATION_ACTIONS,
   INITIAL_MILESTONES,
   INITIAL_TIMETABLE_SLOTS,
   INITIAL_TIMETABLE_ENTRIES,
@@ -88,7 +87,9 @@ const CLOUD_DATABASE_URL =
 const SEED_TABLES: [string, { id: string }[]][] = [
   ['subjects', INITIAL_SUBJECTS],
   ['syllabusTopics', INITIAL_SYLLABUS_TOPICS],
-  ['remediations', INITIAL_REMEDIATION_ACTIONS],
+  // No fix-up quests. Quests are converted to fix-up tasks and nothing should
+  // create one: seeded on a new device, they converted before its first pull
+  // and their inserts overwrote - or resurrected - the family's real fix-ups.
   ['milestones', INITIAL_MILESTONES],
   ['timetableSlots', INITIAL_TIMETABLE_SLOTS],
   ['timetableEntries', INITIAL_TIMETABLE_ENTRIES],

@@ -68,10 +68,16 @@ export async function calculateSubjectRAG(subjectId: SubjectId): Promise<Subject
   const completedHomework = homeworkTasks.filter((t) => t.completed);
   const hwRate = homeworkTasks.length > 0 ? (completedHomework.length / homeworkTasks.length) * 100 : 100;
 
-  // 2. Remediation actions for this subject
-  const remediations = await db.remediations.where('subjectId').equals(subjectId).toArray();
-  const completedRemediations = remediations.filter((r) => r.isCompleted);
-  const remRate = remediations.length > 0 ? (completedRemediations.length / remediations.length) * 100 : 100;
+  // 2. Fix-ups for this subject.
+  //
+  // Read from the fix-up tasks, which are the only fix-ups there are since the
+  // quests were converted. This read the quests table alone - so a fix-up
+  // task raised from a marked paper or the add sheet counted towards nothing,
+  // and a subject whose quests were done scored full marks here while its
+  // fix-up tasks sat open.
+  const fixUps = allTasks.filter((t) => t.isRemediation);
+  const completedFixUps = fixUps.filter((t) => t.completed);
+  const remRate = fixUps.length > 0 ? (completedFixUps.length / fixUps.length) * 100 : 100;
 
   // 3. Topics mastery
   const topics = await db.syllabusTopics.where('subjectId').equals(subjectId).toArray();

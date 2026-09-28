@@ -6,6 +6,7 @@ import { DailyCheckInModal } from './components/dashboard/DailyCheckInModal';
 import { CheckInHistoryModal } from './components/dashboard/CheckInHistoryModal';
 import { TodayScheduleCard } from './components/dashboard/TodayScheduleCard';
 import { ActiveQuestsCard } from './components/dashboard/ActiveQuestsCard';
+import { useQuestConversion } from './hooks/useQuestConversion';
 import { WeeklyCockpitCard } from './components/dashboard/WeeklyCockpitCard';
 import { DueSoonCard } from './components/dashboard/DueSoonCard';
 import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
@@ -34,7 +35,6 @@ import { WeeklyReviewModal } from './components/plan/WeeklyReviewModal';
 import { LibraryView } from './components/library/LibraryView';
 import { Grade9GoalsView } from './components/goals/Grade9GoalsView';
 import { TimetableManager } from './components/timetable/TimetableManager';
-import { RemediationHub } from './components/remediation/RemediationHub';
 import { RewardsShop } from './components/rewards/RewardsShop';
 import { HelpAndCareersHub } from './components/guidance/HelpAndCareersHub';
 import {
@@ -76,10 +76,12 @@ export const App: React.FC = () => {
   /** Set when the add sheet is opened from a goal that needs work aimed at it. */
   const [quickAddGoalId, setQuickAddGoalId] = useState<string | undefined>(undefined);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
-  const [selectedQuestId, setSelectedQuestId] = useState<string | undefined>(undefined);
   // Shown once, on the very first launch. Read lazily so storage is touched
   // during the initial render rather than on every one.
   const [isTourOpen, setIsTourOpen] = useState(() => !hasSeenTour());
+
+  // Fix-up quests are fix-up tasks now; any that appear are converted.
+  useQuestConversion();
 
   // Bumped whenever data changes, so dashboard cards reload without a tab switch
   const [refreshKey, setRefreshKey] = useState(0);
@@ -155,10 +157,7 @@ export const App: React.FC = () => {
     setQuickAddGoalId(undefined);
   };
 
-  const handleSelectQuestFromDashboard = (questId: string) => {
-    setSelectedQuestId(questId);
-    setActiveTab('REMEDIATIONS');
-  };
+  const openFixUps = () => setActiveTab('REMEDIATIONS');
 
   return (
     <FeedbackProvider>
@@ -307,17 +306,15 @@ export const App: React.FC = () => {
                 onNavigateToTimetable={() => setActiveTab('TIMETABLE')}
               />
 
-              <ActiveQuestsCard onSelectQuest={handleSelectQuestFromDashboard} />
+              <ActiveQuestsCard onOpenFixUps={openFixUps} />
             </div>
           </div>
         )}
 
         {activeTab === 'TASKS' && (
           <TaskManagerView
-            refreshKey={refreshKey}
             onAdd={() => setIsQuickAddOpen(true)}
             onEdit={(task: Task) => openEditor({ kind: 'TASK', record: task })}
-            onOpenLegacyFixups={() => setActiveTab('REMEDIATIONS')}
             currentRole={currentRole}
           />
         )}
@@ -378,8 +375,15 @@ export const App: React.FC = () => {
           />
         )}
 
+        {/* Fix-up quests are fix-up tasks now, so the old quest screen's tab
+            opens My Work on its fix-ups - the one list they all live in. */}
         {activeTab === 'REMEDIATIONS' && (
-          <RemediationHub initialQuestId={selectedQuestId} currentRole={currentRole} />
+          <TaskManagerView
+            initialKind="FIXUP"
+            onAdd={() => setIsQuickAddOpen(true)}
+            onEdit={(task: Task) => openEditor({ kind: 'TASK', record: task })}
+            currentRole={currentRole}
+          />
         )}
 
         {activeTab === 'REWARDS' && <RewardsShop currentRole={currentRole} />}

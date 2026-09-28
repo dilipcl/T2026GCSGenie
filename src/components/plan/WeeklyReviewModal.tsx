@@ -355,7 +355,7 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
 
             <p className="text-[11px] text-slate-400">
               {effort.votes} votes cast for being someone who does the work — {effort.tasksCompleted}{' '}
-              tasks, {effort.questsCompleted} quests, {effort.checkInDays} days checked in.
+              tasks, {effort.checkInDays} days checked in.
             </p>
 
             {/* The week in its own words.

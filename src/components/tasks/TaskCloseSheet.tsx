@@ -5,6 +5,7 @@ import { TaskCloseModal } from './TaskCloseModal';
 import { closeTask } from '../../services/taskCompletionService';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { triggerCelebration } from '../../utils/confetti';
+import { addDaysISO, formatShortDate } from '../../utils/date';
 
 /**
  * Closing a piece of work, from anywhere.
@@ -40,11 +41,13 @@ export const TaskCloseSheet: React.FC<TaskCloseSheetProps> = ({ task, role, onDo
       task={task}
       role={role}
       onCancel={() => onDone(false)}
-      onConfirm={async (hadEvidence, loggedMinutes) => {
-        await closeTask(task, role, hadEvidence, loggedMinutes);
+      onConfirm={async (hadEvidence, loggedMinutes, fixUp) => {
+        const followUp = await closeTask(task, role, hadEvidence, loggedMinutes, fixUp);
         onDone(true);
         triggerCelebration({ particleCount: 50 });
-        const time = loggedMinutes ? ` ${loggedMinutes} min counted.` : '';
+        const time =
+          (loggedMinutes ? ` ${loggedMinutes} min counted.` : '') +
+          (followUp ? ` The shaky part is a new fix-up, due ${formatShortDate(addDaysISO(7))}.` : '');
         if (hadEvidence) {
           toast.success(`+${task.xpValue} XP`, `Done, with the proof attached.${time}`);
         } else {

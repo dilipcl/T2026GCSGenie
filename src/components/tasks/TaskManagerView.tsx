@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { Task, PriorityLevel, SubjectId, Goal } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
@@ -16,7 +17,6 @@ import {
   PencilLine,
   Filter,
   Wrench,
-  ArrowRight,
   MessageSquare,
 } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
@@ -25,32 +25,34 @@ import { WeekCommitmentBanner } from './WeekCommitmentBanner';
 import { TaskCloseSheet } from './TaskCloseSheet';
 import { UserRole } from '../../types';
 
+export type TaskKind = 'ALL' | 'HOMEWORK' | 'FIXUP' | 'FOLLOWUP';
+
 interface TaskManagerViewProps {
   /** Opens the shared add sheet loaded with this task. */
   onEdit?: (task: Task) => void;
-  refreshKey?: number;
   onAdd: () => void;
-  /**
-   * Opens the original Year 9 quests. They keep their own screen because they
-   * carry claimed XP and uploaded proof that a plain task has nowhere to put -
-   * but that screen is no longer a tab, so this is how it is reached.
-   */
-  onOpenLegacyFixups?: () => void;
+  /** Which kind of work the list opens on - Home's fix-up card opens on fix-ups. */
+  initialKind?: TaskKind;
   /** Who is closing the work, so evidence and notes are attributed correctly. */
   currentRole?: UserRole;
 }
 
 export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
-  refreshKey = 0,
   onAdd,
   onEdit,
-  onOpenLegacyFixups,
+  initialKind = 'ALL',
   currentRole = 'STUDENT',
 }) => {
   const { confirm } = useFeedback();
   const { confirmChange } = useChangeGuard();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
+  /**
+   * Live, like every other list. This read once when the tab opened, so work
+   * added elsewhere - another tab, a sync from the other device, a quest
+   * converted just after start-up - did not appear until the tab was opened
+   * again, and a closed task kept its old state until something re-read it.
+   */
+  const tasks = useLiveQuery(() => db.tasks.orderBy('dueDate').toArray(), [], [] as Task[]);
+  const goals = useLiveQuery(() => db.goals.toArray(), [], [] as Goal[]);
   const [selectedSubject, setSelectedSubject] = useState<SubjectId | 'ALL'>('ALL');
   const [selectedPriority, setSelectedPriority] = useState<PriorityLevel | 'ALL'>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'COMPLETED'>('PENDING');
@@ -59,11 +61,7 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
    * have I got to do" and "what did I get wrong" are different questions, and
    * a fix-up buried among thirty pieces of homework answers neither.
    */
-  const [selectedKind, setSelectedKind] = useState<'ALL' | 'HOMEWORK' | 'FIXUP' | 'FOLLOWUP'>(
-    'ALL'
-  );
-  /** Open quests still on the old screen, so the pointer to it can be honest. */
-  const [legacyFixups, setLegacyFixups] = useState(0);
+  const [selectedKind, setSelectedKind] = useState<TaskKind>(initialKind);
   /**
    * The task being closed, while its sheet is open.
    *
@@ -72,18 +70,6 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
    * that tick meaning a decision rather than an accident.
    */
   const [closing, setClosing] = useState<Task | null>(null);
-
-  const loadData = async () => {
-    const tList = await db.tasks.orderBy('dueDate').toArray();
-    const gList = await db.goals.toArray();
-    setTasks(tList);
-    setGoals(gList);
-    setLegacyFixups(await db.remediations.filter((r) => !r.isCompleted).count());
-  };
-
-  useEffect(() => {
-    loadData();
-  }, [refreshKey]);
 
   /**
    * Writes the tick. Never called straight from the circle.
@@ -96,7 +82,6 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
   const setCompleted = async (task: Task, done: boolean) => {
     await setTaskCompleted(task, done, currentRole);
     if (done) triggerCelebration({ particleCount: 50 });
-    loadData();
   };
 
   /**
@@ -170,7 +155,6 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
       entityId: task.id,
       oldValue: `${task.title} [${task.subjectId}, due ${task.dueDate}, ${task.completed ? 'completed' : 'not completed'}]`,
     });
-    loadData();
   };
 
   // Filter tasks
@@ -312,30 +296,6 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
         </span>
       </div>
 
-      {/* The original Year 9 quests.
-
-          They keep their own screen because they carry claimed XP and uploaded
-          proof that a plain task has nowhere to put. It is no longer a tab -
-          fixing a mistake is ordinary work and belongs here - so this is how
-          what is already recorded stays reachable. */}
-      {selectedKind === 'FIXUP' && legacyFixups > 0 && onOpenLegacyFixups && (
-        <button
-          type="button"
-          onClick={onOpenLegacyFixups}
-          className="w-full glass-card p-3 flex items-center justify-between gap-3 text-left hover:border-amber-500/40 transition-colors"
-        >
-          <span className="flex items-center gap-2 min-w-0">
-            <Wrench className="w-4 h-4 text-amber-400 flex-shrink-0" />
-            <span className="text-xs text-slate-300">
-              <strong className="text-white">{legacyFixups}</strong> older quest
-              {legacyFixups === 1 ? '' : 's'} from your Year 9 papers, with their working and
-              proof
-            </span>
-          </span>
-          <ArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
-        </button>
-      )}
-
       {/* Task Cards Grid */}
       <div className="space-y-3">
         {filteredTasks.length === 0 ? (
@@ -425,8 +385,28 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
                       </p>
                     )}
 
+                    {/* A fix-up says what it is fixing and how - the details a
+                        fix-up quest carried on its own screen, now on the row. */}
+                    {task.whatWentWrong && (
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        <span className="text-rose-300 font-semibold">What went wrong: </span>
+                        {task.whatWentWrong}
+                      </p>
+                    )}
+                    {task.fixSteps && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        <span className="text-emerald-300 font-semibold">To fix it: </span>
+                        {task.fixSteps}
+                      </p>
+                    )}
+                    {task.hint && (
+                      <p className="text-[11px] text-amber-200/80 mt-0.5">Hint: {task.hint}</p>
+                    )}
+
                     {task.description && (
-                      <p className="text-xs text-slate-400 mt-0.5">{task.description}</p>
+                      <p className="text-xs text-slate-400 mt-0.5 whitespace-pre-wrap">
+                        {task.description}
+                      </p>
                     )}
 
                     {linkedGoal && (
@@ -482,13 +462,8 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
         <TaskCloseSheet
           task={closing}
           role={currentRole}
-          onDone={() => {
-            setClosing(null);
-            // Re-read either way: evidence may have been attached and then the
-            // close abandoned, and the row keeps the state it had when the sheet
-            // opened otherwise.
-            loadData();
-          }}
+          // The list is live, so nothing needs re-reading after the sheet.
+          onDone={() => setClosing(null)}
         />
       )}
     </div>

@@ -208,7 +208,9 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
       setShowMore(false);
       setIsSaving(false);
       setSelectedDays([defaultDay]);
-      setWeekType(defaultWeek);
+      // Every week, unless the rotation is chosen: a lesson saved to the week
+      // on screen vanished on the other one and read as never having saved.
+      setWeekType('BOTH');
       setRoom('');
     }
 
@@ -264,11 +266,25 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
     setEndTime(slot.defaultEndTime);
   };
 
+  /**
+   * Times typed by hand. When they match no school period the lesson is its
+   * own time, and says so - rather than keeping the name of whichever period
+   * was selected before, which filed an 18:15 art class as "Registration".
+   */
+  const setOwnTime = (start: string, end: string) => {
+    setStartTime(start);
+    setEndTime(end);
+    const matching = slots.find((s) => s.defaultStartTime === start && s.defaultEndTime === end);
+    setSlotName(matching ? matching.name : 'Own time');
+  };
+
   // A lesson can take its name from the subject, so the text box is optional there
   const effectiveLessonName = title.trim() || subject?.name || '';
   const canSubmit =
     mode === 'LESSON'
-      ? effectiveLessonName.length > 0 && selectedDays.length > 0
+      ? // Times are in the open now, so they can be cleared - and a lesson
+        // with no start or end cannot be placed in a day at all.
+        effectiveLessonName.length > 0 && selectedDays.length > 0 && !!startTime && !!endTime && startTime < endTime
       : isTaskMode
       ? title.trim().length > 0 && !!subjectId
       : title.trim().length > 0;
@@ -466,6 +482,14 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
             newValue: `${entry.activityName} (${weekType} ${entry.dayOfWeek} ${startTime}-${endTime})`,
           });
         }
+        // Say where it went. Saved to one week of the rotation, a lesson is
+        // missing from the other - and without this, that read as a failed save.
+        const weeks =
+          weekType === 'BOTH' ? 'every week' : weekType === 'ODD' ? 'odd weeks only' : 'even weeks only';
+        toast.success(
+          `${effectiveLessonName} added`,
+          `${selectedDays.map((d) => d.charAt(0) + d.slice(1).toLowerCase()).join(', ')} · ${startTime}-${endTime} · ${weeks}`
+        );
       }
 
       onSuccess?.();
@@ -735,8 +759,63 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">
-                  Period
+                  Which week?
                 </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      { id: 'ODD', label: 'Odd only' },
+                      { id: 'EVEN', label: 'Even only' },
+                      { id: 'BOTH', label: 'Every week' },
+                    ] as const
+                  ).map((w) => (
+                    <button
+                      type="button"
+                      key={w.id}
+                      onClick={() => setWeekType(w.id)}
+                      className={chipClass(weekType === w.id)}
+                    >
+                      {w.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Times sit in the open, under the periods, and a period only
+                  fills them in. They lived behind "More options", so a class
+                  outside school - an evening art class at 18:15 - could not
+                  be given its time without knowing to look there, and was
+                  saved at whichever school period happened to be selected. */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">
+                  When?
+                </label>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <label htmlFor="lesson-starts" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                      Starts
+                    </label>
+                    <input
+                      id="lesson-starts"
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setOwnTime(e.target.value, endTime)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="lesson-ends" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                      Ends
+                    </label>
+                    <input
+                      id="lesson-ends"
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setOwnTime(startTime, e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-500 mb-1.5">Or pick a school period:</p>
                 <div className="grid grid-cols-2 gap-1.5">
                   {slots.map((slot) => (
                     <button
@@ -762,29 +841,6 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">
-                  Which week?
-                </label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {(
-                    [
-                      { id: 'ODD', label: 'Odd only' },
-                      { id: 'EVEN', label: 'Even only' },
-                      { id: 'BOTH', label: 'Every week' },
-                    ] as const
-                  ).map((w) => (
-                    <button
-                      type="button"
-                      key={w.id}
-                      onClick={() => setWeekType(w.id)}
-                      className={chipClass(weekType === w.id)}
-                    >
-                      {w.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </>
           )}
 
@@ -897,29 +953,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
 
               {mode === 'LESSON' && (
                 <>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1">
-                        Starts
-                      </label>
-                      <input
-                        type="time"
-                        value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1">
-                        Ends
-                      </label>
-                      <input
-                        type="time"
-                        value={endTime}
-                        onChange={(e) => setEndTime(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white"
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 gap-2">
                     <div>
                       <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1">
                         Room

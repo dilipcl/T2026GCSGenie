@@ -39,8 +39,10 @@ export async function runAgenticAudit(settings: ParentSettings): Promise<AgentAu
 
   const checkIns = await db.checkIns.orderBy('date').reverse().limit(14).toArray();
   const recentTasks = await db.tasks.toArray();
-  const remediations = await db.remediations.toArray();
-  const pendingRemediations = remediations.filter((r) => !r.isCompleted);
+  // Fix-ups are tasks since the quests were converted; the quests table is empty.
+  const pendingRemediations = recentTasks
+    .filter((t) => t.isRemediation && !t.completed)
+    .map((t) => ({ title: t.title, xpReward: t.xpValue }));
 
   const context = {
     burnout,
@@ -152,7 +154,7 @@ function generateDeterministicAuditReport(data: {
 
   // Remediation Quests
   if (data.pendingRemediations.length > 0) {
-    recommendations.push(`Complete pending Year 9 diagnostic remediations (${data.pendingRemediations.length} active quests) to unlock up to +${data.pendingRemediations.reduce((s, r) => s + r.xpReward, 0)} XP.`);
+    recommendations.push(`Work through the open fix-ups (${data.pendingRemediations.length}) - up to +${data.pendingRemediations.reduce((s, r) => s + r.xpReward, 0)} XP, and each one is a mark dropped once already.`);
   }
 
   // Curriculum summary

@@ -5,6 +5,7 @@ import { db } from '../../db';
 import { getAttachmentsFor } from '../../services/attachmentService';
 import { EvidencePanel } from '../shared/EvidencePanel';
 import { WorkTimeChips, defaultWorkMinutes } from '../shared/WorkTimeChips';
+import { FixUpOutcome } from '../../services/taskCompletionService';
 import { timerMinutesByTask } from '../../services/focusSessionService';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import { formatShortDate } from '../../utils/date';
@@ -50,7 +51,11 @@ interface TaskCloseModalProps {
    * how long the work took beyond any focus blocks - undefined when nobody
    * chose, which counts nothing.
    */
-  onConfirm: (hadEvidence: boolean, loggedMinutes: number | undefined) => Promise<void>;
+  onConfirm: (
+    hadEvidence: boolean,
+    loggedMinutes: number | undefined,
+    fixUp: FixUpOutcome | undefined
+  ) => Promise<void>;
 }
 
 export const TaskCloseModal: React.FC<TaskCloseModalProps> = ({
@@ -96,6 +101,30 @@ export const TaskCloseModal: React.FC<TaskCloseModalProps> = ({
   const explained = notes.length > 0;
 
   /**
+   * What a fix-up can say at its close: how the re-try went, the working, and
+   * what still feels shaky - which becomes a follow-up fix-up. The fix-up quest
+   * dialog asked these; a plain task close never could, and they are why
+   * converting quests to tasks loses nothing.
+   */
+  const [scored, setScored] = useState(task.score ? String(task.score.scored) : '');
+  const [outOf, setOutOf] = useState(task.score ? String(task.score.total) : '');
+  const [working, setWorking] = useState(task.workingNotes ?? '');
+  // Starts from what was said last time - a converted quest's weak areas, or
+  // an earlier close - so closing again does not silently erase it.
+  const [shaky, setShaky] = useState(task.weakAreas ?? '');
+
+  const fixUpOutcome = (): FixUpOutcome | undefined => {
+    if (!task.isRemediation) return undefined;
+    const s = Number(scored);
+    const t = Number(outOf);
+    return {
+      score: scored !== '' && outOf !== '' && t > 0 && s >= 0 && s <= t ? { scored: s, total: t } : undefined,
+      workingNotes: working,
+      weakAreas: shaky,
+    };
+  };
+
+  /**
    * Time beyond the focus timer. Starts on the work's estimate - or on "no
    * more" when blocks were run on it - once the timer total has been read,
    * and never again after a chip has been tapped.
@@ -122,7 +151,7 @@ export const TaskCloseModal: React.FC<TaskCloseModalProps> = ({
     if (!isArmed || busy) return;
     setBusy(true);
     try {
-      await onConfirm(hasEvidence, minutes);
+      await onConfirm(hasEvidence, minutes, fixUpOutcome());
     } finally {
       setBusy(false);
     }
@@ -177,6 +206,54 @@ export const TaskCloseModal: React.FC<TaskCloseModalProps> = ({
             timerMinutes={timerMinutes ?? 0}
             countsTowards={task.subjectId.replace(/_/g, ' ')}
           />
+
+          {task.isRemediation && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2.5">
+              {task.whatWentWrong && (
+                <p className="text-[11px] text-slate-300">
+                  <span className="text-rose-300 font-semibold">What went wrong: </span>
+                  {task.whatWentWrong}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <label htmlFor="fixup-scored" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Re-try score
+                </label>
+                <input
+                  id="fixup-scored"
+                  inputMode="numeric"
+                  value={scored}
+                  onChange={(e) => setScored(e.target.value.replace(/[^0-9]/g, ''))}
+                  aria-label="Marks scored on the re-try"
+                  className="w-12 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                />
+                <span className="text-[11px] text-slate-400">out of</span>
+                <input
+                  inputMode="numeric"
+                  value={outOf}
+                  onChange={(e) => setOutOf(e.target.value.replace(/[^0-9]/g, ''))}
+                  aria-label="Marks available on the re-try"
+                  className="w-12 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                />
+                <span className="text-[10px] text-slate-500">optional</span>
+              </div>
+              <textarea
+                rows={2}
+                value={working}
+                onChange={(e) => setWorking(e.target.value)}
+                placeholder="Working, or what finally made it click (optional)"
+                aria-label="Working notes"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-500"
+              />
+              <input
+                value={shaky}
+                onChange={(e) => setShaky(e.target.value)}
+                placeholder="Still shaky on something? Name it and it becomes a fix-up of its own."
+                aria-label="Still shaky on"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-slate-500"
+              />
+            </div>
+          )}
 
           <div
             className={`rounded-xl border p-3 flex items-start gap-2 ${

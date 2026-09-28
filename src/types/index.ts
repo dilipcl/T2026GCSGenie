@@ -305,6 +305,29 @@ export interface Task {
    * but the time belongs to Tuesday. Unset means the day it was closed.
    */
   workedOn?: string;
+  /**
+   * What a fix-up is fixing, and how - the details a fix-up *quest* carried
+   * and a fix-up *task* never had.
+   *
+   * There were two kinds of fix-up. Quests lived on a screen of their own,
+   * reached from one line of small print, had no due date and so never entered
+   * a week, and none of the eleven was ever done. Tasks lived in My Work but
+   * could not say what went wrong. Quests became tasks on 27 September 2026
+   * (`fixUpConversion`), and these fields are how nothing was lost in the move.
+   * All optional and unindexed.
+   */
+  /** The mistake, in a sentence - "reversed numerator and denominator". */
+  whatWentWrong?: string;
+  /** How to put it right. */
+  fixSteps?: string;
+  /** A formula or reminder that unlocks it. */
+  hint?: string;
+  /** Working written while doing it. */
+  workingNotes?: string;
+  /** What still felt shaky afterwards. */
+  weakAreas?: string;
+  /** The fix-up this one was raised from, for a sub-fix-up. */
+  parentTaskId?: string;
 }
 
 export interface Goal {

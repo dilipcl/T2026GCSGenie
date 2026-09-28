@@ -16,16 +16,10 @@ delete one.
 
 ### Fix-ups and work
 
-- **major - Fix-ups are two separate systems.** Fix-up *tasks* (from the +
-  sheet and from marked papers) live in My Work. Fix-up *quests* - 11 live,
-  1,900 XP, including three sub-quests Tejas wrote himself in Year 10 - live on
-  a separate screen reached only from the Home card or a one-line link
-  labelled "11 older quests from your Year 9 papers". Quests have no due date,
-  so they never enter the week. None has been done. *Tejas persona, My Work →
-  Fix-ups.* `RemediationHub.tsx`, `TaskManagerView.tsx:321`. Found 27 Sep 2026.
 - **major - Details asked for depend on where a thing is created.** The same
-  kind of record asks for different details on each screen. No creation path
-  lets work be linked to a topic, although `Task.linkedTopicId` exists; a
+  kind of record asks for different details on each screen. *Closing* is now
+  consistent - one sheet, and fix-ups ask their own questions - but creation is
+  not. No creation path lets work be linked to a topic, although `Task.linkedTopicId` exists; a
   fix-up from the + sheet marks its subject *optional* and has no "what went
   wrong", no cause and no hint, while a quest has all three; closing a quest
   captures score, working and weak areas, closing a fix-up task only a photo,
@@ -38,10 +32,6 @@ delete one.
   while "Ecenomic Boom USA" homework with photos exists, and the
   "12-Mark Comparative Essay" topic has no link to the 12-mark essay quest.
   Found 27 Sep 2026.
-- **minor - Sub-quests all carry their parent's title.** Three quests read
-  "…(Targeted Sub-Quest)" identically; only the small deficit line tells them
-  apart. `RemediationSolveModal.tsx:151`. Found 27 Sep 2026.
-
 ### Add sheet
 
 - **major - A subject tapped quickly is overwritten by the suggestion.** The
@@ -61,12 +51,6 @@ delete one.
   this week and due today is listed under "How did the day go?" as committed
   work and again under "Homework completed", and can be ticked in either.
   `DailyCheckInModal.tsx`, `dayPlan.ts`. Found by the e2e suite, 27 Sep 2026.
-
-- **minor - My Work does not update live.** It reads its list when the tab
-  opens, so work added elsewhere - another tab, or a sync from the other
-  device - does not appear until the tab is opened again. Every other list
-  uses a live query. `TaskManagerView.tsx` (`loadData`). Found by the e2e
-  suite, 27 Sep 2026.
 
 ### Home
 
@@ -101,12 +85,51 @@ delete one.
   is awaited before the dialog closes, so no app fault is known; the spec now
   polls. If it fails again, keep the trace - `e2e-runner` should treat a second
   occurrence as real.
+  - *Second occurrence, 27 Sep 2026*, during the release-gate's run - while
+    the fix-up conversion was writing 11 tasks, 11 deletes and 11 audit rows
+    on every page open, and while `QuickAddSheet` was being edited under the
+    running dev server. Treated as real: the conversion no longer runs in the
+    suite (quests are not seeded), and the spec was then run 120 times (5
+    repeats, both layouts, full parallel load) with no failure. Still watched.
 
 ## Data consistency
 
 Nothing audited yet - the first `data-consistency-auditor` run goes here.
 
 ## Closed
+
+- **major - An evening class could not be added to the timetable** (reported
+  27 Sep 2026: Monday art, 18:15-19:30). It saved, but looked as if it had
+  not: the time boxes were behind "More options", the period defaulted to
+  Registration, and it went to the week on screen only, so it was missing on
+  the other. Times are now in the open under "When?", a time matching no
+  period is labelled "Own time", "Which week?" sits under the days and
+  defaults to every week, and the save says where the lesson went. Fixed in
+  `fix: one kind of fix-up, and a timetable that takes an evening class`.
+- **major - Fixed timetable blocks could not be moved anywhere.** Cadets,
+  Drums, DofE and Art support had no edit button, and the Parent Portal
+  changes only their name and hours. They can now be edited (day and time);
+  removing one is still the Parent Portal's call. Same commit.
+
+- **major - Fix-ups were two separate systems.** The 11 quests (1,900 XP,
+  three written by Tejas) lived on their own screen with no due date and were
+  never done. They are fix-up tasks now (`fixUpConversion`, run whenever a
+  quest appears, idempotent, ids built from the quest id): due at the next
+  mock, linked to the subject's agreed goal, carrying what went wrong, how to
+  fix it, the hint and any photo. Closing a fix-up asks the quest dialog's
+  questions - re-try score, working, what is still shaky - and a shaky part
+  becomes a follow-up fix-up. Subject health reads fix-up tasks, which it never
+  did. The quest screens are deleted. Rollout was gated twice (NO-GO both
+  times) on sync: Dexie Cloud treats an insert as a whole-row upsert, so a
+  device converting stale quests - before its first pull, or while signed out
+  and then signing in - would overwrite the other device's fix-up work and its
+  XP. A device now converts only when signed in and straight after a completed
+  pull with a good licence; quests are no longer seeded. Fixed in `fix: one kind of fix-up, and a timetable
+  that takes an evening class` (27 Sep 2026).
+- **minor - Sub-quests all carried their parent's title.** Converted titles
+  name the weak area: "Reparations & Treaty of Versailles Keyword Mastery:
+  Lebensraum definition". Same commit.
+- **minor - My Work did not update live.** Now a live query. Same commit.
 
 - **major - Finished work counted towards no goal.** Goal hours came only
   from check-in minutes, one subject per check-in, so the week of 21 Sep

@@ -372,15 +372,19 @@ async function checkInItems(): Promise<OutstandingItem[]> {
   return items;
 }
 
+/**
+ * Open fix-ups. These were fix-up quests, a table of their own; since the
+ * quests became tasks there is one kind, and this counts it.
+ */
 async function remediationItems(): Promise<OutstandingItem[]> {
-  const active = (await db.remediations.toArray()).filter((r) => !r.isCompleted);
+  const active = (await db.tasks.toArray()).filter((t) => t.isRemediation && !t.completed);
   if (active.length === 0) return [];
 
   return [
     {
       id: 'remediations:active',
-      title: `${active.length} fix-up quest${active.length === 1 ? '' : 's'} waiting`,
-      detail: namesOf(active.map((r) => r.taskTitle)),
+      title: `${active.length} fix-up${active.length === 1 ? '' : 's'} waiting`,
+      detail: namesOf(active.map((t) => t.title)),
       urgency: 'SOON',
       owner: 'STUDENT',
       tab: 'REMEDIATIONS',

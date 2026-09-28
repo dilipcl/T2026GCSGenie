@@ -107,18 +107,18 @@ describe('loadOutstanding — student', () => {
     expect(ids(items)).not.toContain('tasks:overdue');
   });
 
-  it('lists active fix-up quests and points at Fix Ups', async () => {
+  it('lists open fix-ups and points at Fix Ups', async () => {
     await checkInDone();
-    await db.remediations.add({
-      id: 'rem_1',
-      subjectId: 'maths',
-      sourceDoc: 'yr9 maths paper',
-      diagnosticError: 'Independence proofs',
-      taskTitle: 'Venn diagram probability proofs',
-      taskInstructions: 'Redo Q12-14',
-      xpReward: 200,
-      isCompleted: false,
-    } as never);
+    // Fix-ups are tasks now - quests were converted to them.
+    await db.tasks.add(
+      task({
+        id: 'fixup__rem_1',
+        title: 'Venn diagram probability proofs',
+        isHomework: false,
+        isRemediation: true,
+        dueDate: addDaysISO(10),
+      })
+    );
 
     const items = await loadOutstanding('STUDENT');
     const quest = items.find((i) => i.id === 'remediations:active');
