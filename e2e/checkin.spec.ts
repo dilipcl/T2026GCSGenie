@@ -22,14 +22,20 @@ import type { Locator } from '@playwright/test';
  * landed on the wrong day, work closed with nothing attached.
  */
 
-/**
- * A row in the homework list, as opposed to the same task appearing in the
- * day's list above it as committed work - which it does, and which is a
- * finding of its own (see the UX notes), not something to hide here.
- */
+/** A row in the homework list. */
 function homeworkRow(dialog: Locator, title: string): Locator {
   return dialog.locator('.cursor-pointer', { hasText: title });
 }
+
+/**
+ * Work due tomorrow: in the homework list, and not on today's day list.
+ *
+ * Work committed for today is asked about once, in the day list, so a test of
+ * the homework list itself needs work that belongs there.
+ */
+const TOMORROW = '2026-09-26';
+const dueTomorrow = (id: string, title: string, extra: Record<string, unknown> = {}) =>
+  homework(id, title, { dueDate: TOMORROW, ...extra });
 
 test.describe('the daily check-in', () => {
   test.beforeEach(async ({ page }) => {
@@ -100,7 +106,7 @@ test.describe('the daily check-in', () => {
   });
 
   test('ticking homework offers the photo step instead of skipping it', async ({ page }) => {
-    await insert(page, 'tasks', homework('hw-venn', 'Venn diagram worksheet'));
+    await insert(page, 'tasks', dueTomorrow('hw-venn', 'Venn diagram worksheet'));
     const dialog = await openCheckIn(page);
     await homeworkRow(dialog, 'Venn diagram worksheet').click();
 
@@ -144,7 +150,7 @@ test.describe('the daily check-in', () => {
   });
 
   test('homework ticked in the check-in is closed with its audit line', async ({ page }) => {
-    await insert(page, 'tasks', homework('hw-sparx', 'Sparx Maths'));
+    await insert(page, 'tasks', dueTomorrow('hw-sparx', 'Sparx Maths'));
     const dialog = await openCheckIn(page);
     await homeworkRow(dialog, 'Sparx Maths').click();
     await dialog.getByRole('button', { name: /Save Check-in/ }).click();
@@ -169,7 +175,7 @@ test.describe('the daily check-in', () => {
   });
 
   test('ticked homework asks for its time, and saves it with the work', async ({ page }) => {
-    await insert(page, 'tasks', homework('hw-quad', 'Quadratics sheet', { estimatedHours: 0.5 }));
+    await insert(page, 'tasks', dueTomorrow('hw-quad', 'Quadratics sheet', { estimatedHours: 0.5 }));
     const dialog = await openCheckIn(page);
     await homeworkRow(dialog, 'Quadratics sheet').click();
 
@@ -210,7 +216,7 @@ test.describe('the daily check-in', () => {
   });
 
   test('the homework list leaves out work that is not due yet', async ({ page }) => {
-    await insert(page, 'tasks', homework('hw-now', 'Due tonight'));
+    await insert(page, 'tasks', dueTomorrow('hw-now', 'Due tomorrow'));
     await insert(
       page,
       'tasks',
@@ -218,11 +224,48 @@ test.describe('the daily check-in', () => {
     );
     const dialog = await openCheckIn(page);
 
-    await expect(homeworkRow(dialog, 'Due tonight')).toBeVisible();
+    await expect(homeworkRow(dialog, 'Due tomorrow')).toBeVisible();
     await expect(homeworkRow(dialog, 'Due in October')).toHaveCount(0);
     // The starter content has later work of its own, so the count is not ours
     // to fix - only that the later work is behind this button.
     await dialog.getByRole('button', { name: /^Show \d+ more due later$/ }).click();
     await expect(homeworkRow(dialog, 'Due in October')).toBeVisible();
+  });
+
+  /**
+   * Committed work due today sat in the day list and again in the homework
+   * list, and could be ticked in either - closing it twice, or closing it with
+   * no time if the day list was the one ticked.
+   */
+  test('work committed for today is asked about once, in the day list', async ({ page }) => {
+    await insert(page, 'tasks', homework('hw-today', 'Sparx due today'));
+    const dialog = await openCheckIn(page);
+
+    await expect(dialog.getByRole('button', { name: 'Done — Sparx due today' })).toBeVisible();
+    await expect(homeworkRow(dialog, 'Sparx due today')).toHaveCount(0);
+  });
+
+  test('"Done" on committed work closes it and asks its time, starting on the estimate', async ({
+    page,
+  }) => {
+    await insert(page, 'tasks', homework('hw-today', 'Sparx due today', { estimatedHours: 0.5 }));
+    const dialog = await openCheckIn(page);
+    await dialog.getByRole('button', { name: 'Done — Sparx due today' }).click();
+
+    // The row stays, now closed, with the two questions every close asks.
+    await expect(dialog.getByRole('button', { name: '30m' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(dialog.getByText('Photo of it (optional)')).toBeVisible();
+    await dialog.getByRole('button', { name: '45m' }).click();
+
+    await expect
+      .poll(async () =>
+        (
+          await rows<{ id: string; completed: boolean; loggedMinutes?: number; workedOn?: string }>(
+            page,
+            'tasks'
+          )
+        ).find((t) => t.id === 'hw-today')
+      )
+      .toMatchObject({ completed: true, loggedMinutes: 45, workedOn: TODAY });
   });
 });

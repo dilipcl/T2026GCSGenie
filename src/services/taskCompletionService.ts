@@ -67,6 +67,33 @@ export interface FixUpOutcome {
 }
 
 /**
+ * How long closed work took, given after the close.
+ *
+ * Committed work answered "Done" in the day list is closed on the tap, like
+ * every answer there, so the time comes a moment later from the chips under
+ * the row. The homework list used to be where that time was given - which is
+ * why the same task sat in both lists and could be closed from either.
+ */
+export async function setLoggedMinutes(
+  task: Task,
+  minutes: number,
+  /** The day the time was spent - see `Task.workedOn`. */
+  workedOn: string,
+  actor: UserRole = 'STUDENT'
+): Promise<void> {
+  await db.tasks.update(task.id, { loggedMinutes: minutes, workedOn });
+  await logAuditEvent({
+    user: actor,
+    action: 'UPDATE',
+    entity: 'Task',
+    entityId: task.id,
+    fieldChanged: 'loggedMinutes',
+    oldValue: task.loggedMinutes === undefined ? '(none)' : `${task.loggedMinutes} min`,
+    newValue: `${minutes} min on ${workedOn}`,
+  });
+}
+
+/**
  * The follow-up a fix-up close raised or changed, for the sheet to describe.
  *
  * `isNew` exists because the two cases need different sentences. The sheet had

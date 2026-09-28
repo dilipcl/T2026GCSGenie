@@ -55,7 +55,34 @@ export const DayOccurrenceChecklist: React.FC<DayOccurrenceChecklistProps> = ({
 
   const { shape, answered, pending, xpEarned, xpAvailable } = progress;
 
-  if (shape.occurrences.length === 0) {
+  const answers = new Map(answered.map((row) => [row.occurrenceKey, row]));
+  const isBackfill = date < todayISO();
+
+  /**
+   * Committed work answered "Done", kept on screen.
+   *
+   * The day's shape drops work once it is completed, so answering "Done"
+   * closed the task and the row vanished on the tap - taking with it any chance
+   * to say how long it took. Drawn back from the answer itself, for display
+   * only: the day's shape is what the counts and the week's score are built
+   * on, and moving it would move every week already scored.
+   */
+  const inShape = new Set(shape.occurrences.map((o) => o.key));
+  const answeredWork: DayOccurrence[] = answered
+    .filter((row) => row.kind === 'WORK' && row.taskId && !inShape.has(row.occurrenceKey))
+    .map((row) => ({
+      key: row.occurrenceKey,
+      kind: 'WORK',
+      label: row.label,
+      subjectId: row.subjectId,
+      taskId: row.taskId,
+      xp: row.xpAwarded,
+    }));
+  const rows = [...shape.occurrences, ...answeredWork];
+
+  // After the answered work is drawn back: a weekend whose only rows were
+  // committed work, all answered, is not a day with nothing on it.
+  if (rows.length === 0) {
     return (
       <p className="text-[11px] text-slate-400">
         Nothing timetabled for {formatShortDate(date)} — no check-in needed.
@@ -63,27 +90,29 @@ export const DayOccurrenceChecklist: React.FC<DayOccurrenceChecklistProps> = ({
     );
   }
 
-  const answers = new Map(answered.map((row) => [row.occurrenceKey, row]));
-  const isBackfill = date < todayISO();
-
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] font-bold text-cyan-100">
-          {shape.occurrences.length - pending.length} of {shape.occurrences.length} answered
-          {isBackfill && (
-            <span className="ml-1.5 inline-flex items-center gap-1 text-amber-300 font-semibold">
-              <CalendarClock className="w-3 h-3" />
-              catching up {formatShortDate(date)}
-            </span>
-          )}
-        </p>
-        <p className="text-[11px] text-slate-300 flex items-center gap-1">
-          <Sparkles className="w-3 h-3 text-fuchsia-300" />
-          <span className="font-bold text-fuchsia-200">{xpEarned}</span>
-          <span className="text-slate-500">of a possible {xpAvailable} XP</span>
-        </p>
-      </div>
+      {/* Counted over the day's shape, which the XP is built on - so on a day
+          whose only rows are answered work drawn back above, there is no count
+          to show rather than a "0 of 0". */}
+      {shape.occurrences.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[11px] font-bold text-cyan-100">
+            {shape.occurrences.length - pending.length} of {shape.occurrences.length} answered
+            {isBackfill && (
+              <span className="ml-1.5 inline-flex items-center gap-1 text-amber-300 font-semibold">
+                <CalendarClock className="w-3 h-3" />
+                catching up {formatShortDate(date)}
+              </span>
+            )}
+          </p>
+          <p className="text-[11px] text-slate-300 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-fuchsia-300" />
+            <span className="font-bold text-fuchsia-200">{xpEarned}</span>
+            <span className="text-slate-500">of a possible {xpAvailable} XP</span>
+          </p>
+        </div>
+      )}
 
       {pending.length > 0 && (
         <p className="text-[10px] text-slate-400">
@@ -95,7 +124,7 @@ export const DayOccurrenceChecklist: React.FC<DayOccurrenceChecklistProps> = ({
       )}
 
       <div className="space-y-1.5">
-        {shape.occurrences.map((occurrence) => {
+        {rows.map((occurrence) => {
           const existing = answers.get(occurrence.key);
 
           return (

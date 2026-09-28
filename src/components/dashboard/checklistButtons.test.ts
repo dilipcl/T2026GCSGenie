@@ -33,6 +33,8 @@ const SOURCES = [
   'src/components/shared/ProofUploader.tsx',
   // The time chips beside it.
   'src/components/shared/WorkTimeChips.tsx',
+  // The time and photo under committed work answered "Done" in the day list.
+  'src/components/dashboard/WorkRowClose.tsx',
 ];
 
 const BUTTON_TAG = /<button\b[\s\S]*?>/g;

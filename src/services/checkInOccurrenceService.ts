@@ -195,8 +195,8 @@ export async function recordOccurrence(
     const task = await db.tasks.get(occurrence.taskId);
     if (task && !task.completed) {
       // Through the one close path, for its audit line and a follow-up's
-      // comment. No time is asked on this row, so none is recorded - the
-      // homework list below it in the check-in is where time is given.
+      // comment. The time comes a moment later, from the chips the answered
+      // row shows (`WorkRowClose`), starting on the estimate.
       await setTaskCompleted(task, true, input.loggedBy ?? 'STUDENT');
     }
   }

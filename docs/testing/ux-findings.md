@@ -14,13 +14,6 @@ delete one.
 
 ## Open
 
-### Check-in and lessons
-
-- **minor - The same homework appears twice in one check-in.** Work promised
-  this week and due today is listed under "How did the day go?" as committed
-  work and again under "Homework completed", and can be ticked in either.
-  `DailyCheckInModal.tsx`, `dayPlan.ts`. Found by the e2e suite, 27 Sep 2026.
-
 ### Home
 
 - **minor - Home is very long on a phone.** Ticker, six health signals, two
@@ -104,6 +97,17 @@ delete one.
 Nothing audited yet - the first `data-consistency-auditor` run goes here.
 
 ## Closed
+
+- **minor - The same homework appeared twice in one check-in**, as committed
+  work in the day list and again under "Homework completed", and could be
+  ticked in either: closing it twice, or closing it with no time if the day
+  list was the one ticked, since that list asked nothing and the homework list
+  was where time was given. The day list's "Done" on committed work now asks
+  the time (starting on the estimate) and offers the photo, under the row,
+  which stays on screen once answered (`WorkRowClose`); the check-in's
+  homework list leaves out whatever the day list asks about. The day's shape,
+  and so every count, day bonus and week score, is unchanged. Fixed 28 Sep
+  2026.
 
 - **major - Details asked for depended on where a thing was created.** A
   fix-up from the add sheet read its subject as optional (Add stayed off

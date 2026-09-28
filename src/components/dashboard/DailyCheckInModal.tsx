@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
+import { dayProgress } from '../../services/checkInOccurrenceService';
 import { Task, CheckInSession, ParentSettings, SubjectId, WeekType } from '../../types';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { logAuditEvent } from '../../services/auditService';
@@ -278,6 +280,33 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
    */
   const pendingCheckInId = React.useMemo(() => newId('checkin'), [isOpen]);
 
+  /**
+   * Work the day list above already asks about - committed for the day, or
+   * already answered there - and so is left out of the homework list below.
+   *
+   * It was in both. Ticked in one it closed, and ticked in the other as well it
+   * closed a second time; ticked only in the day list it closed with no time,
+   * because the homework list was where time was asked. The day list now asks
+   * for time and a photo itself, so each piece of work is asked about once.
+   *
+   * Read through `dayProgress`, the same query the day list draws from, so the
+   * two cannot disagree about what is up there. Above the early return with the
+   * other hooks.
+   */
+  const dayListTaskIds = useLiveQuery(
+    async () => {
+      if (!isOpen) return new Set<string>();
+      const progress = await dayProgress(checkInDate, weekType);
+      return new Set(
+        [...progress.shape.occurrences, ...progress.answered]
+          .map((row) => row.taskId)
+          .filter((id): id is string => !!id)
+      );
+    },
+    [isOpen, checkInDate, weekType],
+    new Set<string>()
+  );
+
   if (!isOpen) return null;
 
   const toggleTask = async (id: string) => {
@@ -332,9 +361,10 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
    * tonight's, a long scroll had to be read to find the two that mattered, and
    * a stray tap on a row nobody was looking for closed it.
    */
-  const soonTasks = pendingTasks.filter((t) => isDueSoon(t) || completedTaskIds.includes(t.id));
-  const visibleTasks = showAllTasks ? pendingTasks : soonTasks;
-  const hiddenTaskCount = pendingTasks.length - soonTasks.length;
+  const listedTasks = pendingTasks.filter((t) => !dayListTaskIds.has(t.id));
+  const soonTasks = listedTasks.filter((t) => isDueSoon(t) || completedTaskIds.includes(t.id));
+  const visibleTasks = showAllTasks ? listedTasks : soonTasks;
+  const hiddenTaskCount = listedTasks.length - soonTasks.length;
   const isBackfillDay = checkInDate < todayStr;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -672,8 +702,10 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
             </label>
             {visibleTasks.length === 0 ? (
               <div className="p-2.5 bg-slate-800/40 rounded-xl border border-slate-800 text-xs text-slate-400 text-center">
-                {pendingTasks.length === 0
-                  ? '🎉 No pending tasks! All clear.'
+                {listedTasks.length === 0
+                  ? pendingTasks.length > 0
+                    ? 'Everything due is on the day list above.'
+                    : '🎉 No pending tasks! All clear.'
                   : 'Nothing due by tomorrow.'}
               </div>
             ) : (

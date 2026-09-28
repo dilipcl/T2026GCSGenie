@@ -5,6 +5,11 @@ import { recordOccurrence, teachesTopics } from '../../services/checkInOccurrenc
 import { REASON_LABEL, REASON_ICON } from '../../services/commitmentService';
 import { Check, Minus, X, MessageSquarePlus } from 'lucide-react';
 import { LessonTopic } from './LessonTopic';
+import { WorkRowClose } from './WorkRowClose';
+import { db } from '../../db';
+import { timerMinutesByTask } from '../../services/focusSessionService';
+import { setLoggedMinutes } from '../../services/taskCompletionService';
+import { defaultWorkMinutes } from '../shared/WorkTimeChips';
 
 /**
  * Answering one thing that was supposed to happen.
@@ -80,6 +85,21 @@ export const OccurrenceAnswer: React.FC<OccurrenceAnswerProps> = ({
       followUp: existing?.followUp,
       ...patch,
     });
+    if (occurrence.taskId && patch.outcome === 'HAPPENED') await startOnEstimate(occurrence.taskId);
+  };
+
+  /**
+   * Closing work here starts its time on the estimate, as the homework list
+   * and the close sheet do - a close that recorded no time unless a chip was
+   * tapped afterwards would count less than the same work closed anywhere else.
+   * Only when nothing is stored: a time already given is never overwritten.
+   */
+  const startOnEstimate = async (taskId: string) => {
+    const task = await db.tasks.get(taskId);
+    if (!task?.completed || task.loggedMinutes !== undefined) return;
+    const timers = await timerMinutesByTask();
+    const minutes = defaultWorkMinutes(task.estimatedHours, timers.get(taskId) ?? 0);
+    if (minutes !== undefined) await setLoggedMinutes(task, minutes, date);
   };
 
   const answered = !!existing;
@@ -203,6 +223,10 @@ export const OccurrenceAnswer: React.FC<OccurrenceAnswerProps> = ({
 
       {existing && existing.outcome !== 'MISSED' && teachesTopics(occurrence) && (
         <LessonTopic date={date} occurrence={occurrence} existing={existing} />
+      )}
+
+      {existing?.outcome === 'HAPPENED' && occurrence.taskId && (
+        <WorkRowClose taskId={occurrence.taskId} date={date} />
       )}
     </div>
   );
