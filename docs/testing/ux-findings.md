@@ -104,6 +104,24 @@ delete one.
     stall under load for a tester, it can on a busy phone - where Tejas sees
     "Saving..." and closes the app. Trace kept in `test-results/` until the
     next run overwrites it.
+  - *Looked into, 28 Sep 2026.* Reproducible on demand with CPU throttling:
+    the save took about 0.5s normally but ten seconds at 8x slower, because
+    it committed about eight times (check-in, attendance, each piece of work,
+    an audit line after each) and every commit made Home re-read and redraw
+    before the next write. It is now one transaction, which brought 8x down to
+    under six seconds; `checkInSaveTransaction.test.ts` keeps it that way.
+    Timed at 8x after the fix: about a second before the transaction starts,
+    one to three seconds of writes, then about three seconds of redrawing
+    before the dialog goes. Confetti and the forced Home refresh were each
+    switched off and made no measurable difference. **Not eliminated:** one
+    more stall, on the untouched check-in (one row and one audit line), in
+    about 260 runs under parallel load after the fix. All of this is on the
+    dev build, which is several times heavier than what the phone runs; how
+    slow the production build is on a real phone has not been measured.
+  - The "Startup housekeeping did not complete: DexieError2" line seen in
+    every failing trace is most likely React's development double-run of
+    effects: two `touchThisDevice` calls both find no device row and the
+    second `add` fails. Dev only, not yet confirmed, not the cause of the stall.
 
 ## Data consistency
 

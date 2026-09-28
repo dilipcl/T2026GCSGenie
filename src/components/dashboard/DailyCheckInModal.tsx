@@ -376,120 +376,142 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       const earned = calculateXPEarned();
       const xpEarned = earned.checkIn;
       const isDailyBase = !hasCheckedInToday;
-
-      // 1. Record Structured Check-in
       const checkInId = pendingCheckInId;
-      await db.checkIns.add({
-        id: checkInId,
-        date: checkInDate,
-        timestamp: now,
-        session,
-        energyLevel: energy,
-        focusRating: focus,
-        completedHomeworkIds: completedTaskIds,
-        completedRevisionMinutes: revisionMinutes,
-        /**
-         * Minutes without a subject are minutes that count towards nothing -
-         * on 30 August thirty of them went into the database attributed to no
-         * subject and no goal. `General` is a real subject that means "not
-         * aimed at one thing yet", so the field is never blank while there is
-         * time to attribute.
-         */
-        studySubjectId:
-          revisionMinutes > 0 ? ((studySubject || 'general') as SubjectId) : undefined,
-        studyGoalId: revisionMinutes > 0 ? studyGoal || undefined : undefined,
-        structuredNotes: {
-          blockersAndQuestions: blockersAndQuestions.trim() || undefined,
-          keyLearning: keyLearning.trim() || undefined,
-          actionForTomorrow: actionForTomorrow.trim() || undefined,
-          category,
-        },
-        notes: keyLearning.trim() || blockersAndQuestions.trim() || undefined,
-        xpEarned,
-        isDailyBaseXPAwarded: isDailyBase,
-      });
 
-      // 2. Confirm what actually happened, so the gauge stops charging the week
-      //    for evenings that were stood down.
-      for (const activity of activities) {
-        const answered = attendance[activity.id];
-        if (typeof answered === 'number') {
-          await confirmAttendance(activity, answered);
-        }
-      }
-
-      // 3. Mark completed tasks - through the one close path, so each gets
-      //    its audit line and a follow-up's comment is settled with it. A
-      //    raw update here closed work without either.
-      for (const task of pendingTasks.filter((t) => completedTaskIds.includes(t.id))) {
-        // Dated to the day this check-in describes, so catching up Tuesday on
-        // Thursday puts Tuesday's work time on Tuesday.
-        await setTaskCompleted(task, true, 'STUDENT', workMinutes[task.id], checkInDate);
-      }
-
-      // 4. Turn the forward-looking answers into tasks for tomorrow, so the
-      //    reflection actually leads somewhere instead of ending in the log
-      const tomorrow = addDaysISO(1);
-      const spawned: Task[] = [];
-
-      {
-        if (createActionTask && actionForTomorrow.trim() && actionSubject) {
-          spawned.push({
-            id: newId('task'),
-            subjectId: actionSubject,
-            title: actionForTomorrow.trim(),
-            description: 'Added from your check-in as tomorrow\'s action.',
-            dueDate: tomorrow,
-            priority: 'HIGH',
-            isHomework: true,
-            isRemediation: false,
-            xpValue: 60,
-            completed: false,
-            createdAt: now,
+      /**
+       * One transaction, so the save commits once.
+       *
+       * It was about eight: the check-in, each attendance answer, each piece of
+       * work closed, and an audit line after every one of them. Each commit
+       * woke every live query on Home, and the whole dashboard re-read and
+       * re-rendered before the next write could start - so the cost was writes
+       * times dashboard, and on a slow CPU both grow. At an eighth of a
+       * laptop's speed the save sat on "Saving..." for ten seconds, and the e2e
+       * suite met it under parallel load. Committed together it took under six,
+       * Home redraws once, and a check-in that fails halfway is not half saved.
+       *
+       * Every table a step below writes must be listed, or Dexie refuses the
+       * nested write outright - which is the failure you want over a silent
+       * second transaction.
+       */
+      await db.transaction(
+        'rw',
+        [db.checkIns, db.plannedActivities, db.tasks, db.activityComments, db.auditLogs, db.parentSettings],
+        async () => {
+          // 1. Record Structured Check-in
+          await db.checkIns.add({
+            id: checkInId,
+            date: checkInDate,
+            timestamp: now,
+            session,
+            energyLevel: energy,
+            focusRating: focus,
+            completedHomeworkIds: completedTaskIds,
+            completedRevisionMinutes: revisionMinutes,
+            /**
+             * Minutes without a subject are minutes that count towards nothing -
+             * on 30 August thirty of them went into the database attributed to no
+             * subject and no goal. `General` is a real subject that means "not
+             * aimed at one thing yet", so the field is never blank while there is
+             * time to attribute.
+             */
+            studySubjectId:
+              revisionMinutes > 0 ? ((studySubject || 'general') as SubjectId) : undefined,
+            studyGoalId: revisionMinutes > 0 ? studyGoal || undefined : undefined,
+            structuredNotes: {
+              blockersAndQuestions: blockersAndQuestions.trim() || undefined,
+              keyLearning: keyLearning.trim() || undefined,
+              actionForTomorrow: actionForTomorrow.trim() || undefined,
+              category,
+            },
+            notes: keyLearning.trim() || blockersAndQuestions.trim() || undefined,
+            xpEarned,
+            isDailyBaseXPAwarded: isDailyBase,
           });
-        }
 
-        if (createQuestionTask && blockersAndQuestions.trim() && questionSubject) {
-          spawned.push({
-            id: newId('task'),
-            subjectId: questionSubject,
-            // Don't stutter when the note already opens with "Ask"
-            title: /^ask\b/i.test(blockersAndQuestions.trim())
-              ? blockersAndQuestions.trim()
-              : `Ask: ${blockersAndQuestions.trim()}`,
-            description: 'Question you noted at check-in. Ask in your next lesson.',
-            dueDate: tomorrow,
-            priority: 'MEDIUM',
-            isHomework: false,
-            isRemediation: false,
-            xpValue: 50,
-            completed: false,
-            createdAt: now,
-          });
-        }
-      }
+          // 2. Confirm what actually happened, so the gauge stops charging the week
+          //    for evenings that were stood down.
+          for (const activity of activities) {
+            const answered = attendance[activity.id];
+            if (typeof answered === 'number') {
+              await confirmAttendance(activity, answered);
+            }
+          }
 
-      if (spawned.length > 0) {
-        await db.tasks.bulkAdd(spawned);
-        for (const task of spawned) {
+          // 3. Mark completed tasks - through the one close path, so each gets
+          //    its audit line and a follow-up's comment is settled with it. A
+          //    raw update here closed work without either.
+          for (const task of pendingTasks.filter((t) => completedTaskIds.includes(t.id))) {
+            // Dated to the day this check-in describes, so catching up Tuesday on
+            // Thursday puts Tuesday's work time on Tuesday.
+            await setTaskCompleted(task, true, 'STUDENT', workMinutes[task.id], checkInDate);
+          }
+
+          // 4. Turn the forward-looking answers into tasks for tomorrow, so the
+          //    reflection actually leads somewhere instead of ending in the log
+          const tomorrow = addDaysISO(1);
+          const spawned: Task[] = [];
+
+          {
+            if (createActionTask && actionForTomorrow.trim() && actionSubject) {
+              spawned.push({
+                id: newId('task'),
+                subjectId: actionSubject,
+                title: actionForTomorrow.trim(),
+                description: 'Added from your check-in as tomorrow\'s action.',
+                dueDate: tomorrow,
+                priority: 'HIGH',
+                isHomework: true,
+                isRemediation: false,
+                xpValue: 60,
+                completed: false,
+                createdAt: now,
+              });
+            }
+
+            if (createQuestionTask && blockersAndQuestions.trim() && questionSubject) {
+              spawned.push({
+                id: newId('task'),
+                subjectId: questionSubject,
+                // Don't stutter when the note already opens with "Ask"
+                title: /^ask\b/i.test(blockersAndQuestions.trim())
+                  ? blockersAndQuestions.trim()
+                  : `Ask: ${blockersAndQuestions.trim()}`,
+                description: 'Question you noted at check-in. Ask in your next lesson.',
+                dueDate: tomorrow,
+                priority: 'MEDIUM',
+                isHomework: false,
+                isRemediation: false,
+                xpValue: 50,
+                completed: false,
+                createdAt: now,
+              });
+            }
+          }
+
+          if (spawned.length > 0) {
+            await db.tasks.bulkAdd(spawned);
+            for (const task of spawned) {
+              await logAuditEvent({
+                user: 'STUDENT',
+                action: 'INSERT',
+                entity: 'Task',
+                entityId: task.id,
+                newValue: `${task.title} [from check-in, due ${tomorrow}]`,
+              });
+            }
+          }
+
+          // 5. Write to write-only audit trail
           await logAuditEvent({
             user: 'STUDENT',
             action: 'INSERT',
-            entity: 'Task',
-            entityId: task.id,
-            newValue: `${task.title} [from check-in, due ${tomorrow}]`,
+            entity: 'DailyCheckIn',
+            entityId: checkInId,
+            newValue: `[${session}] Energy: ${energy}, Focus: ${focus}, Tasks Done: ${completedTaskIds.length}, Study: ${revisionMinutes}m, Check-in XP: +${xpEarned}, Task XP: +${earned.tasks} (Base Awarded: ${isDailyBase})`,
           });
         }
-      }
-
-      // 5. Write to write-only audit trail
-      await logAuditEvent({
-        user: 'STUDENT',
-        action: 'INSERT',
-        entity: 'DailyCheckIn',
-        entityId: checkInId,
-        newValue: `[${session}] Energy: ${energy}, Focus: ${focus}, Tasks Done: ${completedTaskIds.length}, Study: ${revisionMinutes}m, Check-in XP: +${xpEarned}, Task XP: +${earned.tasks} (Base Awarded: ${isDailyBase})`,
-      });
+      );
 
       triggerCelebration();
       onSuccess();
