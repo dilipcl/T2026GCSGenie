@@ -86,6 +86,36 @@ export async function tagCheckInToTopic(
 }
 
 /**
+ * Says which topic a piece of work was about.
+ *
+ * Work counts on a topic's page by `linkedTopicId`, and until this nothing but
+ * a focus block's question ever set it - no creation path asks, and the inbox
+ * listed lessons, notes and photos but never work. So a topic read "Nothing
+ * recorded yet" beside homework on exactly that topic, photos and all. The
+ * work's photos follow it (see `library`), so tagging the homework files its
+ * pictures too.
+ */
+export async function tagTaskToTopic(
+  id: string,
+  topicId: string | undefined,
+  user: UserRole = 'STUDENT'
+): Promise<void> {
+  const existing = await db.tasks.get(id);
+  if (!existing) return;
+
+  await db.tasks.update(id, { linkedTopicId: topicId });
+  await logAuditEvent({
+    user,
+    action: 'UPDATE',
+    entity: 'Task',
+    entityId: id,
+    fieldChanged: 'linkedTopicId',
+    oldValue: existing.linkedTopicId ?? '(none)',
+    newValue: topicId ?? '(cleared)',
+  });
+}
+
+/**
  * How sure he is about a topic, set from the topic's own page.
  *
  * The same field the subject screen's stars and the focus wrap-up both move,

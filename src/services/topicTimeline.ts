@@ -6,6 +6,7 @@ import {
   OccurrenceOutcome,
   SubjectId,
   SyllabusTopic,
+  Task,
   UserRole,
 } from '../types';
 import { Material, library } from './materialLibrary';
@@ -13,7 +14,7 @@ import { isTimerBlock } from './focusSessionService';
 import { entryFromTask } from './studyLedger';
 import { tagOccurrenceToTopic, teachesTopics } from './checkInOccurrenceService';
 import { tagAttachmentToTopic } from './attachmentService';
-import { tagCheckInToTopic } from './topicService';
+import { tagCheckInToTopic, tagTaskToTopic } from './topicService';
 
 /**
  * A subject seen through its topics: what was taught, what was done about it,
@@ -67,12 +68,12 @@ export interface TopicSummary {
 /** Something that could be tagged to a topic and has not been. */
 export interface UntaggedItem {
   id: string;
-  kind: 'LESSON' | 'FILE' | 'NOTE';
+  kind: 'LESSON' | 'FILE' | 'NOTE' | 'WORK';
   date: string;
   title: string;
   detail?: string;
   /** What `tagUntagged` writes to. */
-  target: { table: 'occurrence' | 'attachment' | 'checkIn'; id: string };
+  target: { table: 'occurrence' | 'attachment' | 'checkIn' | 'task'; id: string };
 }
 
 export interface SubjectTopics {
@@ -198,7 +199,7 @@ export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics
     units: [...new Set(topics.map((t) => t.unit))].sort(),
     lessonsAnswered: lessons.length,
     lessonsTagged: lessons.filter((l) => l.topicId && topicIds.has(l.topicId)).length,
-    untagged: untaggedFor(subjectId, lessons, checkIns, snapshot.materials, topicIds),
+    untagged: untaggedFor(subjectId, lessons, checkIns, tasks, snapshot.materials, topicIds),
   };
 }
 
@@ -215,6 +216,7 @@ function untaggedFor(
   subjectId: SubjectId,
   lessons: CheckInOccurrence[],
   checkIns: DailyCheckIn[],
+  tasks: Task[],
   materials: Material[],
   topicIds: Set<string>
 ): UntaggedItem[] {
@@ -243,6 +245,22 @@ function untaggedFor(
       title: isTimerBlock(checkIn) ? 'Focus block' : 'What I took away',
       detail: note,
       target: { table: 'checkIn', id: checkIn.id },
+    });
+  }
+
+  /**
+   * Work was never here, and nothing else can give it a topic after the fact -
+   * so a topic's work count stayed at nothing however much was done on it.
+   */
+  for (const task of tasks) {
+    if (task.subjectId !== subjectId || isTagged(task.linkedTopicId)) continue;
+    items.push({
+      id: `task__${task.id}`,
+      kind: 'WORK',
+      date: task.dueDate,
+      title: task.title,
+      detail: task.whatWentWrong ?? task.description,
+      target: { table: 'task', id: task.id },
     });
   }
 
@@ -282,6 +300,8 @@ export async function tagUntagged(
       await tagOccurrenceToTopic(item.target.id, topicId, user);
     } else if (item.target.table === 'attachment') {
       await tagAttachmentToTopic(item.target.id, topicId, user);
+    } else if (item.target.table === 'task') {
+      await tagTaskToTopic(item.target.id, topicId, user);
     } else {
       await tagCheckInToTopic(item.target.id, topicId, user);
     }

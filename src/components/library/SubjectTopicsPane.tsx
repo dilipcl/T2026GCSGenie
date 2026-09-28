@@ -21,7 +21,7 @@ import { Plus, Target, Inbox, ChevronRight } from 'lucide-react';
 
 const INBOX_PREVIEW = 8;
 
-const KIND_LABEL = { LESSON: 'Lesson', FILE: 'Photo', NOTE: 'Note' } as const;
+const KIND_LABEL = { LESSON: 'Lesson', FILE: 'Photo', NOTE: 'Note', WORK: 'Work' } as const;
 
 const STATUS_LABEL: Record<string, string> = {
   APPROVED_LOCKED: 'agreed',

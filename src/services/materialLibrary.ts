@@ -107,15 +107,17 @@ export interface LibrarySnapshot {
  * end up disagreeing about how many photos there are.
  */
 export async function library(): Promise<LibrarySnapshot> {
-  const [subjects, topics, occurrences, checkIns, index] = await Promise.all([
+  const [subjects, topics, occurrences, checkIns, tasks, index] = await Promise.all([
     db.subjects.toArray(),
     db.syllabusTopics.toArray(),
     db.checkInOccurrences.toArray(),
     db.checkIns.toArray(),
+    db.tasks.toArray(),
     evidenceIndex(),
   ]);
 
   const topicById = new Map(topics.map((t) => [t.id, t]));
+  const workTopic = new Map(tasks.map((t) => [t.id, t.linkedTopicId]));
   const materials: Material[] = [];
 
   for (const work of index) {
@@ -126,10 +128,17 @@ export async function library(): Promise<LibrarySnapshot> {
        * A tag put on the file itself wins. Failing that, evidence hanging off a
        * syllabus topic is about that topic by construction - which is what
        * makes the notes link on a topic useful without anybody tagging
-       * anything.
+       * anything. And a photo of homework is about whatever the homework is
+       * about: tagging the work once files its pictures with it, rather than
+       * leaving them in the inbox to be tagged one by one to the same topic.
        */
       const topicId =
-        ref.topicId ?? (work.entity === 'Syllabus topic' ? work.entityId : undefined);
+        ref.topicId ??
+        (work.entity === 'Syllabus topic'
+          ? work.entityId
+          : work.entity === 'Task'
+          ? workTopic.get(work.entityId)
+          : undefined);
       const topic = topicId ? topicById.get(topicId) : undefined;
 
       materials.push({

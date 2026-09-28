@@ -133,4 +133,91 @@ describe('a subject by its topics', () => {
     expect(after.untagged).toHaveLength(0);
     expect(after.topics[0].entries[0].detail).toBe('Kinetic store depends on v squared');
   });
+
+  /**
+   * History's "Economic Boom USA 1920s" read "Nothing recorded yet" while
+   * homework on exactly that, with photos, sat in My Work. Work was never in
+   * the inbox and nothing else could give it a topic, so a topic could only
+   * ever count work that a focus block had raised.
+   */
+  it('offers untagged work for tagging, and its photos go with it', async () => {
+    const topic = await addSyllabusTopic({ subjectId: 'history', title: 'Economic Boom USA 1920s' });
+    await db.tasks.add({
+      id: 'hw-boom',
+      subjectId: 'history',
+      title: 'Ecenomic Boom USA',
+      dueDate: '2026-09-24',
+      priority: 'MEDIUM',
+      isHomework: true,
+      isRemediation: false,
+      xpValue: 50,
+      completed: true,
+      completedAt: Date.parse('2026-09-24T19:00:00'),
+      createdAt: 0,
+    });
+    await db.attachments.add({
+      id: 'photo-boom',
+      ownerType: 'TASK',
+      ownerId: 'hw-boom',
+      fileName: 'IMG_4821.jpg',
+      mimeType: 'image/jpeg',
+      byteSize: 3,
+      blob: new Blob(['jpg']),
+      createdAt: Date.parse('2026-09-24T19:00:00'),
+    });
+
+    const before = await subjectTopics('history');
+    expect(before.topics[0].work).toBe(0);
+    expect(before.untagged.map((u) => u.kind).sort()).toEqual(['FILE', 'WORK']);
+
+    await tagUntagged(
+      before.untagged.filter((u) => u.kind === 'WORK'),
+      topic.id
+    );
+
+    const after = await subjectTopics('history');
+    expect(after.topics[0].work).toBe(1);
+    // Tagged with the work, not left behind to be tagged to the same topic again.
+    expect(after.topics[0].materials).toBe(1);
+    expect(after.untagged).toHaveLength(0);
+
+    const logged = (await db.auditLogs.toArray()).find(
+      (a) => a.entityId === 'hw-boom' && a.fieldChanged === 'linkedTopicId'
+    );
+    expect(logged?.newValue).toBe(topic.id);
+  });
+
+  it('keeps a tag put on the photo itself over the one its work carries', async () => {
+    const onWork = await addSyllabusTopic({ subjectId: 'history', title: 'Economic Boom USA 1920s' });
+    const onPhoto = await addSyllabusTopic({ subjectId: 'history', title: 'Prohibition' });
+    await db.tasks.add({
+      id: 'hw-boom',
+      subjectId: 'history',
+      title: 'Ecenomic Boom USA',
+      dueDate: '2026-09-24',
+      priority: 'MEDIUM',
+      isHomework: true,
+      isRemediation: false,
+      linkedTopicId: onWork.id,
+      xpValue: 50,
+      completed: true,
+      createdAt: 0,
+    });
+    await db.attachments.add({
+      id: 'photo-speakeasy',
+      ownerType: 'TASK',
+      ownerId: 'hw-boom',
+      fileName: 'IMG_4822.jpg',
+      mimeType: 'image/jpeg',
+      byteSize: 3,
+      blob: new Blob(['jpg']),
+      topicId: onPhoto.id,
+      createdAt: 0,
+    });
+
+    const data = await subjectTopics('history');
+    const count = (id: string) => data.topics.find((t) => t.topic.id === id)!.materials;
+    expect(count(onPhoto.id)).toBe(1);
+    expect(count(onWork.id)).toBe(0);
+  });
 });

@@ -27,11 +27,6 @@ delete one.
   Computer Science fix-up came to be filed under General. `QuickAddSheet.tsx`,
   `AssessmentEntryModal.tsx`, `assessmentService.ts:35`,
   `RemediationEditorModal.tsx`, `RemediationSolveModal.tsx`. Found 27 Sep 2026.
-- **major - Topic pages read "Nothing recorded yet" beside work that exists.**
-  Follows from the above: History's "Economic Boom USA 1920s" shows nothing
-  while "Ecenomic Boom USA" homework with photos exists, and the
-  "12-Mark Comparative Essay" topic has no link to the 12-mark essay quest.
-  Found 27 Sep 2026.
 ### Add sheet
 
 - **major - A subject tapped quickly is overwritten by the suggestion.** The
@@ -135,6 +130,17 @@ delete one.
 Nothing audited yet - the first `data-consistency-auditor` run goes here.
 
 ## Closed
+
+- **major - Topic pages read "Nothing recorded yet" beside work that exists**
+  (History's "Economic Boom USA 1920s" beside "Ecenomic Boom USA" homework
+  with photos). Work counted on a topic only through `linkedTopicId`, which
+  nothing but a focus block's question ever set, and the untagged inbox never
+  listed work. Work now sits in the inbox as "Work" and tags in bulk like
+  the rest (`tagTaskToTopic`, with a history line), and a photo of work takes
+  the work's topic unless the photo carries its own. Existing work still has
+  to be tagged once - the inbox is where. Creating work still does not ask
+  for a topic; that stays with the "details asked for" finding above. Fixed
+  28 Sep 2026.
 
 - **major - An evening class could not be added to the timetable** (reported
   27 Sep 2026: Monday art, 18:15-19:30). It saved, but looked as if it had
