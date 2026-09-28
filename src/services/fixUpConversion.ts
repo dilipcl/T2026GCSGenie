@@ -31,7 +31,16 @@ import { addDaysISO, parseISODate, todayISO } from '../utils/date';
  * already earned moves - no quest had been completed.
  */
 
-export const fixUpIdFor = (questId: string) => `fixup__${questId}`;
+const FIXUP_ID_PREFIX = 'fixup__';
+
+export const fixUpIdFor = (questId: string) => `${FIXUP_ID_PREFIX}${questId}`;
+
+/**
+ * Whether a task began life as a fix-up quest. Those are set-up a parent and
+ * Tejas wrote - three of them by hand in Year 9 - not testing residue, which is
+ * what the handover reset needs to tell apart from the fix-ups it clears.
+ */
+export const isConvertedQuest = (taskId: string) => taskId.startsWith(FIXUP_ID_PREFIX);
 
 const SUB_QUEST_SUFFIX = / \(Targeted Sub-Quest\)$/;
 const SELF_STUDY_PREFIX = /^Identified deficit during self-study:\s*/;

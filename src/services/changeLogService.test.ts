@@ -328,6 +328,70 @@ describe('the handover reset', () => {
   });
 
   /**
+   * The eleven Year 9 quests became fix-up tasks, and the reset used to delete
+   * every fix-up task that was not seeded - "generated from marked papers that
+   * are now gone". That took the converted quests with it, three written by
+   * Tejas, while the preview listed tasks as reset rather than cleared.
+   */
+  it('keeps the fix-ups converted from quests, resetting only what a close wrote', async () => {
+    await resetDatabase();
+    const fixUp = {
+      subjectId: 'maths',
+      dueDate: '2026-11-02',
+      priority: 'MEDIUM',
+      isHomework: false,
+      isRemediation: true,
+      xpValue: 150,
+      createdAt: 1,
+    } as const;
+    await db.tasks.bulkAdd([
+      {
+        ...fixUp,
+        id: 'fixup__rem_venn',
+        title: 'Venn diagram probability proofs',
+        whatWentWrong: 'Counted the intersection twice',
+        completed: true,
+        completedAt: 2,
+        score: { scored: 4, total: 5 },
+        loggedMinutes: 30,
+        workingNotes: 'P(A or B) = P(A) + P(B) - P(A and B)',
+        weakAreas: 'Three-set diagrams',
+      },
+      {
+        ...fixUp,
+        id: 'fixup__rem_essay',
+        title: '12-Mark Comparative Essay',
+        completed: false,
+        workingNotes: 'Started a plan in the back of my book',
+        weakAreas: 'Linking the two sources',
+      },
+      { ...fixUp, id: 'followup__fixup__rem_venn', title: 'Three-set diagrams', completed: false },
+      { ...fixUp, id: 'task_test_fixup', title: 'From a test paper', completed: false },
+    ] as never);
+
+    const { performHandoverReset } = await import('./handoverService');
+    await performHandoverReset();
+
+    const kept = await db.tasks.get('fixup__rem_venn');
+    expect(kept).toBeTruthy();
+    expect(kept!.whatWentWrong).toBe('Counted the intersection twice');
+    expect(kept!.completed).toBe(false);
+    expect(kept!.score).toBeUndefined();
+    expect(kept!.loggedMinutes).toBeUndefined();
+    expect(kept!.workingNotes).toBeUndefined();
+    expect(kept!.weakAreas).toBeUndefined();
+
+    // Never closed, so its notes are what the quest carried over, not a test close.
+    const open = await db.tasks.get('fixup__rem_essay');
+    expect(open!.workingNotes).toBe('Started a plan in the back of my book');
+    expect(open!.weakAreas).toBe('Linking the two sources');
+
+    // Raised during testing - by a close, or from a paper - so testing residue.
+    expect(await db.tasks.get('followup__fixup__rem_venn')).toBeUndefined();
+    expect(await db.tasks.get('task_test_fixup')).toBeUndefined();
+  }, 20_000);
+
+  /**
    * A logged absence is a thing that happened on a Tuesday, not configuration.
    * Left behind, a handover would ship a week with hours already excused from
    * it and no record of why.

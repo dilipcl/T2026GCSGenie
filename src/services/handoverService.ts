@@ -2,6 +2,7 @@ import { db } from '../db';
 import { INITIAL_GOALS, INITIAL_TASKS } from '../db/seedData';
 import { logAuditEvent } from './auditService';
 import { calculateTotalXP } from './ragCalculator';
+import { isConvertedQuest } from './fixUpConversion';
 
 /**
  * Clearing the testing out before the app is handed over.
@@ -51,10 +52,14 @@ const CLEARED_TABLES = [
  * Kept, with progress flags reset.
  *
  * The rows themselves are configuration a parent set up - the syllabus, the key
- * dates, the fix-up quests - and deleting them would mean typing it all again.
- * Only the "done" marks are testing residue.
+ * dates, the fix-ups from the Year 9 papers - and deleting them would mean
+ * typing it all again. Only the "done" marks are testing residue.
+ *
+ * `remediations` is not here. It only ever holds quests waiting for
+ * `fixUpConversion`, which have no progress to reset; the fix-ups they became
+ * are tasks, and are reset with the tasks.
  */
-const RESET_TABLES = ['tasks', 'milestones', 'remediations', 'syllabusTopics'] as const;
+const RESET_TABLES = ['tasks', 'milestones', 'syllabusTopics'] as const;
 
 export interface HandoverPreview {
   /** Table name to the number of rows that will be deleted. */
@@ -213,22 +218,45 @@ export async function performHandoverReset(
     unlockLockedUntil: 0,
   });
 
-  // Tasks: the seeded starting set, uncompleted, with any testing proof removed.
+  /**
+   * Tasks: the seeded starting set, uncompleted, with any testing proof removed.
+   *
+   * A fix-up added during testing was raised from a marked paper this reset has
+   * just cleared, or from a shaky part of a close that never happened, so it
+   * goes. The fix-ups converted from the Year 9 quests do not: they are the
+   * quests - eleven of them, three written by Tejas - under a new table, and
+   * deleting them here would lose exactly what the conversion was careful to
+   * keep, while the preview told the parent they were only being reset. They
+   * are reset like any other kept task, down to the answers a close wrote on
+   * them, so a test close leaves no score, working or shaky part behind.
+   *
+   * Working and shaky parts are cleared only from closed work. The conversion
+   * copied a quest's own notes into those same fields, and no quest was ever
+   * closed - so on open work they are what Tejas wrote in Year 9, not residue.
+   * The quest reset this replaced drew the same line.
+   */
   const seededTaskIds = new Set(INITIAL_TASKS.map((t) => t.id));
   const tasks = await db.tasks.toArray();
   for (const task of tasks) {
-    if (!seededTaskIds.has(task.id) && task.isRemediation) {
-      // Fix-up tasks were generated from marked papers that are now gone
+    if (task.isRemediation && !seededTaskIds.has(task.id) && !isConvertedQuest(task.id)) {
       await db.tasks.delete(task.id);
       deleted++;
       continue;
     }
-    if (!task.completed && !task.driveProofUrl && task.score === undefined) continue;
+    const touched =
+      task.completed ||
+      task.driveProofUrl ||
+      task.score !== undefined ||
+      task.loggedMinutes !== undefined;
+    if (!touched) continue;
     await db.tasks.update(task.id, {
       completed: false,
       completedAt: undefined,
       driveProofUrl: undefined,
       score: undefined,
+      loggedMinutes: undefined,
+      workedOn: undefined,
+      ...(task.completed ? { workingNotes: undefined, weakAreas: undefined } : {}),
     });
     resetRows++;
   }
@@ -236,18 +264,6 @@ export async function performHandoverReset(
   for (const milestone of await db.milestones.toArray()) {
     if (!milestone.isCompleted) continue;
     await db.milestones.update(milestone.id, { isCompleted: false });
-    resetRows++;
-  }
-
-  for (const remediation of await db.remediations.toArray()) {
-    if (!remediation.isCompleted) continue;
-    await db.remediations.update(remediation.id, {
-      isCompleted: false,
-      completedAt: undefined,
-      selfStudyScore: undefined,
-      driveNotebookUrl: undefined,
-      studentWorkingNotes: undefined,
-    });
     resetRows++;
   }
 

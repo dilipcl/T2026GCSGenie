@@ -17,9 +17,8 @@ const TABLE_LABELS: Record<string, string> = {
   choreCompletions: 'Chore ticks',
   agentAuditReports: 'AI audit reports',
   auditLogs: 'Change history',
-  tasks: 'Homework',
+  tasks: 'Homework and fix-ups',
   milestones: 'Key dates',
-  remediations: 'Fix-up quests',
   syllabusTopics: 'Syllabus topics',
 };
 

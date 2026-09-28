@@ -91,6 +91,19 @@ delete one.
     running dev server. Treated as real: the conversion no longer runs in the
     suite (quests are not seeded), and the spec was then run 120 times (5
     repeats, both layouts, full parallel load) with no failure. Still watched.
+  - *Third occurrence, 28 Sep 2026*, full suite, phone, with nothing
+    converting and nothing being edited - so the earlier explanations do not
+    cover it. The trace narrows it: "Save it" was clicked and the dialog sat on
+    **"Saving..."** for the whole 10s wait with no console error, so
+    `applyCheckIn` started and did not finish - a slow or stalled write, not a
+    missed tap or a lost close. It is a chain of about six awaited writes, each
+    audit line a transaction held open over a SHA-256 by `Dexie.waitFor`. The
+    only error in the page was "Startup housekeeping did not complete:
+    DexieError2", 4s before the save, and not yet shown to be related. It then
+    passed 30 of 30 alone. **Open, and now worth a real look:** if a save can
+    stall under load for a tester, it can on a busy phone - where Tejas sees
+    "Saving..." and closes the app. Trace kept in `test-results/` until the
+    next run overwrites it.
 
 ## Data consistency
 
