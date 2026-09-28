@@ -14,13 +14,6 @@ delete one.
 
 ## Open
 
-### Home
-
-- **minor - Home is very long on a phone.** Ticker, six health signals, two
-  banners, nine goal rows, capacity, today, what's next, check-in, streak,
-  focus timer, schedule, then Fix My Mistakes. The two daily actions - the
-  timer and the lesson list - are below the fold. Found 27 Sep 2026.
-
 ### Accessibility
 
 - **minor - The "mark as done" tick in My Work has no accessible name.** The
@@ -97,6 +90,15 @@ delete one.
 Nothing audited yet - the first `data-consistency-auditor` run goes here.
 
 ## Closed
+
+- **minor - Home was very long on a phone**, with the focus timer and the
+  lesson list below a dozen cards. On a phone the order is now: anything at
+  risk, the week in one line (score, colour, headline) with "Show the week",
+  then the focus timer, today's lessons, Log today, what's next, the streak
+  and fix-ups. The ticker, the week letter and the week cockpit fold behind
+  that line. Done with CSS `order`, so the laptop layout is unchanged and
+  there is one set of cards. `WeekHealthSummary` reads the same
+  `readWeekHealth` as the card it stands in for. Fixed 28 Sep 2026.
 
 - **minor - The same homework appeared twice in one check-in**, as committed
   work in the day list and again under "Homework completed", and could be

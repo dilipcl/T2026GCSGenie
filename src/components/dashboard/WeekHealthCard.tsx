@@ -26,6 +26,53 @@ const TONE: Record<RAGStatus, { ring: string; text: string; dot: string; label: 
   },
 };
 
+/**
+ * The week in one line, standing in for the week's cards on a phone.
+ *
+ * Home ran to a dozen cards on a phone - ticker, six health signals, nine goal
+ * rows, capacity - before the two things done every day, the focus timer and
+ * the lesson list, which were below the fold. This line keeps the answer to
+ * "how is the week going" at the top and folds the working behind one tap.
+ *
+ * Here rather than in its own file so it reads the same `readWeekHealth` and
+ * colours it with the same `TONE`: a phone summary that graded the week
+ * differently from the card it stands in for would be two answers to one
+ * question.
+ */
+export const WeekHealthSummary: React.FC<{ open: boolean; onToggle: () => void }> = ({
+  open,
+  onToggle,
+}) => {
+  const health = useLiveQuery(() => readWeekHealth(), []);
+  if (!health) return null;
+  const tone = TONE[health.status];
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className={`glass-card w-full p-3.5 border text-left flex items-center gap-3 ${tone.ring}`}
+    >
+      <span className={`text-lg font-bold leading-none flex-shrink-0 ${tone.text}`}>
+        {health.score}%
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[11px] font-bold text-white">
+          This week · <span className={tone.text}>{tone.label}</span>
+        </span>
+        <span className="block text-[11px] text-slate-300 leading-snug truncate">
+          {health.headline}
+        </span>
+      </span>
+      <span className="flex-shrink-0 text-[10px] font-bold text-slate-300 flex items-center gap-1">
+        {open ? 'Hide the week' : 'Show the week'}
+        {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+      </span>
+    </button>
+  );
+};
+
 interface Props {
   onOpenPlan?: () => void;
   onOpenGoals?: () => void;

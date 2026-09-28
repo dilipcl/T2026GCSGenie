@@ -13,7 +13,7 @@ import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
 import { SessionTimerCard } from './components/dashboard/SessionTimerCard';
 import { PlanPulseBanner } from './components/dashboard/PlanPulseBanner';
 import { HeadlineTicker } from './components/dashboard/HeadlineTicker';
-import { WeekHealthCard } from './components/dashboard/WeekHealthCard';
+import { WeekHealthCard, WeekHealthSummary } from './components/dashboard/WeekHealthCard';
 import { QuickAddSheet, QuickAddEditing } from './components/shared/QuickAddSheet';
 import { FeedbackProvider } from './components/shared/FeedbackProvider';
 import { ChangeGuardProvider } from './components/shared/ChangeGuardProvider';
@@ -76,6 +76,8 @@ export const App: React.FC = () => {
   /** Set when the add sheet is opened from a goal that needs work aimed at it. */
   const [quickAddGoalId, setQuickAddGoalId] = useState<string | undefined>(undefined);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  /** Phone only: whether Home shows the week's cards or just the one line. */
+  const [isWeekOpen, setIsWeekOpen] = useState(false);
   // Shown once, on the very first launch. Read lazily so storage is touched
   // during the initial render rather than on every one.
   const [isTourOpen, setIsTourOpen] = useState(() => !hasSeenTour());
@@ -192,31 +194,62 @@ export const App: React.FC = () => {
             to another screen and back is a fresh attempt. */}
         <ErrorBoundary label="this screen" resetKeys={[activeTab]}>
         {activeTab === 'DASHBOARD' && (
-          <div className="space-y-5">
-            {/* The term in one passing line. Above the nudges because it is the
-                only thing on this page that reports rather than asks. */}
-            <HeadlineTicker />
+          /* Two orders for one page.
 
-            {/* The letter, above the nudges. Those each raise one thing; this
-                says whether the week as a whole is working, which is the
-                question actually being asked on a Wednesday evening. */}
-            <WeekHealthCard
-              onOpenPlan={() => setActiveTab('PLAN')}
-              onOpenGoals={() => setActiveTab('GOALS')}
-            />
+             On a laptop the page reads top to bottom as it always has: how the
+             week is going, then what to do about it. On a phone that order put
+             a dozen cards - ticker, six health signals, nine goal rows,
+             capacity - above the two things done every day, the focus timer and
+             the lesson list, which were below the fold for the person using it
+             most, at night, with one thumb. So on a phone the week folds into
+             one line and the daily actions come first; anything at risk still
+             leads, because a nudge nobody scrolls to is not a nudge.
+
+             Done with CSS `order` rather than a second layout, so it is one set
+             of cards in one place and the laptop cannot drift from the phone.
+             Wrappers are `empty:hidden` because a card with nothing to say
+             renders nothing, and an empty flex item would still take a gap. */
+          <div className="flex flex-col gap-5">
+            {/* Phone only: the week in one line, and the tap that opens it. */}
+            <div className="order-2 lg:hidden empty:hidden">
+              <WeekHealthSummary open={isWeekOpen} onToggle={() => setIsWeekOpen((open) => !open)} />
+            </div>
+
+            <div
+              className={`${
+                isWeekOpen ? 'flex' : 'hidden'
+              } lg:flex flex-col gap-5 order-3 lg:order-none`}
+            >
+              {/* The term in one passing line. Above the nudges because it is the
+                  only thing on this page that reports rather than asks. */}
+              <HeadlineTicker />
+
+              {/* The letter, above the nudges. Those each raise one thing; this
+                  says whether the week as a whole is working, which is the
+                  question actually being asked on a Wednesday evening. */}
+              <WeekHealthCard
+                onOpenPlan={() => setActiveTab('PLAN')}
+                onOpenGoals={() => setActiveTab('GOALS')}
+              />
+            </div>
 
             {/* 0. Anything at risk, before the scroll starts. The field test
                    found the burnout banner unread at the bottom of the page;
-                   a nudge nobody scrolls to is not a nudge. */}
-            <PlanPulseBanner
-              onOpenCheckIn={() => setIsCheckInOpen(true)}
-              onOpenGoals={() => setActiveTab('GOALS')}
-              onOpenPlan={() => setActiveTab('PLAN')}
-            />
+                   a nudge nobody scrolls to is not a nudge. First on a phone
+                   too, for the same reason. */}
+            <div className="order-1 lg:order-none empty:hidden">
+              <PlanPulseBanner
+                onOpenCheckIn={() => setIsCheckInOpen(true)}
+                onOpenGoals={() => setActiveTab('GOALS')}
+                onOpenPlan={() => setActiveTab('PLAN')}
+              />
+            </div>
 
             {/* 0b. What has been confirmed but not yet told to anyone. Renders
                    nothing when there is nothing outstanding. */}
-            <ChangeLogCard onReview={() => setActiveTab('UPDATES')} />
+            <div className="order-1 lg:order-none empty:hidden">
+              <ChangeLogCard onReview={() => setActiveTab('UPDATES')} />
+            </div>
 
             {/* 1. The whole week in one card: goal pacing, capacity, and the
                    three things due today.
@@ -228,13 +261,17 @@ export const App: React.FC = () => {
                    answered "how is the week going" only for someone prepared
                    to scroll and add up, which is the opposite of what the app
                    promises. */}
-            <WeeklyCockpitCard
-              activeWeek={activeWeek}
-              currentRole={currentRole}
-              onOpenGoals={() => setActiveTab('GOALS')}
-              onOpenTasks={() => setActiveTab('TASKS')}
-              onOpenTimetable={() => setActiveTab('TIMETABLE')}
-            />
+            <div
+              className={`${isWeekOpen ? 'block' : 'hidden'} lg:block order-3 lg:order-none empty:hidden`}
+            >
+              <WeeklyCockpitCard
+                activeWeek={activeWeek}
+                currentRole={currentRole}
+                onOpenGoals={() => setActiveTab('GOALS')}
+                onOpenTasks={() => setActiveTab('TASKS')}
+                onOpenTimetable={() => setActiveTab('TIMETABLE')}
+              />
+            </div>
 
             {/* 2. What is actually due.
 
@@ -245,16 +282,18 @@ export const App: React.FC = () => {
                    visible without opening another tab - a student who has to
                    navigate to find out what is due has already been given a
                    reason to close the app. */}
-            <DueSoonCard
-              refreshKey={refreshKey}
-              onAdd={() => setIsQuickAddOpen(true)}
-              onSeeAllTasks={() => setActiveTab('TASKS')}
-              onSeeCalendar={() => setActiveTab('CALENDAR')}
-              currentRole={currentRole}
-            />
+            <div className="order-7 lg:order-none empty:hidden">
+              <DueSoonCard
+                refreshKey={refreshKey}
+                onAdd={() => setIsQuickAddOpen(true)}
+                onSeeAllTasks={() => setActiveTab('TASKS')}
+                onSeeCalendar={() => setActiveTab('CALENDAR')}
+                currentRole={currentRole}
+              />
+            </div>
 
             {/* 3. Log the day - the other daily action */}
-            <div className="glass-card p-5 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-indigo-950/40 border-emerald-500/30 flex flex-wrap items-center justify-between gap-4">
+            <div className="order-6 lg:order-none glass-card p-5 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-indigo-950/40 border-emerald-500/30 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl border border-emerald-500/30 shadow-lg shadow-emerald-950/40">
                   ⚡
@@ -287,26 +326,38 @@ export const App: React.FC = () => {
             </div>
 
             {/* 4. The chain - visible proof that the habit is holding */}
-            <HabitStreakCard
-              refreshKey={refreshKey}
-              onOpenCheckIn={() => setIsCheckInOpen(true)}
-            />
+            <div className="order-8 lg:order-none empty:hidden">
+              <HabitStreakCard
+                refreshKey={refreshKey}
+                onOpenCheckIn={() => setIsCheckInOpen(true)}
+              />
+            </div>
 
-            {/* 5. Do the work, with the break attached */}
-            <SessionTimerCard />
+            {/* 5. Do the work, with the break attached. First of the daily
+                   actions on a phone. */}
+            <div className="order-4 lg:order-none empty:hidden">
+              <SessionTimerCard />
+            </div>
 
             {/* 6. Today's context. The schedule keeps its own card because a
                    full day of periods does not belong in a three-line triad;
                    the cockpit shows the next fixed thing, this shows all of
                    them. */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <TodayScheduleCard
-                activeWeek={activeWeek}
-                currentRole={currentRole}
-                onNavigateToTimetable={() => setActiveTab('TIMETABLE')}
-              />
+            {/* Side by side on a laptop. On a phone the pair dissolves
+                (`contents`) so the lessons can sit with the daily actions and
+                the fix-ups can go to the end. */}
+            <div className="contents lg:grid lg:grid-cols-2 lg:gap-5">
+              <div className="order-5 lg:order-none empty:hidden">
+                <TodayScheduleCard
+                  activeWeek={activeWeek}
+                  currentRole={currentRole}
+                  onNavigateToTimetable={() => setActiveTab('TIMETABLE')}
+                />
+              </div>
 
-              <ActiveQuestsCard onOpenFixUps={openFixUps} />
+              <div className="order-9 lg:order-none empty:hidden">
+                <ActiveQuestsCard onOpenFixUps={openFixUps} />
+              </div>
             </div>
           </div>
         )}
