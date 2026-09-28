@@ -75,7 +75,6 @@ export type EvidenceEntity =
   | 'Syllabus topic'
   | 'Goal'
   | 'Assessment'
-  | 'Fix-up'
   | 'Key date';
 
 /**
@@ -96,9 +95,9 @@ export type EvidenceEntity =
  */
 export interface EvidenceTarget {
   /** The Dexie table holding the record. */
-  table: 'tasks' | 'syllabusTopics' | 'goals' | 'assessments' | 'remediations' | 'milestones';
+  table: 'tasks' | 'syllabusTopics' | 'goals' | 'assessments' | 'milestones';
   /** The field a link goes in - the same one the index reads back. */
-  linkField: 'driveProofUrl' | 'driveNotesUrl' | 'driveResourceUrl' | 'driveNotebookUrl';
+  linkField: 'driveProofUrl' | 'driveNotesUrl' | 'driveResourceUrl';
   /** How a photo attached to this record is keyed. */
   ownerType: ProofAttachment['ownerType'];
   /** What the link is called on screen, in the words the record uses for it. */
@@ -129,12 +128,6 @@ export const EVIDENCE_TARGETS: Record<EvidenceEntity, EvidenceTarget> = {
     linkField: 'driveResourceUrl',
     ownerType: 'ASSESSMENT',
     linkLabel: 'Paper link',
-  },
-  'Fix-up': {
-    table: 'remediations',
-    linkField: 'driveNotebookUrl',
-    ownerType: 'REMEDIATION',
-    linkLabel: 'Working link',
   },
   'Key date': {
     table: 'milestones',
@@ -210,9 +203,6 @@ export async function saveEvidenceLink(
     case 'Assessment':
       await db.assessments.update(entityId, { driveResourceUrl: value });
       break;
-    case 'Fix-up':
-      await db.remediations.update(entityId, { driveNotebookUrl: value });
-      break;
     case 'Key date':
       await db.milestones.update(entityId, { driveResourceUrl: value });
       break;
@@ -243,8 +233,6 @@ async function currentLink(
       return (await db.goals.get(entityId))?.driveNotesUrl;
     case 'Assessment':
       return (await db.assessments.get(entityId))?.driveResourceUrl;
-    case 'Fix-up':
-      return (await db.remediations.get(entityId))?.driveNotebookUrl;
     case 'Key date':
       return (await db.milestones.get(entityId))?.driveResourceUrl;
   }
@@ -333,7 +321,6 @@ export async function evidenceIndex(): Promise<EvidenceSubject[]> {
     topics,
     goals,
     assessments,
-    remediations,
     milestones,
     attachments,
     comments,
@@ -342,7 +329,6 @@ export async function evidenceIndex(): Promise<EvidenceSubject[]> {
       db.syllabusTopics.toArray(),
       db.goals.toArray(),
       db.assessments.toArray(),
-      db.remediations.toArray(),
       db.milestones.toArray(),
       db.attachments.toArray(),
       evidenceComments(),
@@ -494,20 +480,6 @@ export async function evidenceIndex(): Promise<EvidenceSubject[]> {
       // The proof log exists to hold evidence. An entry without any is the
       // thing this whole feature is about.
       { subjectId: assessment.subjectId, completedAt: assessment.createdAt, proofExpected: true }
-    );
-  }
-
-  for (const item of remediations) {
-    push(
-      'Fix-up',
-      item.id,
-      item.taskTitle,
-      item.isCompleted,
-      [
-        ...filesFor(item.id, attachments),
-        ...link(item.driveNotebookUrl, 'Working link', item.taskTitle),
-      ],
-      { subjectId: item.subjectId, completedAt: item.completedAt, proofExpected: true }
     );
   }
 

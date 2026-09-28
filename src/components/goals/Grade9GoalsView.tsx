@@ -324,7 +324,7 @@ export const Grade9GoalsView: React.FC<Grade9GoalsViewProps> = ({
 
                   <div className="flex justify-between text-[11px] text-slate-400 pt-1">
                     <span>HW: {rag.homeworkCompletionRate}%</span>
-                    <span>Remediations: {rag.remediationCompletionRate}%</span>
+                    <span>Fix-ups: {rag.remediationCompletionRate}%</span>
                     <span>Mastered: {rag.topicsMastered}/{rag.totalTopics}</span>
                   </div>
                 </div>

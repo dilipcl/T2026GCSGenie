@@ -606,7 +606,7 @@ export const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
                 HW: {rag.homeworkCompletionRate}%
               </span>
               <span className="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">
-                Remediations: {rag.remediationCompletionRate}%
+                Fix-ups: {rag.remediationCompletionRate}%
               </span>
             </div>
           </div>

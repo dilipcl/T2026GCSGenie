@@ -259,6 +259,9 @@ export async function xpStatement(): Promise<XpEntry[]> {
     });
   }
 
+  // Kept for the same reason `calculateTotalXP` keeps it: a quest closed on the
+  // old build is paid here until it is converted, or the statement would stop
+  // explaining the balance in between.
   for (const item of remediations) {
     if (!item.isCompleted || !item.xpReward) continue;
     entries.push({

@@ -118,7 +118,7 @@ export async function calculateSubjectRAG(subjectId: SubjectId): Promise<Subject
     : ragStatus === 'GREEN'
     ? 'On track for Grade 9 mastery.'
     : ragStatus === 'AMBER'
-    ? 'Attention needed. Incomplete remediations or pending homework.'
+    ? 'Attention needed. Fix-ups or homework still to do.'
     : 'Critical risk to Grade 9 target! Overdue tasks or unaddressed diagnostics.';
 
   return {
@@ -162,7 +162,12 @@ export async function calculateTotalXP(): Promise<XPLedger> {
   const tasks = await db.tasks.toArray();
   const taskXP = tasks.filter((t) => t.completed).reduce((sum, t) => sum + (t.xpValue || 0), 0);
 
-  // Completed Remediations XP
+  // Completed quests' XP. Kept although nothing writes quests any more: a quest
+  // closed on a device still running the old build pays here until
+  // `fixUpConversion` turns it into a completed task, which carries the same XP.
+  // Reading only the tasks would make that balance dip in between - XP taken
+  // back, however briefly. Once converted the quest is deleted, so nothing is
+  // counted twice.
   const remediations = await db.remediations.toArray();
   const remXP = remediations.filter((r) => r.isCompleted).reduce((sum, r) => sum + (r.xpReward || 0), 0);
 

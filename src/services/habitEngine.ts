@@ -28,11 +28,11 @@ export interface StreakStats {
 export interface EffortStats {
   /**
    * "Every action is a vote for the person you wish to become" - one vote per
-   * completed task, completed quest, and day checked in.
+   * completed task and day checked in. Fix-ups are tasks, so they vote once,
+   * as tasks; the separate quest count was always zero once quests became them.
    */
   votes: number;
   tasksCompleted: number;
-  questsCompleted: number;
   checkInDays: number;
   /** Total study time ever logged, in hours to 1dp. */
   hoursLogged: number;
@@ -138,15 +138,10 @@ export async function calculateStreakStats(): Promise<StreakStats> {
 }
 
 export async function calculateEffortStats(): Promise<EffortStats> {
-  const [checkIns, tasks, remediations] = await Promise.all([
-    db.checkIns.toArray(),
-    db.tasks.toArray(),
-    db.remediations.toArray(),
-  ]);
+  const [checkIns, tasks] = await Promise.all([db.checkIns.toArray(), db.tasks.toArray()]);
   const entries = studyEntriesFrom(checkIns, tasks);
 
   const tasksCompleted = tasks.filter((t) => t.completed).length;
-  const questsCompleted = remediations.filter((r) => r.isCompleted).length;
   const checkInDays = new Set(checkIns.map((c) => c.date)).size;
 
   const allMinutes = sumMinutes(entries);
@@ -160,9 +155,8 @@ export async function calculateEffortStats(): Promise<EffortStats> {
   );
 
   return {
-    votes: tasksCompleted + questsCompleted + checkInDays,
+    votes: tasksCompleted + checkInDays,
     tasksCompleted,
-    questsCompleted,
     checkInDays,
     hoursLogged: Math.round((allMinutes / 60) * 10) / 10,
     hoursThisWeek: Math.round((weekMinutes / 60) * 10) / 10,

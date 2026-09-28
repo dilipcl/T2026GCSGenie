@@ -283,8 +283,11 @@ export async function generateAgentAuditPackage(): Promise<{
 
   const checkIns = await db.checkIns.orderBy('date').reverse().limit(14).toArray();
   // Booleans are not indexable in IndexedDB - filter in memory (see db/index.ts).
-  const pendingTasks = (await db.tasks.toArray()).filter((t) => !t.completed);
-  const remediations = await db.remediations.toArray();
+  const allTasks = await db.tasks.toArray();
+  const pendingTasks = allTasks.filter((t) => !t.completed);
+  // Fix-ups are tasks. This read the quest table, which is empty once quests
+  // are converted, so the audit told the model there were no fix-ups at all.
+  const fixUps = allTasks.filter((t) => t.isRemediation);
   const sanctions = await db.sanctions.toArray();
   const assessments = await db.assessments.orderBy('date').reverse().limit(20).toArray();
 
@@ -323,11 +326,14 @@ export async function generateAgentAuditPackage(): Promise<{
       proofAttached: a.attachmentIds.length > 0,
       verifiedByParent: a.verifiedByParent === true,
     })),
-    remediationActionsStatus: remediations.map((r) => ({
-      subjectId: r.subjectId,
-      taskTitle: r.taskTitle,
-      isCompleted: r.isCompleted,
-      sourceDoc: r.sourceDoc,
+    fixUpsStatus: fixUps.map((t) => ({
+      subjectId: t.subjectId,
+      title: t.title,
+      whatWentWrong: t.whatWentWrong,
+      dueDate: t.dueDate,
+      isCompleted: t.completed,
+      score: t.score ? `${t.score.scored}/${t.score.total}` : undefined,
+      sourceDoc: t.remediationSourceDoc,
     })),
     sanctionsHistory: sanctions,
   };

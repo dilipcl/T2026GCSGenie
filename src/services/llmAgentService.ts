@@ -170,7 +170,7 @@ function generateDeterministicAuditReport(data: {
 
 #### 1. Curriculum Health Matrix
 - **Academic Status:** ${curriculumStatusSummary}
-${data.ragList.map((r) => `  * **${r.name}:** [${r.ragStatus}] Score: ${r.healthScore}/100 | HW: ${r.hwRate}% | Remediations: ${r.remRate}%`).join('\n')}
+${data.ragList.map((r) => `  * **${r.name}:** [${r.ragStatus}] Score: ${r.healthScore}/100 | HW: ${r.hwRate}% | Fix-ups: ${r.remRate}%`).join('\n')}
 
 #### 2. Time-Capacity & Burnout Risk Analysis
 - **Total Scheduled Load:** ${data.burnout.totalScheduledHours} hrs / ${data.burnout.safeWeeklyHoursLimit} hrs max safe capacity (includes school hours).

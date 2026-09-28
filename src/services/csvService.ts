@@ -247,13 +247,12 @@ export function templateCsv(kind: ImportKind): string {
  * what was actually asked for.
  */
 export async function exportReportCsv(): Promise<string> {
-  const [tasks, milestones, goals, assessments, checkIns, quests, redemptions] = await Promise.all([
+  const [tasks, milestones, goals, assessments, checkIns, redemptions] = await Promise.all([
     db.tasks.toArray(),
     db.milestones.toArray(),
     db.goals.toArray(),
     db.assessments.toArray(),
     db.checkIns.toArray(),
-    db.remediations.toArray(),
     db.redemptions.toArray(),
   ]);
 
@@ -290,7 +289,7 @@ export async function exportReportCsv(): Promise<string> {
   }
 
   section('TASKS', ['Subject', 'Title', 'Due', 'Priority', 'Bucket', 'Done', 'XP']);
-  for (const t of tasks) {
+  for (const t of tasks.filter((task) => !task.isRemediation)) {
     rows.push([t.subjectId, t.title, t.dueDate, t.priority, t.bucket ?? '', t.completed ? 'yes' : 'no', t.xpValue]);
   }
 
@@ -305,10 +304,13 @@ export async function exportReportCsv(): Promise<string> {
     rows.push([a.date, a.subjectId, a.title, `${a.marksScored}/${a.marksAvailable}`, a.percentage, a.gradeAwarded ?? '', a.verifiedByParent ? 'yes' : 'no', a.attachmentIds.length]);
   }
 
-  section('FIX-UP QUESTS', ['Subject', 'Quest', 'Done', 'Score', 'XP']);
-  for (const q of quests) {
-    rows.push([q.subjectId, q.taskTitle, q.isCompleted ? 'yes' : 'no',
-      q.selfStudyScore ? `${q.selfStudyScore.scored}/${q.selfStudyScore.total}` : '', q.xpReward]);
+  // Fix-ups are tasks, listed here rather than under TASKS. This section read
+  // the quest table, which is empty once quests are converted - an export that
+  // said there were no fix-ups while eleven were waiting.
+  section('FIX-UPS', ['Subject', 'Fix-up', 'What went wrong', 'Due', 'Done', 'Score', 'XP']);
+  for (const t of tasks.filter((task) => task.isRemediation)) {
+    rows.push([t.subjectId, t.title, t.whatWentWrong ?? '', t.dueDate, t.completed ? 'yes' : 'no',
+      t.score ? `${t.score.scored}/${t.score.total}` : '', t.xpValue]);
   }
 
   section('REWARDS', ['Reward', 'Cost XP', 'Status', 'Requested']);
