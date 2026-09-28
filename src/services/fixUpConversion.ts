@@ -185,7 +185,19 @@ export async function convertQuestsToFixUps(now: number = Date.now()): Promise<n
  * it signed in. Its quests wait, unseen, for the post-sign-in pull - which
  * brings the real fix-ups, so each conversion then finds its row and skips.
  */
-export async function pulledFromCloud(): Promise<boolean> {
+/**
+ * How long a pull may take before this attempt gives up.
+ *
+ * `sync({ wait: true })` resolves only when the pull lands, and a paused or
+ * stalled sync never lands - so without a limit the attempt held
+ * `useQuestConversion`'s lock for the life of the tab and no later sync state
+ * could start another. Giving up only ever means "not yet": nothing converts,
+ * and the next change of sync state tries again - by which time a pull that was
+ * merely slow has usually finished, and the retry is quick.
+ */
+const PULL_TIMEOUT_MS = 60_000;
+
+export async function pulledFromCloud(timeoutMs: number = PULL_TIMEOUT_MS): Promise<boolean> {
   const cloud = db.cloud;
   // Only in tests and non-browser tooling, where there is no sync at all.
   if (!cloud) return true;
@@ -197,10 +209,19 @@ export async function pulledFromCloud(): Promise<boolean> {
   // Only an explicit false means offline; environments without the flag
   // report undefined, and the pull below is the real test anyway.
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await cloud.sync({ wait: true, purpose: 'pull' });
+    const pulled = await Promise.race([
+      cloud.sync({ wait: true, purpose: 'pull' }).then(() => true),
+      new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), timeoutMs);
+      }),
+    ]);
+    if (!pulled) return false;
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
   const state = cloud.syncState.value;
   if (state?.license && state.license !== 'ok') return false;

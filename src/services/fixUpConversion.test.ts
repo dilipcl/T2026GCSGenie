@@ -324,6 +324,15 @@ describe('when it is safe to convert', () => {
     expect(await pulledFromCloud()).toBe(false);
   });
 
+  /**
+   * A pull that never lands - sync paused, or stalled - used to hold the
+   * attempt, and with it the hook's lock, until the tab closed.
+   */
+  it('gives up on a pull that never finishes, so a later sync state can try again', async () => {
+    fakeCloud({ userId: 'family', license: 'ok', sync: () => new Promise<void>(() => {}) });
+    expect(await pulledFromCloud(20)).toBe(false);
+  });
+
   it('waits when the licence has expired, because sync then moves nothing', async () => {
     fakeCloud({ userId: 'family', license: 'expired' });
     expect(await pulledFromCloud()).toBe(false);

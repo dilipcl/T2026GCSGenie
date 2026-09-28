@@ -17,7 +17,8 @@ import { convertQuestsToFixUps, pulledFromCloud } from '../services/fixUpConvers
  * So a signed-in device converts only after a pull has completed with a good
  * licence. After the pull it holds the other device's fix-ups (so each `add` is
  * skipped) and the other device's deletions (so there are no quests left to
- * convert). Offline, signed out, or with sync stopped - an expired licence
+ * convert). Offline, signed out, with a pull that has not landed within a
+ * minute, or with sync stopped - an expired licence
  * resolves `sync()` happily and moves nothing - it waits, and tries again when
  * the sync state or the signed-in user changes, as well as when the quest count
  * does. A signed-out device never converts: see `pulledFromCloud`.
