@@ -18,21 +18,88 @@ test.describe('my work', () => {
     await page.getByRole('button', { name: 'Add homework', exact: true }).click();
     const sheet = page.getByRole('dialog', { name: 'Quick add' });
     await sheet.getByRole('button', { name: new RegExp(`^${kind}`) }).click();
-    // The sheet fills in a suggested subject from a database read that lands
-    // after it opens, and that suggestion overwrites a subject tapped before
-    // it arrives. A known fault, listed in the UX findings - waited out here
-    // so the rest of the journey can be tested.
-    await page.waitForTimeout(500);
+    // Straight in, with no wait for the suggestion: a tap wins whenever the
+    // suggestion lands, and tapping the suggested chip agrees with it.
     await sheet.locator('#quick-add-title').fill(title);
     const maths = sheet.getByRole('button', { name: /Maths/ }).first();
-    const submit = sheet.getByRole('button', { name: /^Add (homework|fix-up) \(/ });
     await maths.click();
-    // Subject chips toggle: tapping the one already suggested clears it, and
-    // the only sign is a greyed-out Add button (listed in the UX findings).
-    if (await submit.isDisabled()) await maths.click();
-    await submit.click();
+    await expect(maths).toHaveAttribute('aria-pressed', 'true');
+    await sheet.getByRole('button', { name: /^Add (homework|fix-up) \(/ }).click();
     await expect(sheet).toBeHidden();
   }
+
+  /**
+   * Holds every table in a read-write transaction until released, so any read
+   * the app starts queues behind it. Tapping a subject needs no database at
+   * all, so with this in place the tap is certain to come before the
+   * suggestion - the order that used to lose the tap, and that the suite
+   * otherwise only met by luck.
+   */
+  async function holdDatabase(page: import('@playwright/test').Page) {
+    await page.evaluate(
+      async () => {
+        // Found rather than assumed: opening a name that does not exist
+        // quietly creates an empty database and holds nothing.
+        const name = (await indexedDB.databases())
+          .map((d) => d.name ?? '')
+          .find((n) => n.includes('GCSEGenie'));
+        if (!name) throw new Error('No GCSE Genie database in this page');
+        return new Promise<void>((resolve, reject) => {
+          const open = indexedDB.open(name);
+          open.onerror = () => reject(open.error);
+          open.onsuccess = () => {
+            const idb = open.result;
+            const tx = idb.transaction([...idb.objectStoreNames], 'readwrite');
+            const store = tx.objectStore(idb.objectStoreNames[0]);
+            const w = window as unknown as { __released?: boolean };
+            w.__released = false;
+            // A transaction stays open while it has requests in flight.
+            const spin = () => {
+              if (!w.__released) store.count().onsuccess = spin;
+            };
+            spin();
+            tx.oncomplete = () => idb.close();
+            resolve();
+          };
+        });
+      }
+    );
+  }
+
+  test('a subject tapped before the suggestion arrives is kept', async ({ page }) => {
+    const sheet = page.getByRole('dialog', { name: 'Quick add' });
+    const chip = (name: RegExp) => sheet.getByRole('button', { name }).first();
+    const subjects = [/Maths/, /History/, /Physics/];
+
+    // What the sheet suggests on its own, so the test can tap something else.
+    await page.getByRole('button', { name: 'Add homework', exact: true }).click();
+    await sheet.getByRole('button', { name: /^Homework/ }).click();
+    await expect(sheet.locator('button[aria-pressed="true"]')).toHaveCount(1);
+    let target = subjects[0];
+    for (const name of subjects) {
+      if ((await chip(name).getAttribute('aria-pressed')) !== 'true') {
+        target = name;
+        break;
+      }
+    }
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+
+    await holdDatabase(page);
+    await page.getByRole('button', { name: 'Add homework', exact: true }).click();
+    await sheet.getByRole('button', { name: /^Homework/ }).click();
+    await sheet.locator('#quick-add-title').fill('Tapped before the suggestion');
+    await chip(target).click();
+    await expect(chip(target)).toHaveAttribute('aria-pressed', 'true');
+
+    await page.evaluate(() => ((window as unknown as { __released: boolean }).__released = true));
+    // Let the queued reads - the suggestion among them - land.
+    await page.waitForTimeout(1500);
+    await expect(chip(target)).toHaveAttribute('aria-pressed', 'true');
+
+    await sheet.getByRole('button', { name: /^Add homework \(/ }).click();
+    await expect(sheet).toBeHidden();
+  });
 
   test('homework added from the sheet appears in the list', async ({ page }) => {
     await addWork(page, 'Homework', 'Quadratics past paper Q12-18');

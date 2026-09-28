@@ -27,18 +27,6 @@ delete one.
   Computer Science fix-up came to be filed under General. `QuickAddSheet.tsx`,
   `AssessmentEntryModal.tsx`, `assessmentService.ts:35`,
   `RemediationEditorModal.tsx`, `RemediationSolveModal.tsx`. Found 27 Sep 2026.
-### Add sheet
-
-- **major - A subject tapped quickly is overwritten by the suggestion.** The
-  sheet sets a suggested subject from a database read that resolves after it
-  opens (`suggestedSubjectId(...).then(setSubjectId)`), so a choice made first
-  is replaced. Reproduced by the e2e suite. `QuickAddSheet.tsx:199`. Found 27
-  Sep 2026.
-- **minor - Subject chips toggle off, and say nothing when they do.** Tapping
-  the already-suggested subject clears it; the only sign is the Add button
-  greying out, beside a hint that says "Give it a name first" when a name is
-  there. Chips expose no pressed state. `QuickAddSheet.tsx:565`. Found 27 Sep
-  2026.
 
 ### Check-in and lessons
 
@@ -130,6 +118,16 @@ delete one.
 Nothing audited yet - the first `data-consistency-auditor` run goes here.
 
 ## Closed
+
+- **major - A subject tapped quickly was overwritten by the suggestion.** The
+  suggestion is a database read that lands after the sheet opens, and it was
+  applied whenever it arrived. A tap now always wins; a suggestion read for an
+  earlier opening is ignored. The e2e spec holds the database so the tap is
+  certain to come first, and fails on the old code. Fixed 28 Sep 2026.
+- **minor - Subject chips toggled off, and said nothing when they did.**
+  Tapping the suggested chip now agrees with it rather than clearing it; only
+  a chip somebody chose clears on a second tap, and the hint then says "Pick a
+  subject to add this". Chips carry `aria-pressed`. Same fix.
 
 - **major - Topic pages read "Nothing recorded yet" beside work that exists**
   (History's "Economic Boom USA 1920s" beside "Ecenomic Boom USA" homework

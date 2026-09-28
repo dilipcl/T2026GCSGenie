@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { db } from '../../db';
 import {
   Task,
@@ -104,6 +104,25 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState(addDaysISO(1));
   const [subjectId, setSubjectId] = useState<SubjectId | ''>('');
+  /**
+   * Whether the subject on screen is one somebody tapped, rather than the
+   * suggestion.
+   *
+   * The suggestion comes from a database read that lands after the sheet
+   * opens, and it used to be applied whenever it arrived - so a subject tapped
+   * in the first moment was replaced by the guess, and the work filed under a
+   * subject nobody chose. A tap now always wins. It also decides what tapping
+   * the highlighted chip means: on a suggestion it is agreeing with it, not
+   * clearing it - clearing left only a greyed-out Add button to say why.
+   */
+  const subjectChosen = useRef(false);
+  /** Counts openings, so a suggestion read for an earlier one is ignored. */
+  const openCount = useRef(0);
+  const chooseSubject = (id: SubjectId) => {
+    const clearing = subjectId === id && subjectChosen.current;
+    subjectChosen.current = !clearing;
+    setSubjectId(clearing ? '' : id);
+  };
   /** Drives the wording under the picker: a lesson-based guess vs a fallback. */
   const [schoolInSession, setSchoolInSession] = useState(false);
   const [priority, setPriority] = useState<PriorityLevel>('MEDIUM');
@@ -140,6 +159,8 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
 
     // Editing loads the row; adding starts from the defaults.
     if (editing) {
+      // What a record already says was chosen when it was made.
+      subjectChosen.current = true;
       setMode(editing.kind);
       setIsSaving(false);
       setShowMore(true);
@@ -197,7 +218,11 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
        * a blank required field - which is how a bank-holiday task ends up
        * filed under whichever subject was easiest to tap.
        */
-      suggestedSubjectId(defaultWeek).then(setSubjectId);
+      subjectChosen.current = false;
+      const opening = ++openCount.current;
+      suggestedSubjectId(defaultWeek).then((suggested) => {
+        if (opening === openCount.current && !subjectChosen.current) setSubjectId(suggested);
+      });
       isSchoolInSession(defaultWeek).then(setSchoolInSession);
       setPriority('MEDIUM');
       setCategory('EXAM_MOCK');
@@ -586,7 +611,8 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                 <button
                   type="button"
                   key={sub.id}
-                  onClick={() => setSubjectId(subjectId === sub.id ? '' : sub.id)}
+                  onClick={() => chooseSubject(sub.id)}
+                  aria-pressed={subjectId === sub.id}
                   className={`flex items-center gap-1.5 px-2 py-2 rounded-xl border text-left transition-all ${
                     subjectId === sub.id
                       ? 'bg-indigo-600 border-indigo-400 text-white'
@@ -607,7 +633,8 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                   <button
                     type="button"
                     key={sub.id}
-                    onClick={() => setSubjectId(subjectId === sub.id ? '' : sub.id)}
+                    onClick={() => chooseSubject(sub.id)}
+                    aria-pressed={subjectId === sub.id}
                     className={`flex items-center gap-1.5 px-2 py-2 rounded-xl border text-left transition-all ${
                       subjectId === sub.id
                         ? 'bg-indigo-600 border-indigo-400 text-white'
