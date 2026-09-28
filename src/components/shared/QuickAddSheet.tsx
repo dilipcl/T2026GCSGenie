@@ -8,6 +8,7 @@ import {
   Goal,
   PriorityLevel,
   SubjectId,
+  SyllabusTopic,
   WeekType,
   DayOfWeek,
   isNonExamSubject,
@@ -121,7 +122,15 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   const chooseSubject = (id: SubjectId) => {
     const clearing = subjectId === id && subjectChosen.current;
     subjectChosen.current = !clearing;
-    setSubjectId(clearing ? '' : id);
+    const next = clearing ? '' : id;
+    setSubjectId(next);
+    // A goal or topic from the subject just left would file the work under
+    // another subject's hours. Cleared rather than kept, since the pickers
+    // below no longer list it.
+    const goal = goals.find((g) => g.id === linkedGoalId);
+    if (goal?.subjectId && goal.subjectId !== next) setLinkedGoalId('');
+    const topic = topics.find((t) => t.id === linkedTopicId);
+    if (topic && topic.subjectId !== next) setLinkedTopicId('');
   };
   /** Drives the wording under the picker: a lesson-based guess vs a fallback. */
   const [schoolInSession, setSchoolInSession] = useState(false);
@@ -132,12 +141,43 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
   const [linkedGoalId, setLinkedGoalId] = useState('');
   const [goals, setGoals] = useState<Goal[]>([]);
   /**
-   * Goals worth aiming new work at: the live ones, plus whichever goal this
-   * task already names even if it has since been completed or deferred.
+   * Goals worth aiming new work at: the live ones for the chosen subject, plus
+   * whichever goal this task already names even if it has since been
+   * completed, deferred or belongs elsewhere - so an edit never silently shows
+   * "Not linked" over a link that is still set.
+   *
+   * Filtered by subject because it was not, and a Computer Science fix-up was
+   * filed under the General goal from a list of every goal in the house. Work
+   * counts towards the goal it names, so the wrong one is not a label mistake:
+   * it moves the hours.
    */
   const selectableGoals = goals.filter(
-    (g) => (g.status !== 'COMPLETED' && g.status !== 'DEFERRED') || g.id === linkedGoalId
+    (g) =>
+      g.id === linkedGoalId ||
+      (g.status !== 'COMPLETED' &&
+        g.status !== 'DEFERRED' &&
+        (!subjectId || g.subjectId === subjectId))
   );
+  /**
+   * Which topic the work is on. Optional, and only the chosen subject's.
+   *
+   * No way of creating work could say this, although the field has always
+   * existed - so every topic page read "Nothing recorded yet" beside the
+   * homework done on it, until somebody tagged it from the inbox afterwards.
+   */
+  const [linkedTopicId, setLinkedTopicId] = useState('');
+  const [topics, setTopics] = useState<SyllabusTopic[]>([]);
+  const subjectTopics = topics
+    .filter((t) => t.subjectId === subjectId)
+    .sort((a, b) => a.unit.localeCompare(b.unit) || a.title.localeCompare(b.title));
+  /**
+   * What a fix-up is fixing. A fix-up from a marked paper or a converted quest
+   * carries all three; one made here carried none, so the same kind of record
+   * said what went wrong or not depending on which screen made it.
+   */
+  const [whatWentWrong, setWhatWentWrong] = useState('');
+  const [fixSteps, setFixSteps] = useState('');
+  const [hint, setHint] = useState('');
   const [showMore, setShowMore] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -178,6 +218,10 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
         setNotes(t.description || '');
         setEstimatedHours(t.estimatedHours != null ? String(t.estimatedHours) : '');
         setLinkedGoalId(t.linkedGoalId || '');
+        setLinkedTopicId(t.linkedTopicId || '');
+        setWhatWentWrong(t.whatWentWrong || '');
+        setFixSteps(t.fixSteps || '');
+        setHint(t.hint || '');
       } else if (editing.kind === 'REMINDER') {
         const m = editing.record;
         setTitle(m.title);
@@ -229,6 +273,10 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
       setNotes('');
       setEstimatedHours('');
       setLinkedGoalId(defaultGoalId ?? '');
+      setLinkedTopicId('');
+      setWhatWentWrong('');
+      setFixSteps('');
+      setHint('');
       setSourceDoc('');
       setShowMore(false);
       setIsSaving(false);
@@ -243,6 +291,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
     // aimed at one still shows the goal it names. Dropping them here left the
     // select reading "Not linked" over a link that was still set.
     db.goals.toArray().then(setGoals);
+    db.syllabusTopics.toArray().then(setTopics);
 
     db.timetableSlots.toArray().then((list) => {
       // Dexie returns rows in primary-key order, which puts "After School" first
@@ -322,6 +371,16 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
    * summary row would have satisfied the audit trail while telling nobody
    * anything.
    */
+  /** Only a fix-up carries these; homework never gains or loses them here. */
+  const fixUpFields = () =>
+    mode === 'FIXUP'
+      ? {
+          whatWentWrong: whatWentWrong.trim() || undefined,
+          fixSteps: fixSteps.trim() || undefined,
+          hint: hint.trim() || undefined,
+        }
+      : {};
+
   const saveEdit = async () => {
     if (!editing) return;
 
@@ -335,7 +394,9 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
         priority,
         estimatedHours: Number.isFinite(hours as number) ? hours : undefined,
         linkedGoalId: linkedGoalId || undefined,
+        linkedTopicId: linkedTopicId || undefined,
         remediationSourceDoc: mode === 'FIXUP' ? sourceDoc.trim() || undefined : undefined,
+        ...fixUpFields(),
       };
       await db.tasks.update(editing.record.id, fields);
       await logFieldChanges({
@@ -349,7 +410,11 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
           dueDate: 'due date',
           estimatedHours: 'estimated hours',
           linkedGoalId: 'linked goal',
+          linkedTopicId: 'topic',
           remediationSourceDoc: 'where it came from',
+          whatWentWrong: 'what went wrong',
+          fixSteps: 'how to fix it',
+          hint: 'hint',
         },
       });
       toast.success(
@@ -437,6 +502,8 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
               ? undefined
               : Number(estimatedHours),
           linkedGoalId: linkedGoalId || undefined,
+          linkedTopicId: linkedTopicId || undefined,
+          ...fixUpFields(),
           xpValue: priority === 'HIGH' ? 60 : 50,
           completed: false,
           createdAt: Date.now(),
@@ -602,7 +669,9 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">
               Subject{' '}
-              {mode !== 'TASK' && (
+              {/* A fix-up needs its subject exactly as homework does - Add stays
+                  off without one - so it is not labelled optional. */}
+              {!isTaskMode && (
                 <span className="normal-case font-normal text-slate-500">(optional)</span>
               )}
             </label>
@@ -898,6 +967,27 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
             </div>
           )}
 
+          {/* The mistake itself, in the open: it is the one thing a fix-up is
+              for, and what its close sheet and the re-try come back to. */}
+          {mode === 'FIXUP' && (
+            <div>
+              <label
+                htmlFor="quick-add-wrong"
+                className="block text-[11px] font-bold text-slate-300 uppercase mb-1.5"
+              >
+                What went wrong?
+              </label>
+              <textarea
+                id="quick-add-wrong"
+                rows={2}
+                placeholder="e.g. Forgot to square the radius"
+                value={whatWentWrong}
+                onChange={(e) => setWhatWentWrong(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white placeholder-slate-500"
+              />
+            </div>
+          )}
+
           {/* Which goal this serves.
 
               This lived inside "More options" and was therefore never seen -
@@ -933,6 +1023,31 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                   shows no progress.
                 </p>
               )}
+            </div>
+          )}
+
+          {isTaskMode && subjectTopics.length > 0 && (
+            <div>
+              <label
+                htmlFor="quick-add-topic"
+                className="block text-[11px] font-bold text-slate-300 uppercase mb-1.5"
+              >
+                Which topic?{' '}
+                <span className="normal-case font-normal text-slate-500">(optional)</span>
+              </label>
+              <select
+                id="quick-add-topic"
+                value={linkedTopicId}
+                onChange={(e) => setLinkedTopicId(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white"
+              >
+                <option value="">Not sure yet</option>
+                {subjectTopics.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.unit ? `${t.unit} · ${t.title}` : t.title}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
@@ -1035,6 +1150,43 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({
                     />
                   </div>
                 </div>
+              )}
+
+              {mode === 'FIXUP' && (
+                <>
+                  <div>
+                    <label
+                      htmlFor="quick-add-fix"
+                      className="block text-[11px] font-bold text-slate-300 uppercase mb-1.5"
+                    >
+                      How to fix it
+                    </label>
+                    <textarea
+                      id="quick-add-fix"
+                      rows={2}
+                      placeholder="e.g. Three area questions, checked against the mark scheme"
+                      value={fixSteps}
+                      onChange={(e) => setFixSteps(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white placeholder-slate-500"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="quick-add-hint"
+                      className="block text-[11px] font-bold text-slate-300 uppercase mb-1.5"
+                    >
+                      Hint
+                    </label>
+                    <input
+                      id="quick-add-hint"
+                      type="text"
+                      placeholder="e.g. A = πr²"
+                      value={hint}
+                      onChange={(e) => setHint(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white placeholder-slate-500"
+                    />
+                  </div>
+                </>
               )}
 
               {mode !== 'LESSON' && (

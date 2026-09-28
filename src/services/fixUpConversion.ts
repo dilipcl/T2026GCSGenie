@@ -89,11 +89,21 @@ export function dueDateFor(milestones: MilestoneReminder[], today: string = toda
   return dayBefore < today ? today : dayBefore;
 }
 
-/** The agreed goal for the subject, so the fix-up's time counts towards it. */
-function goalFor(quest: RemediationAction, goals: Goal[]): string | undefined {
+/**
+ * The agreed goal for a subject, so a fix-up's time counts towards it.
+ *
+ * Exported because a fix-up made from a marked paper needs the same answer,
+ * and a second copy of which goal wins is how the two would come to file the
+ * same kind of work under different goals.
+ */
+export function agreedGoalFor(subjectId: string, goals: Goal[]): string | undefined {
   return goals
-    .filter((g) => g.status === 'APPROVED_LOCKED' && g.subjectId === quest.subjectId)
+    .filter((g) => g.status === 'APPROVED_LOCKED' && g.subjectId === subjectId)
     .sort((a, b) => a.createdAt - b.createdAt)[0]?.id;
+}
+
+function goalFor(quest: RemediationAction, goals: Goal[]): string | undefined {
+  return agreedGoalFor(quest.subjectId, goals);
 }
 
 export function taskFromQuest(

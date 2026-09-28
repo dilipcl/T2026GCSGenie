@@ -66,6 +66,83 @@ test.describe('my work', () => {
     );
   }
 
+  /**
+   * A fix-up made here asked for less than one made anywhere else: its subject
+   * read "optional", it had nowhere to say what went wrong, it could not name
+   * a topic, and its goal came from a list of every goal in the house - which
+   * is how a Computer Science fix-up was filed under General.
+   */
+  test('a fix-up from the sheet says what went wrong, and is filed under its own subject', async ({
+    page,
+  }) => {
+    const goal = (id: string, subjectId: string, title: string) => ({
+      id,
+      title,
+      category: 'ACADEMIC_GRADE_9',
+      subjectId,
+      smartSpecific: '',
+      smartMeasurable: '',
+      smartAchievable: '',
+      smartRealistic: '',
+      smartTimeBound: '',
+      status: 'APPROVED_LOCKED',
+      ragStatus: 'GREEN',
+      weeklyHoursRequired: 2,
+      createdAt: 0,
+    });
+    await insert(page, 'goals', goal('goal-maths', 'maths', 'Maths: grade 9 in the mock'));
+    await insert(page, 'goals', goal('goal-physics', 'physics', 'Physics: grade 9 in the mock'));
+    await insert(page, 'syllabusTopics', {
+      id: 'topic-circle-area',
+      subjectId: 'maths',
+      unit: 'Geometry',
+      title: 'Circle area',
+      isCompleted: false,
+      confidenceRating: 2,
+      isImportantForGrade9: true,
+    });
+
+    await page.getByRole('button', { name: 'Add homework', exact: true }).click();
+    const sheet = page.getByRole('dialog', { name: 'Quick add' });
+    await sheet.getByRole('button', { name: /^Fix a mistake/ }).click();
+    // The subject is required for a fix-up, as for homework; only the topic
+    // below is optional.
+    await expect(sheet.locator('label', { hasText: /^Subject/ })).not.toContainText('optional');
+
+    await sheet.locator('#quick-add-title').fill('Redo the circle questions');
+    const maths = sheet.getByRole('button', { name: /Maths/ }).first();
+    await maths.click();
+    await expect(maths).toHaveAttribute('aria-pressed', 'true');
+    await sheet.getByLabel('What went wrong?').fill('Forgot to square the radius');
+
+    const goals = sheet.locator('#quick-add-goal option');
+    await expect(goals).toContainText(['Maths: grade 9 in the mock']);
+    await expect(sheet.locator('#quick-add-goal')).not.toContainText('Physics: grade 9');
+    await sheet.locator('#quick-add-goal').selectOption('goal-maths');
+    await sheet.locator('#quick-add-topic').selectOption('topic-circle-area');
+
+    await sheet.getByRole('button', { name: /^Add fix-up \(/ }).click();
+    await expect(sheet).toBeHidden();
+
+    const saved = (
+      await rows<{
+        title: string;
+        isRemediation: boolean;
+        subjectId: string;
+        whatWentWrong?: string;
+        linkedGoalId?: string;
+        linkedTopicId?: string;
+      }>(page, 'tasks')
+    ).find((t) => t.title === 'Redo the circle questions');
+    expect(saved).toMatchObject({
+      isRemediation: true,
+      subjectId: 'maths',
+      whatWentWrong: 'Forgot to square the radius',
+      linkedGoalId: 'goal-maths',
+      linkedTopicId: 'topic-circle-area',
+    });
+  });
+
   test('a subject tapped before the suggestion arrives is kept', async ({ page }) => {
     const sheet = page.getByRole('dialog', { name: 'Quick add' });
     const chip = (name: RegExp) => sheet.getByRole('button', { name }).first();

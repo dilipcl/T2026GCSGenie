@@ -204,7 +204,12 @@ export const AssessmentEntryModal: React.FC<AssessmentEntryModalProps> = ({
 
       // Derived by services/assessmentService so it can be tested without
       // rendering this modal - burying it here is how it stayed broken.
-      const followUpTasks: Task[] = createFixUps ? buildFixUpTasks(record) : [];
+      const followUpTasks: Task[] = createFixUps
+        ? buildFixUpTasks(record, {
+            goals: await db.goals.toArray(),
+            topics: await db.syllabusTopics.toArray(),
+          })
+        : [];
       if (followUpTasks.length) {
         record.followUpTaskIds = followUpTasks.map((t) => t.id);
       }

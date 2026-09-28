@@ -14,20 +14,6 @@ delete one.
 
 ## Open
 
-### Fix-ups and work
-
-- **major - Details asked for depend on where a thing is created.** The same
-  kind of record asks for different details on each screen. *Closing* is now
-  consistent - one sheet, and fix-ups ask their own questions - but creation is
-  not. No creation path lets work be linked to a topic, although `Task.linkedTopicId` exists; a
-  fix-up from the + sheet marks its subject *optional* and has no "what went
-  wrong", no cause and no hint, while a quest has all three; closing a quest
-  captures score, working and weak areas, closing a fix-up task only a photo,
-  link or reason. The goal picker is not filtered by subject, which is how a
-  Computer Science fix-up came to be filed under General. `QuickAddSheet.tsx`,
-  `AssessmentEntryModal.tsx`, `assessmentService.ts:35`,
-  `RemediationEditorModal.tsx`, `RemediationSolveModal.tsx`. Found 27 Sep 2026.
-
 ### Check-in and lessons
 
 - **minor - The same homework appears twice in one check-in.** Work promised
@@ -118,6 +104,20 @@ delete one.
 Nothing audited yet - the first `data-consistency-auditor` run goes here.
 
 ## Closed
+
+- **major - Details asked for depended on where a thing was created.** A
+  fix-up from the add sheet read its subject as optional (Add stayed off
+  without one), had no "what went wrong", fix or hint, and could name no
+  topic; one from a marked paper put its mistake in the notes and named no
+  goal or topic; the goal picker listed every goal in the house, which is how
+  a Computer Science fix-up was filed under General. Now the add sheet asks a
+  fix-up what went wrong in the open, with how to fix it and a hint under More
+  options, both kinds of work can name a topic of their own subject, and the
+  goal list is the chosen subject's (changing subject clears a goal from
+  another). A marked paper's fix-ups carry what went wrong in its own field,
+  the subject's agreed goal by the same rule as a converted quest
+  (`agreedGoalFor`), and the topic the question names when it matches one
+  exactly. Fixed 28 Sep 2026.
 
 - **major - A subject tapped quickly was overwritten by the suggestion.** The
   suggestion is a database read that lands after the sheet opens, and it was
