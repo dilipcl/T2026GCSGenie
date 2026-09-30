@@ -14,17 +14,6 @@ delete one.
 
 ## Open
 
-### Accessibility
-
-- **minor - The "mark as done" tick in My Work has no accessible name.** The
-  most-used control on the tab. `TaskManagerView.tsx:364`. Found by the e2e
-  suite, 27 Sep 2026.
-- **minor - The check-in dialog's close button has no accessible name.**
-  `DailyCheckInModal.tsx:414`. Found by the e2e suite, 27 Sep 2026.
-- **polish - The header check-in button's name includes an emoji**
-  ("⚡ Check in"), which a screen reader reads aloud. `Header.tsx:141`. Found
-  by the e2e suite, 27 Sep 2026.
-
 ### First run
 
 - **polish - A new device opens on the welcome tour, covering everything.**
@@ -90,6 +79,16 @@ delete one.
 Nothing audited yet - the first `data-consistency-auditor` run goes here.
 
 ## Closed
+
+- **minor - The "mark as done" tick in My Work had no accessible name.** It
+  is now `Mark "<title>" as done` (or `Reopen "<title>"`), the words Home uses
+  for the same tick; the My Work specs find it by that name instead of "the
+  first button in the row". Fixed 28 Sep 2026.
+- **minor - The check-in dialog's close button had no accessible name.** Now
+  "Close the check-in", and `type="button"` like every button near that form.
+  Same fix.
+- **polish - The header check-in button's name included an emoji.** The bolt
+  is `aria-hidden`, so the name is "Check in". Same fix.
 
 - **minor - Home was very long on a phone**, with the focus timer and the
   lesson list below a dozen cards. On a phone the order is now: anything at

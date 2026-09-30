@@ -559,8 +559,12 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
     >
       <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        {/* Named, since an icon alone is announced as "button"; and typed, as
+            every button near this form must be. */}
         <button
+          type="button"
           onClick={onClose}
+          aria-label="Close the check-in"
           className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
         >
           <X className="w-5 h-5" />

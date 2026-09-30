@@ -237,6 +237,17 @@ test.describe('the daily check-in', () => {
    * list, and could be ticked in either - closing it twice, or closing it with
    * no time if the day list was the one ticked.
    */
+  /**
+   * The header button's name was "⚡ Check in", read aloud with the emoji, and
+   * the dialog's close button had no name at all - announced as "button".
+   */
+  test('the check-in is opened and closed by controls with plain names', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Check in', exact: true })).toBeVisible();
+    const dialog = await openCheckIn(page);
+    await dialog.getByRole('button', { name: 'Close the check-in' }).click();
+    await expect(dialog).toBeHidden();
+  });
+
   test('work committed for today is asked about once, in the day list', async ({ page }) => {
     await insert(page, 'tasks', homework('hw-today', 'Sparx due today'));
     const dialog = await openCheckIn(page);

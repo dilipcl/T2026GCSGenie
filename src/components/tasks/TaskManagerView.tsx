@@ -321,8 +321,13 @@ export const TaskManagerView: React.FC<TaskManagerViewProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-3 flex-1 min-w-[260px]">
+                  {/* Named in the words Home uses for the same tick. An icon
+                      alone is announced as "button" - on the most-used control
+                      on this tab, and one of a list of identical ones. */}
                   <button
+                    type="button"
                     onClick={() => toggleTaskCompleted(task)}
+                    aria-label={task.completed ? `Reopen "${task.title}"` : `Mark "${task.title}" as done`}
                     className="p-1 hover:scale-110 transition-transform"
                   >
                     {task.completed ? (

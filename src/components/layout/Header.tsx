@@ -138,7 +138,10 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onOpenCheckIn}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold shadow-md shadow-emerald-900/30 hover:from-emerald-500 hover:to-teal-500 transition-all text-xs"
           >
-            <span>⚡ Check in</span>
+            {/* The bolt is decoration; a screen reader read it out as
+                "high voltage" before the words. */}
+            <span aria-hidden="true">⚡</span>
+            <span>Check in</span>
           </button>
 
           <SyncStatus />

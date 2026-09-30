@@ -200,8 +200,9 @@ test.describe('my work', () => {
     await addWork(page, 'Homework', 'Sparx Maths');
     // The tick has no accessible name (a finding in its own right), so it is
     // found as the first button in the row that carries the title.
-    const row = page.locator('div.rounded-xl', { has: page.getByRole('heading', { name: 'Sparx Maths' }) }).last();
-    await row.getByRole('button').first().click();
+    // By its name: the tick had none, so this used to be "the first button in
+    // the row", which held only until the row changed.
+    await page.getByRole('button', { name: 'Mark "Sparx Maths" as done' }).click();
 
     const sheet = page.getByRole('dialog', { name: /Finished “Sparx Maths”\?/ });
     await expect(sheet.getByText(/Nothing is attached yet/)).toBeVisible();
@@ -220,10 +221,7 @@ test.describe('my work', () => {
     // own), so the row arrives by opening the tab again.
     await openTab(page, 'Home');
     await openTab(page, 'My Work');
-    const row = page
-      .locator('div.rounded-xl', { has: page.getByRole('heading', { name: 'Crude oil worksheet' }) })
-      .last();
-    await row.getByRole('button').first().click();
+    await page.getByRole('button', { name: 'Mark "Crude oil worksheet" as done' }).click();
 
     const sheet = page.getByRole('dialog', { name: /Finished “Crude oil worksheet”\?/ });
     await expect(sheet.getByRole('button', { name: '45m' })).toHaveAttribute('aria-pressed', 'true');
