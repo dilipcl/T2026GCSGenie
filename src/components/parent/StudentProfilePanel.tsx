@@ -28,6 +28,7 @@ export const StudentProfilePanel: React.FC = () => {
   const [termStart, setTermStart] = useState('');
   const [numbers, setNumbers] = useState<{ id: string; label: string; e164: string }[]>([]);
   const [groupUrl, setGroupUrl] = useState('');
+  const [hubUrl, setHubUrl] = useState('');
   const [forwarding, setForwarding] = useState<UpdateForwardingSettings>({
     toGroup: true,
     toNumberIds: [],
@@ -48,6 +49,7 @@ export const StudentProfilePanel: React.FC = () => {
     setTermStart(settings.termStartDate || '');
     setNumbers(settings.parentWhatsAppNumbers?.length ? settings.parentWhatsAppNumbers : []);
     setGroupUrl(settings.familyGroupInviteUrl || '');
+    setHubUrl(settings.homeAssistantWebhookUrl || '');
     setForwarding(
       settings.updateForwarding ?? { toGroup: true, toNumberIds: [], promptAfterConfirm: true }
     );
@@ -72,6 +74,7 @@ export const StudentProfilePanel: React.FC = () => {
           .map((n) => ({ ...n, label: n.label.trim(), e164: normaliseE164(n.e164) }))
           .filter((n) => n.e164),
         familyGroupInviteUrl: groupUrl.trim() || undefined,
+        homeAssistantWebhookUrl: hubUrl.trim() || undefined,
         // Only forward to numbers that still exist - deleting a number should
         // not leave a destination pointing at nothing.
         updateForwarding: {
@@ -95,6 +98,7 @@ export const StudentProfilePanel: React.FC = () => {
           examSeriesStartDate: 'exam start date',
           termStartDate: 'first odd week of term',
           familyGroupInviteUrl: 'family group link',
+          homeAssistantWebhookUrl: 'family hub link',
           updateForwarding: 'where updates are forwarded',
           // The numbers themselves are never written to the log - a change
           // history a second person reads should not carry phone numbers.
@@ -366,6 +370,27 @@ export const StudentProfilePanel: React.FC = () => {
             onChange={(e) => setGroupUrl(e.target.value)}
             className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white placeholder-slate-600"
           />
+        </div>
+
+        <div className="mt-3">
+          <label
+            htmlFor="profile-hub-url"
+            className="block text-[11px] font-semibold text-slate-300 mb-1"
+          >
+            Family hub link (Home Assistant)
+          </label>
+          <input
+            id="profile-hub-url"
+            type="url"
+            placeholder="https://….ui.nabu.casa/api/webhook/..."
+            value={hubUrl}
+            onChange={(e) => setHubUrl(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white placeholder-slate-600"
+          />
+          <p className="text-[10px] text-slate-500 mt-1">
+            The week&rsquo;s score, colour, goals needing action and waiting updates go here when they
+            change, so Alexa can read them out at night. Leave it empty and nothing is sent.
+          </p>
         </div>
 
         <div className="mt-3 space-y-2">

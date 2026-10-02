@@ -7,6 +7,7 @@ import { CheckInHistoryModal } from './components/dashboard/CheckInHistoryModal'
 import { TodayScheduleCard } from './components/dashboard/TodayScheduleCard';
 import { ActiveQuestsCard } from './components/dashboard/ActiveQuestsCard';
 import { useQuestConversion } from './hooks/useQuestConversion';
+import { useHomeAssistantBridge } from './hooks/useHomeAssistantBridge';
 import { WeeklyCockpitCard } from './components/dashboard/WeeklyCockpitCard';
 import { DueSoonCard } from './components/dashboard/DueSoonCard';
 import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
@@ -84,6 +85,9 @@ export const App: React.FC = () => {
 
   // Fix-up quests are fix-up tasks now; any that appear are converted.
   useQuestConversion();
+  // The family hub's copy of the week, for the 9pm Alexa briefing. Off until a
+  // parent saves a hub link.
+  useHomeAssistantBridge();
 
   // Bumped whenever data changes, so dashboard cards reload without a tab switch
   const [refreshKey, setRefreshKey] = useState(0);
