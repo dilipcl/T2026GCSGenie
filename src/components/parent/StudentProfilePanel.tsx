@@ -7,6 +7,7 @@ import { UserCog, Save, MessageCircle, Plus, Trash2, Share2 } from 'lucide-react
 import { UpdateForwardingSettings } from '../../types';
 import { formatE164, isValidE164, normaliseE164 } from '../../services/whatsappService';
 import { newId } from '../../utils/id';
+import { isWebhookUrl } from '../../services/homeAssistantBridge';
 
 /**
  * Who the app is for.
@@ -104,8 +105,10 @@ export const StudentProfilePanel: React.FC = () => {
           // history a second person reads should not carry phone numbers.
           parentWhatsAppNumbers: 'family WhatsApp numbers',
         },
-        // The link is the key to the family group; the log says it changed.
-        secret: ['familyGroupInviteUrl'],
+        // Both links are keys: the invite lets anyone join the family group, and
+        // anyone holding the webhook can trigger the hub's automation. The log
+        // says they changed.
+        secret: ['familyGroupInviteUrl', 'homeAssistantWebhookUrl'],
       });
       toast.success('Profile saved', `${fields.studentName} · ${fields.studentYearGroup}`);
     } catch (err) {
@@ -391,6 +394,20 @@ export const StudentProfilePanel: React.FC = () => {
             The week&rsquo;s score, colour, goals needing action and waiting updates go here when they
             change, so Alexa can read them out at night. Leave it empty and nothing is sent.
           </p>
+          {/* The host, spelled out. Any https webhook path is accepted, and the
+              request is no-cors, so a typo or a look-alike address would send
+              the week somewhere else with nothing in the app to show it. Seeing
+              the host is the only check a person can make. */}
+          {hubUrl.trim() &&
+            (isWebhookUrl(hubUrl) ? (
+              <p className="text-[10px] text-slate-400 mt-1" data-testid="hub-host">
+                Sends to <span className="font-semibold text-slate-200">{new URL(hubUrl.trim()).host}</span>
+              </p>
+            ) : (
+              <p className="text-[10px] text-amber-400 mt-1" data-testid="hub-host">
+                Not an https Home Assistant webhook link, so nothing will be sent.
+              </p>
+            ))}
         </div>
 
         <div className="mt-3 space-y-2">
