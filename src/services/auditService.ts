@@ -113,6 +113,14 @@ export async function logFieldChanges<T extends Record<string, unknown>>(params:
   after: Partial<T>;
   /** Human labels for the field names, where the key is not self-explanatory. */
   labels?: Partial<Record<keyof T, string>>;
+  /**
+   * Fields whose value is itself a key: a WhatsApp invite link lets anyone who
+   * holds it join the family group. The log syncs to every device, is read by
+   * the student, and is hash-chained - a row cannot be scrubbed afterwards
+   * without breaking the chain - so a link written here outlives resetting it.
+   * The row still records that the field changed, and when; never what to.
+   */
+  secret?: (keyof T)[];
 }): Promise<number> {
   /**
    * Turns a field value into something a person can read.
@@ -154,14 +162,25 @@ export async function logFieldChanges<T extends Record<string, unknown>>(params:
     const to = params.after[key];
     if (asText(from) === asText(to)) continue;
 
+    // Compared on the real values above, so replacing one link with another is
+    // still recorded even though both sides are written as "(set)".
+    const hidden = params.secret?.includes(key);
+    const shown = (value: unknown) => {
+      const text = asText(value);
+      return hidden && text !== '(blank)' ? '(set)' : text;
+    };
+    const oldValue = shown(from);
+    let newValue = shown(to);
+    if (hidden && oldValue === '(set)' && newValue === '(set)') newValue = '(replaced)';
+
     await logAuditEvent({
       user: params.user,
       action: 'UPDATE',
       entity: params.entity,
       entityId: params.entityId,
       fieldChanged: (params.labels?.[key] as string) || String(key),
-      oldValue: asText(from),
-      newValue: asText(to),
+      oldValue,
+      newValue,
     });
     written += 1;
   }

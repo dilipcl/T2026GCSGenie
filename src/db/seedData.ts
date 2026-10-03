@@ -36,9 +36,10 @@ export const INITIAL_PARENT_SETTINGS: ParentSettings = {
   // the countdown is the point, and nobody configures a field to be told
   // something they already half know.
   examSeriesStartDate: '2027-05-10',
-  // The family log group. Changes the student confirms are reported here, so
-  // nobody has to ask what was done today.
-  familyGroupInviteUrl: 'https://chat.whatsapp.com/JAMiLpKQOt485Gj2G2MVKP',
+  // No family group link. One was seeded here, and this file ships in a public
+  // repository and in the public bundle - an invite link lets whoever reads it
+  // join the group the family's updates go to. A parent saves it in Student
+  // profile, and it reaches the other devices by sync.
   // The group is offered by default because it is the log everyone reads;
   // individual numbers are opt-in, and nothing is ever sent without a tap.
   updateForwarding: { toGroup: true, toNumberIds: [], promptAfterConfirm: true },

@@ -447,7 +447,9 @@ describe('settings backfill on an existing install', () => {
 
     const filled = await db.parentSettings.get('active_settings');
     expect(filled!.examSeriesStartDate).toBe('2027-05-10');
-    expect(filled!.familyGroupInviteUrl).toContain('chat.whatsapp.com');
+    // Never defaulted: a cleared group link has to stay cleared, and the old
+    // default was a real invite published in the bundle.
+    expect(filled!.familyGroupInviteUrl).toBeUndefined();
     // Without this, the forward options silently never appear.
     expect(filled!.updateForwarding?.toGroup).toBe(true);
   });

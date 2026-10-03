@@ -780,7 +780,9 @@ export class GCSEGenieDatabase extends Dexie {
     /** Fields safe to default: absent means "never configured", not "cleared". */
     const defaults: (keyof typeof INITIAL_PARENT_SETTINGS)[] = [
       'examSeriesStartDate',
-      'familyGroupInviteUrl',
+      // Not `familyGroupInviteUrl`. Clearing that box saves it as absent, so a
+      // default here would put the link back on the next open - a parent who
+      // removed a leaked link would find it restored and never know why.
       'updateForwarding',
     ];
 

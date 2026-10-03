@@ -100,6 +100,8 @@ export const StudentProfilePanel: React.FC = () => {
           // history a second person reads should not carry phone numbers.
           parentWhatsAppNumbers: 'family WhatsApp numbers',
         },
+        // The link is the key to the family group; the log says it changed.
+        secret: ['familyGroupInviteUrl'],
       });
       toast.success('Profile saved', `${fields.studentName} · ${fields.studentYearGroup}`);
     } catch (err) {
