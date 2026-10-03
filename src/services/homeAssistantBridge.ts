@@ -108,3 +108,87 @@ export async function pushWeekBrief(url: string, brief: WeekBrief): Promise<bool
     return false;
   }
 }
+
+/** A check-in writes several rows in a burst; one report for the burst is enough. */
+const SETTLE_MS = 4_000;
+/** After a pull that did not land, how long a sync-state change alone waits to try again. */
+const RETRY_AFTER_FAILURE_MS = 5 * 60_000;
+
+export interface BriefSender {
+  /** Send this brief to this hub, unless it is what was last sent there. Safe to call on every change. */
+  request(url: string, brief: WeekBrief): void;
+  /** The half-hourly resend: the next request sends even if nothing changed. */
+  forget(): void;
+  /** Signing in is a reason to try again straight away, whatever failed before. */
+  forgetFailure(): void;
+  cancelPending(): void;
+}
+
+/**
+ * The sending, kept out of the hook so the thing that went wrong can be tested.
+ *
+ * The first version lived in an effect that re-ran on every sync-state change
+ * and cancelled its own send on cleanup. But the send begins with a pull, and a
+ * pull moves the sync state through pushing, pulling and in-sync - so every
+ * send cancelled itself partway, scheduled another, and pulled again. Once a
+ * parent saved a hub link, every signed-in device would have asked Dexie Cloud
+ * for a full sync every few seconds, for ever, and never told the hub anything;
+ * and enough of that trips the server's rate limiting, which holds up the sync
+ * the rest of the app depends on.
+ *
+ * So a send that has started is never cancelled, nothing new is scheduled while
+ * one is running, and a pull that fails is not retried just because the sync
+ * state moved - that movement may be our own pull. What was last sent is keyed
+ * by hub as well as brief, so changing the link sends to the new one.
+ */
+export function createBriefSender(
+  deps: {
+    pulled: () => Promise<boolean>;
+    read: () => Promise<WeekBrief>;
+    push: (url: string, brief: WeekBrief) => Promise<boolean>;
+  },
+  settleMs: number = SETTLE_MS
+): BriefSender {
+  let lastSent = '';
+  let failedAt = -Infinity;
+  let running = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  return {
+    request(url, brief) {
+      const signature = `${url}\n${JSON.stringify(brief)}`;
+      if (running || signature === lastSent) return;
+      if (Date.now() - failedAt < RETRY_AFTER_FAILURE_MS) return;
+
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        running = true;
+        try {
+          if (!(await deps.pulled())) {
+            failedAt = Date.now();
+            return;
+          }
+          // Re-read after the pull: the brief that scheduled this may predate it.
+          const fresh = await deps.read();
+          if (await deps.push(url, fresh)) lastSent = `${url}\n${JSON.stringify(fresh)}`;
+          else failedAt = Date.now();
+        } catch (err) {
+          failedAt = Date.now();
+          console.warn('Could not prepare the family hub brief:', err);
+        } finally {
+          running = false;
+        }
+      }, settleMs);
+    },
+    forget() {
+      lastSent = '';
+      failedAt = -Infinity;
+    },
+    forgetFailure() {
+      failedAt = -Infinity;
+    },
+    cancelPending() {
+      clearTimeout(timer);
+    },
+  };
+}
