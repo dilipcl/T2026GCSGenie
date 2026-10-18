@@ -81,6 +81,22 @@ describe('the places the wrong formatter keeps reaching', () => {
    * derives it from what `formatPastDate` returned - so a change to where that
    * switches from relative to absolute silently changes the heading too.
    */
+  /**
+   * "The week of Overdue by 3 days". A week is named by its Monday, which is a
+   * date and never a deadline, yet the approval panel reached for the friendly
+   * formatter twice - once on screen and once in the summary written to the
+   * activity feed, where it stays for good. The feed line was fixed once
+   * ("for the week of Today") and came back in the other call.
+   */
+  it('never names a week with a "how soon" phrase', () => {
+    for (const path of SOURCES) {
+      const source = readFileSync(path, 'utf8');
+      expect(source, `${path} renders "week of {formatFriendlyDate(...)}"`).not.toMatch(
+        /week of\s*(\{'\s*'\}\s*)?\$?\{formatFriendlyDate/
+      );
+    }
+  });
+
   it('switches from a relative word to a date after a week', () => {
     // Inside the week: relative, and the date beside it adds something.
     expect(formatPastDate('2026-09-06')).not.toContain(formatShortDate('2026-09-06'));

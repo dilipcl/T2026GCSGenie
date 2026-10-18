@@ -107,6 +107,44 @@ export function seedLedgerKey(table: string, rowId: string): string {
   return `${table}:${rowId}`;
 }
 
+/** Starter rows taken off a device before its first sign-in, by table. */
+export type WithdrawnStarterRows = { table: string; rows: { id: string }[] }[];
+
+/**
+ * Fields that tell nothing about whether a starter row has been touched.
+ *
+ * The seed is built when the bundle loads, so `createdAt` and the starter
+ * homework's due dates come from that load's clock: a row seeded on Monday and
+ * compared on Wednesday differs in both and has still been touched by nobody.
+ * The rest are written by the sync layer, or are device-local and never
+ * uploaded anyway.
+ */
+const UNTOUCHED_IGNORES = new Set([
+  'createdAt',
+  'dueDate',
+  'owner',
+  'realmId',
+  '$ts',
+  'llmApiKey',
+  'failedUnlockAttempts',
+  'unlockLockedUntil',
+]);
+
+/** Whether a stored row is still exactly the starter row it was seeded from. */
+export function isUntouchedSeed(row: object, seed: object): boolean {
+  const keys = new Set([...Object.keys(row), ...Object.keys(seed)]);
+  for (const key of keys) {
+    if (UNTOUCHED_IGNORES.has(key)) continue;
+    const a = (row as Record<string, unknown>)[key];
+    const b = (seed as Record<string, unknown>)[key];
+    // Seed rows are plain data - strings, numbers, booleans, arrays and plain
+    // objects - so serialising compares them fully. `undefined` and absent
+    // read the same, as they do everywhere else a row is read.
+    if (JSON.stringify(a) !== JSON.stringify(b)) return false;
+  }
+  return true;
+}
+
 /**
  * IMPORTANT: IndexedDB cannot index boolean values. Fields such as `completed`,
  * `isCompleted`, `isHomework` and `shopFrozen` appear in the schema strings below
@@ -733,6 +771,56 @@ export class GCSEGenieDatabase extends Dexie {
     if (record.length) await this.seedLedger.bulkPut(record);
 
     await this.backfillSettingsDefaults();
+  }
+
+  /**
+   * Takes this device's untouched starter rows off it, ahead of its first
+   * sign-in, and hands them back in case they need restoring.
+   *
+   * On the first sync after signing in, Dexie Cloud uploads every row a device
+   * holds as an upsert - not just the ones that changed. A new device seeds the
+   * starter content while signed out, so signing it in pushed pristine starter
+   * rows over the family's own. That is what happened on 11 October 2026: a
+   * new device's first sync put the Computer Science goal Dad had approved on
+   * 27 September back to "waiting for discussion", and brought back the
+   * duplicate Maths goal and the starter topics Tejas had deleted. Six hours of
+   * Computer Science then counted towards no goal, and nothing anywhere said
+   * why. The seed ledger could not help: it is per-device, and this device had
+   * honestly never offered those rows before.
+   *
+   * Removing them first is safe because a signed-out device does not record
+   * its writes for upload - the deletion goes nowhere, and only the rows still
+   * here at sign-in are sent. Only rows exactly as seeded are taken: a topic
+   * Tejas ticked on this device before signing in is his work, and goes up.
+   * The ledger keeps them as offered, so the family's own deletions stay
+   * deleted once the pull arrives.
+   */
+  async withdrawUntouchedStarterRows(): Promise<WithdrawnStarterRows> {
+    const withdrawn: WithdrawnStarterRows = [];
+    const tables = [
+      ...SEED_TABLES,
+      ['parentSettings', [{ ...INITIAL_PARENT_SETTINGS, id: 'active_settings' }]],
+    ] as [string, { id: string }[]][];
+
+    for (const [name, seeds] of tables) {
+      const table = this.table(name) as Table<{ id: string }, string>;
+      const unique = [...new Map(seeds.map((s) => [s.id, s])).values()];
+      const found = await table.bulkGet(unique.map((s) => s.id));
+      const untouched = found.filter(
+        (row, i): row is { id: string } => !!row && isUntouchedSeed(row, unique[i])
+      );
+      if (untouched.length === 0) continue;
+      await table.bulkDelete(untouched.map((row) => row.id));
+      withdrawn.push({ table: name, rows: untouched });
+    }
+    return withdrawn;
+  }
+
+  /** Puts back what `withdrawUntouchedStarterRows` took, exactly as it was. */
+  async restoreStarterRows(withdrawn: WithdrawnStarterRows): Promise<void> {
+    for (const { table, rows } of withdrawn) {
+      await (this.table(table) as Table<{ id: string }, string>).bulkPut(rows);
+    }
   }
 
   /**

@@ -158,6 +158,8 @@ describe('formatPastDate', () => {
   });
 
   it('falls back to an absolute date further back', () => {
-    expect(formatPastDate(addDaysISO(-30))).toMatch(/\d{1,2} \w{3}$/);
+    // en-GB abbreviates September as "Sept", so this failed for any run whose
+    // date thirty days back fell in September.
+    expect(formatPastDate(addDaysISO(-30))).toMatch(/\d{1,2} \w{3,4}$/);
   });
 });

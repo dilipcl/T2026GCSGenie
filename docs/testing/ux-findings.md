@@ -76,9 +76,37 @@ delete one.
 
 ## Data consistency
 
-Nothing audited yet - the first `data-consistency-auditor` run goes here.
+- **major - Live data still carries the 11 October overwrite.** The code fault
+  is closed below, but what it wrote is still in the family's realm: the
+  Computer Science goal is back at "waiting for discussion", and the duplicate
+  Maths goal (`g-academic-maths`) and the starter topics (m-1, m-2, m-3, m-5,
+  cs-3, h-1 among them, all `createdAt` 11 Oct 21:32) are back. Until a parent
+  re-approves the CS goal and deletes those rows again, CS study time counts
+  towards no goal (5.3 of 6.3h in the week of 12 Oct). A person's job, not
+  code's: it is a decision, and it is recorded as one. Found reading the live
+  data for the 18 Oct progress report.
 
 ## Closed
+
+- **blocker - A new device's first sign-in overwrote the family's decisions.**
+  Dexie Cloud uploads every row a signed-out device holds, as upserts, on its
+  first sync. A new device seeds the starter content while signed out, so on
+  11 Oct 2026 signing one in put the approved CS goal back to "waiting for
+  discussion" and brought back the deleted Maths goal and starter topics. The
+  per-device seed ledger could not see it. Sign-in now goes through
+  `signInWithoutOverwriting`, which takes untouched starter rows off the device
+  first (a signed-out device records no deletes, so nothing goes up) and puts
+  them back only if sign-in is cancelled or the account turns out empty.
+  `firstSignIn.test.ts`. Fixed 18 Oct 2026.
+- **major - "This week" counts were running totals.** A closed task keeps its
+  THIS_WEEK bucket, so the Plan tab read "45 finished this week" and every
+  weekly review recorded "45/51 committed tasks done". `loadWeekCommitment`
+  now counts finished work only if it was finished this week; the headline,
+  week health and review all read it. `planBuckets.test.ts`. Fixed 18 Oct 2026.
+- **minor - "Approved the week of Overdue by 3 days".** The approval panel
+  named the week with `formatFriendlyDate`, on screen and in the summary it
+  writes to the activity feed. Now `formatShortDate`; `dateLabels.test.ts`
+  fails on "week of" followed by the friendly formatter. Fixed 18 Oct 2026.
 
 - **minor - The "mark as done" tick in My Work had no accessible name.** It
   is now `Mark "<title>" as done` (or `Reopen "<title>"`), the words Home uses

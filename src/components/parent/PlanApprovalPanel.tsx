@@ -73,7 +73,7 @@ export const PlanApprovalPanel: React.FC = () => {
       entityId: weekStart,
       actor: 'PARENT',
       confirmLabel: 'Approve it',
-      summary: `Approved the week of ${formatFriendlyDate(weekStart)} — ${submitted.length} tasks, ${
+      summary: `Approved the week of ${formatShortDate(weekStart)} — ${submitted.length} tasks, ${
         baseline?.hours ?? 0
       }h`,
       run: async () => {
@@ -149,7 +149,7 @@ export const PlanApprovalPanel: React.FC = () => {
             <Clock className="w-3.5 h-3.5 text-amber-400" />
             <span>
               {submitted.length} tasks, {baseline?.hours}h promised for the week of{' '}
-              {formatFriendlyDate(weekStart)}.
+              {formatShortDate(weekStart)}.
             </span>
           </p>
 

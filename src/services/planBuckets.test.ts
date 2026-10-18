@@ -105,6 +105,34 @@ describe('the four columns', () => {
     expect(commitment.committedCount).toBe(1);
     expect(commitment.committedHours).toBe(2);
   });
+
+  /**
+   * A closed task keeps its THIS_WEEK bucket, so counting the column counted
+   * every task ever finished under that label - "45 finished this week" in
+   * mid-October, recorded into each weekly review as that week's result.
+   */
+  it('counts only work finished this week as done this week', async () => {
+    const lastThursday = new Date('2026-08-27T18:00:00').getTime();
+    const thisMonday = new Date('2026-08-31T18:00:00').getTime();
+    await db.tasks.bulkAdd([
+      makeTask({ bucket: 'THIS_WEEK', completed: true, completedAt: lastThursday }),
+      makeTask({ bucket: 'THIS_WEEK', completed: true, completedAt: thisMonday }),
+      makeTask({ bucket: 'THIS_WEEK', dueDate: addDaysISO(2) }),
+    ]);
+
+    const commitment = await loadWeekCommitment();
+    expect(commitment.committedDone).toBe(1);
+    expect(commitment.committedCount).toBe(2);
+  });
+
+  it('falls back to the due date for work closed before completedAt existed', async () => {
+    await db.tasks.bulkAdd([
+      makeTask({ bucket: 'THIS_WEEK', completed: true, dueDate: '2026-08-20' }),
+      makeTask({ bucket: 'THIS_WEEK', completed: true, dueDate: TUESDAY }),
+    ]);
+
+    expect((await loadWeekCommitment()).committedDone).toBe(1);
+  });
 });
 
 describe('moving between sprints', () => {
