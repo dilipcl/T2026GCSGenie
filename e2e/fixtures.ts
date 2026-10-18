@@ -84,6 +84,7 @@ const TABS = {
   Plan: { label: 'Plan', short: 'Plan', weekly: false },
   Updates: { label: 'Updates', short: 'Updates', weekly: false },
   Record: { label: 'Record', short: 'Record', weekly: false },
+  Progress: { label: 'Progress', short: 'Progress', weekly: true },
   Library: { label: 'Library', short: 'Library', weekly: true },
   Rewards: { label: 'Rewards', short: 'Rewards', weekly: true },
   Timetable: { label: 'Timetable', short: 'Timetable', weekly: true },

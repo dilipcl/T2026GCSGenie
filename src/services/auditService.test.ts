@@ -57,6 +57,44 @@ describe('writing a field value a person can read', () => {
     expect(row.newValue).toBe('3');
   });
 
+  describe('a field whose value is a key', () => {
+    async function changeSecret(before: Record<string, unknown>, after: Record<string, unknown>) {
+      await logFieldChanges({
+        user: 'PARENT',
+        entity: 'StudentProfile',
+        entityId: 'profile_1',
+        before,
+        after,
+        secret: ['link'],
+      });
+      return db.auditLogs.toArray();
+    }
+
+    /** The log syncs, the student reads it, and its rows cannot be scrubbed. */
+    it('records that it was set, never the value', async () => {
+      const [row] = await changeSecret({}, { link: 'https://chat.whatsapp.com/SECRET' });
+      expect(row.oldValue).toBe('(blank)');
+      expect(row.newValue).toBe('(set)');
+      expect(JSON.stringify(row)).not.toContain('SECRET');
+    });
+
+    it('still records one link replacing another', async () => {
+      const rows = await changeSecret(
+        { link: 'https://chat.whatsapp.com/OLD' },
+        { link: 'https://chat.whatsapp.com/NEW' }
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].oldValue).toBe('(set)');
+      expect(rows[0].newValue).toBe('(replaced)');
+      expect(JSON.stringify(rows[0])).not.toMatch(/OLD|NEW/);
+    });
+
+    it('records it being cleared', async () => {
+      const [row] = await changeSecret({ link: 'https://chat.whatsapp.com/OLD' }, { link: undefined });
+      expect(row.newValue).toBe('(blank)');
+    });
+  });
+
   it('writes nothing when a list is unchanged', async () => {
     await logFieldChanges({
       user: 'PARENT',

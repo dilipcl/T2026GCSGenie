@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { PlanBucket, Task } from '../types';
-import { addDaysISO, daysUntil, parseISODate, todayISO } from '../utils/date';
+import { addDaysISO, daysUntil, parseISODate, toLocalISODate, todayISO } from '../utils/date';
 import { logAuditEvent } from './auditService';
 import { currentWeek, isInWeek } from './weekWindow';
 
@@ -154,7 +154,25 @@ export async function loadWeekCommitment(): Promise<WeekCommitment> {
     column.push(task);
   }
 
-  const committed = columns.THIS_WEEK;
+  /**
+   * Finished work counts towards this week only if it was finished this week.
+   *
+   * A task keeps its THIS_WEEK bucket after it is closed - nothing moves it on
+   * - so counting the whole column counted every piece of work ever finished
+   * under that label. By mid-October the Plan tab read "45 finished this week"
+   * and the weekly review recorded "45/51 committed tasks done" for a week in
+   * which a handful were, and every week's review repeated the running total
+   * as though it were that week's result.
+   *
+   * A row closed before `completedAt` existed falls back to its due date, the
+   * only date it has.
+   */
+  const week = currentWeek();
+  const committed = columns.THIS_WEEK.filter(
+    (t) =>
+      !t.completed ||
+      isInWeek(t.completedAt ? toLocalISODate(new Date(t.completedAt)) : t.dueDate, week)
+  );
   const today = todayISO();
 
   return {

@@ -1,6 +1,18 @@
 import { db } from '../db';
-import { RAGStatus, SubjectId, isNonExamSubject } from '../types';
+import { RAGStatus, SubjectId, SyllabusTopic, isNonExamSubject } from '../types';
 import { closedWeekBonuses } from './weekExecution';
+
+/**
+ * A topic Tejas can be left alone on: ticked off, or rated 4 or 5.
+ *
+ * The one definition, shared by the subject health score and the Progress
+ * screen. Two readings of "secure" would put two different counts beside the
+ * same subject - one saying 6 of 59 and the other something else - and the
+ * screen meant to settle arguments would start one.
+ */
+export function isTopicSecure(topic: SyllabusTopic): boolean {
+  return topic.isCompleted || topic.confidenceRating >= 4;
+}
 
 export interface SubjectRAGResult {
   subjectId: SubjectId;
@@ -81,7 +93,7 @@ export async function calculateSubjectRAG(subjectId: SubjectId): Promise<Subject
 
   // 3. Topics mastery
   const topics = await db.syllabusTopics.where('subjectId').equals(subjectId).toArray();
-  const masteredTopics = topics.filter((t) => t.isCompleted || t.confidenceRating >= 4);
+  const masteredTopics = topics.filter(isTopicSecure);
   const topicRate = topics.length > 0 ? (masteredTopics.length / topics.length) * 100 : 80;
 
   // 4. Marked work actually handed back by a teacher

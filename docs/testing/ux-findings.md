@@ -74,11 +74,64 @@ delete one.
   save flake - a check-in step slow under load - so if it recurs, look at what
   the suggestion waits on before calling it a flake.
 
+- **Flake watch - "Done" on committed work closes it and asks its time**
+  (desktop) failed once in a full run on 18 Oct 2026: the `30m` estimate chip
+  stayed `aria-pressed="false"` for the whole 10s wait. It passed 15/15 in
+  three runs of its spec and 20/20 repeated alone, both layouts, the same
+  hour. The change under test (Progress, activity diary) does not touch the
+  check-in. If it recurs, look at when the estimate is read relative to the
+  close - the chip is set from the task after the close writes.
+
 ## Data consistency
 
-Nothing audited yet - the first `data-consistency-auditor` run goes here.
+- **major - Live data still carries the 11 October overwrite.** The code fault
+  is closed below, but what it wrote is still in the family's realm: the
+  Computer Science goal is back at "waiting for discussion", and the duplicate
+  Maths goal (`g-academic-maths`) and the starter topics (m-1, m-2, m-3, m-5,
+  cs-3, h-1 among them, all `createdAt` 11 Oct 21:32) are back. Until a parent
+  re-approves the CS goal and deletes those rows again, CS study time counts
+  towards no goal (5.3 of 6.3h in the week of 12 Oct). A person's job, not
+  code's: it is a decision, and it is recorded as one. Found reading the live
+  data for the 18 Oct progress report.
 
 ## Closed
+
+- **major - Nothing reported how things were going.** Every screen answered
+  "what next?"; answering "is he doing the work, is the time going where we
+  agreed, is it working?" took a database export on 18 Oct 2026. The
+  Progress screen (More > Progress) answers the three in a sentence each,
+  then shows the term a week at a time, each agreed goal over four weeks,
+  latest marks, and what is waiting on a parent. Read-only.
+  `progressReport.test.ts`, `e2e/progress.spec.ts`. Fixed 18 Oct 2026.
+- **major - Lost study time disappeared silently.** Home showed "6.3h
+  studied" and "1h done of 18h" a scroll apart. A card under the week's
+  health now says what counted, what did not, why (goal not agreed, goal with
+  no subject, no subject at all) and opens the fix. Same file and spec.
+- **major - The activity feed read as a database log** ("Changed
+  checkinoccurrences something", thirty-three rows for one Sunday). Each day
+  now opens with a sentence of what it was; lesson answers, re-links and due
+  date moves fold behind "Show every change"; every audited entity has a
+  name. `dayDiary.test.ts`, `e2e/diary.spec.ts`. Fixed 18 Oct 2026.
+
+- **blocker - A new device's first sign-in overwrote the family's decisions.**
+  Dexie Cloud uploads every row a signed-out device holds, as upserts, on its
+  first sync. A new device seeds the starter content while signed out, so on
+  11 Oct 2026 signing one in put the approved CS goal back to "waiting for
+  discussion" and brought back the deleted Maths goal and starter topics. The
+  per-device seed ledger could not see it. Sign-in now goes through
+  `signInWithoutOverwriting`, which takes untouched starter rows off the device
+  first (a signed-out device records no deletes, so nothing goes up) and puts
+  them back only if sign-in is cancelled or the account turns out empty.
+  `firstSignIn.test.ts`. Fixed 18 Oct 2026.
+- **major - "This week" counts were running totals.** A closed task keeps its
+  THIS_WEEK bucket, so the Plan tab read "45 finished this week" and every
+  weekly review recorded "45/51 committed tasks done". `loadWeekCommitment`
+  now counts finished work only if it was finished this week; the headline,
+  week health and review all read it. `planBuckets.test.ts`. Fixed 18 Oct 2026.
+- **minor - "Approved the week of Overdue by 3 days".** The approval panel
+  named the week with `formatFriendlyDate`, on screen and in the summary it
+  writes to the activity feed. Now `formatShortDate`; `dateLabels.test.ts`
+  fails on "week of" followed by the friendly formatter. Fixed 18 Oct 2026.
 
 - **minor - The "mark as done" tick in My Work had no accessible name.** It
   is now `Mark "<title>" as done` (or `Reopen "<title>"`), the words Home uses

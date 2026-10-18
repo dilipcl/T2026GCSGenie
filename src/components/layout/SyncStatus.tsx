@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useObservable } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { useFeedback } from '../shared/FeedbackProvider';
+import { signInWithoutOverwriting } from '../../services/firstSignIn';
 import { Cloud, CloudOff, RefreshCw, LogIn, AlertTriangle, CalendarX, UserX } from 'lucide-react';
 
 /**
@@ -105,7 +106,9 @@ export const SyncStatus: React.FC = () => {
           toast.success('Up to date', 'Everything on this device has been sent and received.');
         }
       } else {
-        await db.cloud.login();
+        // Never the bare cloud login: the first sign-in uploads every row
+        // on the device, starter content included. See firstSignIn.
+        await signInWithoutOverwriting();
       }
     } catch (err) {
       // Cancelling the sign-in dialog rejects too, and that is not an error

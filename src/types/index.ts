@@ -1099,6 +1099,14 @@ export interface ParentSettings {
    * reachable in one tap, and the picker is what actually delivers the message.
    */
   familyGroupInviteUrl?: string;
+  /**
+   * The Home Assistant webhook the family hub listens on, so Alexa can read the
+   * week out at night. Synced on purpose: the device that changes the week is
+   * usually Tejas's phone, not the screen on the wall, and a URL kept only on
+   * the wall screen would report whatever that screen last happened to pull.
+   * Absent means the bridge is off and nothing leaves the app.
+   */
+  homeAssistantWebhookUrl?: string;
   /** Where confirmed updates may be forwarded. Nothing is ever sent on its own. */
   updateForwarding?: UpdateForwardingSettings;
   /** @deprecated Bare SHA-256 of a 4-digit PIN. Read for migration only. */
@@ -1319,6 +1327,11 @@ export interface ActivityItem {
   /** "Task", "Goal", "Syllabus topic" - already in words. */
   entityType: string;
   entityId: string;
+  /**
+   * Bookkeeping rather than news - a lesson answered, a topic re-linked, a due
+   * date moved. Folded behind "Show every change" on the feed, never dropped.
+   */
+  isRoutine?: boolean;
   /** The headline, written for a person. */
   summary: string;
   /** "Grade 9 → Grade 8" */

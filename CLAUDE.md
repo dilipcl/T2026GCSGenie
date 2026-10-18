@@ -126,6 +126,12 @@ twice.
   sync, or the work happens on a laptop and never reaches the phone.
 - Seeding only inserts rows the `seedLedger` has never offered, so a deleted
   starter row stays deleted.
+- **A device's first sign-in uploads every row it holds, as upserts** - not
+  just what changed. A new device has seeded starter content by then, and on
+  11 Oct 2026 that pushed pristine rows over the family's: an approved goal
+  went back to waiting, deleted rows came back. Sign in only through
+  `signInWithoutOverwriting`, never a bare `db.cloud.login()`. A signed-out
+  device records no deletes, which is what makes taking rows off it safe.
 
 ## Testing
 

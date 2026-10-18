@@ -7,6 +7,7 @@ import { CheckInHistoryModal } from './components/dashboard/CheckInHistoryModal'
 import { TodayScheduleCard } from './components/dashboard/TodayScheduleCard';
 import { ActiveQuestsCard } from './components/dashboard/ActiveQuestsCard';
 import { useQuestConversion } from './hooks/useQuestConversion';
+import { useHomeAssistantBridge } from './hooks/useHomeAssistantBridge';
 import { WeeklyCockpitCard } from './components/dashboard/WeeklyCockpitCard';
 import { DueSoonCard } from './components/dashboard/DueSoonCard';
 import { HabitStreakCard } from './components/dashboard/HabitStreakCard';
@@ -21,6 +22,8 @@ import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { ChangeLogCard } from './components/shared/ChangeLogCard';
 import { UpdatesSection } from './components/updates/UpdatesSection';
 import { RecordView } from './components/record/RecordView';
+import { ProgressView } from './components/progress/ProgressView';
+import { HomeLostTimeCard } from './components/progress/LostTimeCard';
 import { touchThisDevice } from './services/deviceRegistryService';
 import { resolveWeekType } from './services/weekType';
 import { backupIfDue } from './services/driveBackupService';
@@ -84,6 +87,9 @@ export const App: React.FC = () => {
 
   // Fix-up quests are fix-up tasks now; any that appear are converted.
   useQuestConversion();
+  // The family hub's copy of the week, for the 9pm Alexa briefing. Off until a
+  // parent saves a hub link.
+  useHomeAssistantBridge();
 
   // Bumped whenever data changes, so dashboard cards reload without a tab switch
   const [refreshKey, setRefreshKey] = useState(0);
@@ -231,6 +237,12 @@ export const App: React.FC = () => {
                 onOpenPlan={() => setActiveTab('PLAN')}
                 onOpenGoals={() => setActiveTab('GOALS')}
               />
+
+              {/* Directly under the letter, because the letter's "1h done of
+                  18h" is the number this explains: what was studied and did
+                  not count, why, and the fix. Says nothing when nothing was
+                  lost. */}
+              <HomeLostTimeCard onOpenTab={setActiveTab} />
             </div>
 
             {/* 0. Anything at risk, before the scroll starts. The field test
@@ -392,6 +404,14 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'RECORD' && <RecordView role={currentRole} />}
+
+        {activeTab === 'PROGRESS' && (
+          <ProgressView
+            role={currentRole}
+            onOpenTab={setActiveTab}
+            onOpenReview={() => setIsReviewOpen(true)}
+          />
+        )}
 
         {activeTab === 'UPDATES' && (
           <UpdatesSection currentRole={currentRole} onOpenTab={setActiveTab} />
