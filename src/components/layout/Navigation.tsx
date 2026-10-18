@@ -16,6 +16,7 @@ import {
   Library as LibraryIcon,
   MoreHorizontal,
   X,
+  TrendingUp,
 } from 'lucide-react';
 
 export type NavTab =
@@ -25,6 +26,7 @@ export type NavTab =
   | 'PLAN'
   | 'UPDATES'
   | 'RECORD'
+  | 'PROGRESS'
   | 'LIBRARY'
   | 'GOALS'
   | 'TIMETABLE'
@@ -84,6 +86,13 @@ export const Navigation: React.FC<NavigationProps> = ({
      * what has been captured. Logging a paper is still in there, behind a
      * switch at the top; it is one act among five rather than the whole tab.
      */
+    /**
+     * How things are going, looking back. Weekly, because it is read at the
+     * Sunday review rather than used every evening - and first in the More
+     * sheet, because before it existed answering "how is he doing?" took a
+     * database export.
+     */
+    { id: 'PROGRESS', label: 'Progress', shortLabel: 'Progress', icon: TrendingUp, tier: 'weekly' },
     { id: 'LIBRARY', label: 'Library', shortLabel: 'Library', icon: LibraryIcon, tier: 'weekly' },
     { id: 'REWARDS', label: 'Rewards', shortLabel: 'Rewards', icon: Gift, tier: 'weekly' },
     { id: 'TIMETABLE', label: 'Timetable', shortLabel: 'Timetable', icon: Calendar, tier: 'weekly' },
@@ -121,7 +130,7 @@ export const Navigation: React.FC<NavigationProps> = ({
    * second row, below the fold on a phone. Desktop keeps its own order, which
    * is grouped by rhythm rather than by frequency.
    */
-  const overflowPriority = ['LIBRARY', 'REWARDS', 'PARENT', 'TIMETABLE', 'GOALS', 'GUIDANCE'];
+  const overflowPriority = ['PROGRESS', 'LIBRARY', 'REWARDS', 'PARENT', 'TIMETABLE', 'GOALS', 'GUIDANCE'];
   const sheetItems = [...weeklyItems].sort(
     (a, b) => overflowPriority.indexOf(a.id) - overflowPriority.indexOf(b.id)
   );
