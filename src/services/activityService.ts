@@ -77,7 +77,63 @@ const ENTITY_LABEL: Record<string, string> = {
   Chore: 'Chore',
   ChoreCompletion: 'Chore',
   ImprovementIdea: 'Improvement',
+  // The rest were written for years with no label, and read on the feed as the
+  // raw entity smashed into lower case - "Changed checkinoccurrences
+  // something" was the line a parent met on 18 Oct 2026.
+  MilestoneReminder: 'Key date',
+  WeekPlanBaseline: 'Week plan',
+  PlanAmendment: 'Plan change',
+  WeeklyReview: 'Weekly review',
+  PlannedActivity: 'Activity',
+  ProofAttachment: 'File',
+  FreeRevisionLink: 'Revision link',
+  CareerGuidanceResource: 'Careers link',
+  Commitment: 'Regular commitment',
+  SubjectConfig: 'Subject',
+  TimetableSlotConfig: 'Timetable period',
+  MaterialInsight: 'Photo reading',
+  CheckInOccurrence: 'Lesson answer',
+  checkInOccurrences: 'Lesson answer',
+  Lesson: 'Lesson',
+  'Check-in': 'Check-in',
 };
+
+/**
+ * A readable noun for an entity nobody has labelled yet: "PlanThing" becomes
+ * "plan thing" rather than "planthing". The label above is still the fix.
+ */
+function nounFor(entity: string): string {
+  return (
+    ENTITY_LABEL[entity] ||
+    entity
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/s$/, '')
+      .toLowerCase()
+  );
+}
+
+/**
+ * Rows that are bookkeeping rather than news.
+ *
+ * Answering a lesson, re-linking a topic, moving a due date between columns,
+ * the app reading a photograph: each is a real write and stays in the audit
+ * log, but on a day with thirty-three changes they buried the four that
+ * mattered. The feed folds them behind "Show every change" - never drops them,
+ * because a feed that silently omits rows is what this screen exists to fix.
+ */
+const ROUTINE_ENTITIES = new Set([
+  'CheckInOccurrence',
+  'checkInOccurrences',
+  'MaterialInsight',
+  'Lesson',
+  'Database',
+]);
+const ROUTINE_FIELDS = new Set(['topicId', 'linkedTopicId', 'bucket', 'dueDate', 'caption']);
+
+function isRoutine(entry: AuditLogEntry): boolean {
+  if (ROUTINE_ENTITIES.has(entry.entity)) return true;
+  return entry.action === 'UPDATE' && ROUTINE_FIELDS.has(entry.fieldChanged ?? '');
+}
 
 /** Which changeLog category best describes an audit row, for filtering. */
 const ENTITY_CATEGORY: Record<string, ChangeCategory> = {
@@ -180,7 +236,7 @@ function quote(value: string): string {
  * this existed, was 22 of the 27 rows in this database.
  */
 function summariseAuditEntry(entry: AuditLogEntry): { summary: string; detail?: string } {
-  const noun = ENTITY_LABEL[entry.entity] || entry.entity;
+  const noun = nounFor(entry.entity);
 
   if (entry.action === 'AGENT_AUDIT') {
     return { summary: `Genie ran an AI audit`, detail: entry.newValue || undefined };
@@ -218,17 +274,17 @@ function summariseAuditEntry(entry: AuditLogEntry): { summary: string; detail?: 
     };
   }
 
-  // UPDATE
-  const field = entry.fieldChanged || 'something';
+  // UPDATE. With no field named, "Changed a lesson answer" - never the old
+  // "Changed checkinoccurrences something".
+  const what = entry.fieldChanged
+    ? `${noun.toLowerCase()} ${entry.fieldChanged}`
+    : `a ${noun.toLowerCase()}`;
   const from = entry.oldValue ?? '';
   const to = entry.newValue ?? '';
   if (from && to) {
-    return {
-      summary: `Changed ${noun.toLowerCase()} ${field}`,
-      detail: `${from} → ${to}`,
-    };
+    return { summary: `Changed ${what}`, detail: `${from} → ${to}` };
   }
-  return { summary: `Changed ${noun.toLowerCase()} ${field}`, detail: to || from || undefined };
+  return { summary: `Changed ${what}`, detail: to || from || undefined };
 }
 
 /**
@@ -517,6 +573,9 @@ export async function buildActivityFeed(
       action: mapAction(entry),
       entityType: ENTITY_LABEL[entry.entity] || entry.entity,
       entityId: entry.entityId,
+      // Never routine while somebody is still waiting on it or talking about it.
+      isRoutine:
+        isRoutine(entry) && !(pending && !pending.resolved) && !comments.get(entry.id)?.length,
       // A human sentence beats a generated one wherever one exists.
       summary: change?.summary || generated.summary,
       detail: change?.detail || generated.detail,

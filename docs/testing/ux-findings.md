@@ -74,6 +74,14 @@ delete one.
   save flake - a check-in step slow under load - so if it recurs, look at what
   the suggestion waits on before calling it a flake.
 
+- **Flake watch - "Done" on committed work closes it and asks its time**
+  (desktop) failed once in a full run on 18 Oct 2026: the `30m` estimate chip
+  stayed `aria-pressed="false"` for the whole 10s wait. It passed 15/15 in
+  three runs of its spec and 20/20 repeated alone, both layouts, the same
+  hour. The change under test (Progress, activity diary) does not touch the
+  check-in. If it recurs, look at when the estimate is read relative to the
+  close - the chip is set from the task after the close writes.
+
 ## Data consistency
 
 - **major - Live data still carries the 11 October overwrite.** The code fault
@@ -87,6 +95,23 @@ delete one.
   data for the 18 Oct progress report.
 
 ## Closed
+
+- **major - Nothing reported how things were going.** Every screen answered
+  "what next?"; answering "is he doing the work, is the time going where we
+  agreed, is it working?" took a database export on 18 Oct 2026. The
+  Progress screen (More > Progress) answers the three in a sentence each,
+  then shows the term a week at a time, each agreed goal over four weeks,
+  latest marks, and what is waiting on a parent. Read-only.
+  `progressReport.test.ts`, `e2e/progress.spec.ts`. Fixed 18 Oct 2026.
+- **major - Lost study time disappeared silently.** Home showed "6.3h
+  studied" and "1h done of 18h" a scroll apart. A card under the week's
+  health now says what counted, what did not, why (goal not agreed, goal with
+  no subject, no subject at all) and opens the fix. Same file and spec.
+- **major - The activity feed read as a database log** ("Changed
+  checkinoccurrences something", thirty-three rows for one Sunday). Each day
+  now opens with a sentence of what it was; lesson answers, re-links and due
+  date moves fold behind "Show every change"; every audited entity has a
+  name. `dayDiary.test.ts`, `e2e/diary.spec.ts`. Fixed 18 Oct 2026.
 
 - **blocker - A new device's first sign-in overwrote the family's decisions.**
   Dexie Cloud uploads every row a signed-out device holds, as upserts, on its

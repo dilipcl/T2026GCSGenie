@@ -1327,6 +1327,11 @@ export interface ActivityItem {
   /** "Task", "Goal", "Syllabus topic" - already in words. */
   entityType: string;
   entityId: string;
+  /**
+   * Bookkeeping rather than news - a lesson answered, a topic re-linked, a due
+   * date moved. Folded behind "Show every change" on the feed, never dropped.
+   */
+  isRoutine?: boolean;
   /** The headline, written for a person. */
   summary: string;
   /** "Grade 9 → Grade 8" */
