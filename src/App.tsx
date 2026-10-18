@@ -406,7 +406,11 @@ export const App: React.FC = () => {
         {activeTab === 'RECORD' && <RecordView role={currentRole} />}
 
         {activeTab === 'PROGRESS' && (
-          <ProgressView role={currentRole} onOpenTab={setActiveTab} />
+          <ProgressView
+            role={currentRole}
+            onOpenTab={setActiveTab}
+            onOpenReview={() => setIsReviewOpen(true)}
+          />
         )}
 
         {activeTab === 'UPDATES' && (

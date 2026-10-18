@@ -77,7 +77,13 @@ const weekLabel = (start: string, end: string) =>
 export const ProgressView: React.FC<{
   role: UserRole;
   onOpenTab: (tab: NavTab) => void;
-}> = ({ role, onOpenTab }) => {
+  /**
+   * The weekly review, from where the week is being looked at. Closing last
+   * week and planning the next one used to start on the Plan tab, away from
+   * the numbers the conversation is about.
+   */
+  onOpenReview?: () => void;
+}> = ({ role, onOpenTab, onOpenReview }) => {
   const [weeks, setWeeks] = useState(WEEKS_SHOWN);
   const progress = useLiveQuery(() => readProgress(), []);
   const strip = useLiveQuery(() => readWeekStrip(weeks), [weeks]);
@@ -105,6 +111,16 @@ export const ProgressView: React.FC<{
           How things are going, for looking at together. Week of{' '}
           {weekLabel(progress.week.start, progress.week.end)}. Nothing here needs ticking.
         </p>
+        {onOpenReview && (
+          <button
+            type="button"
+            onClick={onOpenReview}
+            className="mt-3 flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white"
+          >
+            Start the weekly review
+            <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">

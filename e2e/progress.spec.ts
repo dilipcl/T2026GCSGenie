@@ -69,3 +69,11 @@ test('starts the term strip where the record starts', async ({ page }) => {
   await expect(strip.locator('li')).toHaveCount(1);
   await expect(strip.getByText('Ran without a plan')).toHaveCount(0);
 });
+
+test('the weekly review starts from Progress', async ({ page }) => {
+  await openApp(page);
+  await openTab(page, 'Progress');
+  await page.getByRole('button', { name: 'Start the weekly review' }).click();
+  await expect(page.getByRole('dialog').first()).toBeVisible();
+  await expect(page.getByText(/Genie hit a problem|Something went wrong/)).toHaveCount(0);
+});
