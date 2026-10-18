@@ -17,6 +17,7 @@ import { CATEGORY_ICON, CATEGORY_LABEL } from '../../services/changeLogService';
 import { nameDevice, needsNaming, people, Person } from '../../services/deviceRegistryService';
 import { getDeviceId } from '../../utils/device';
 import { formatPastDate } from '../../utils/date';
+import { readDiary } from '../../services/dayDiary';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
 import { ActivityComments } from './ActivityComments';
 import { CheckInDetailPanel } from './CheckInDetailPanel';
@@ -340,7 +341,37 @@ export const ActivityView: React.FC<{ currentRole: UserRole }> = ({ currentRole 
     buildActivityFeed(currentRole).then((feed) => setAllDays(activeDates(feed.items).slice(0, 14)));
   }, [currentRole, askName]);
 
-  const days = useMemo(() => groupByDay(items), [items]);
+  /**
+   * Bookkeeping rows - lesson answers, re-links, due dates moving - folded
+   * away by default. A day of thirty-three changes read as a database log;
+   * the sentence above each day says what the day was, and this brings the
+   * full log back for anyone checking.
+   */
+  const [showEveryChange, setShowEveryChange] = useState(false);
+  const [diary, setDiary] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    let live = true;
+    readDiary(items).then((days) => {
+      if (live) setDiary(new Map(days.map((d) => [d.date, d.sentence])));
+    });
+    return () => {
+      live = false;
+    };
+  }, [items]);
+
+  const routineCount = useMemo(() => items.filter((i) => i.isRoutine).length, [items]);
+  // Grouped from every row, so a day of nothing but lesson answers keeps its
+  // heading and its sentence; only the rows listed under it are folded.
+  const days = useMemo(
+    () =>
+      groupByDay(items)
+        .map((day) => ({
+          ...day,
+          shown: showEveryChange ? day.items : day.items.filter((i) => !i.isRoutine),
+        }))
+        .filter((day) => day.shown.length > 0 || diary.get(day.date)),
+    [items, showEveryChange, diary]
+  );
   const waiting = useMemo(() => outstanding(items), [items]);
   const review = useMemo(() => needingReview(items), [items]);
 
@@ -575,6 +606,19 @@ export const ActivityView: React.FC<{ currentRole: UserRole }> = ({ currentRole 
         </div>
       )}
 
+      {routineCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowEveryChange((prev) => !prev)}
+          aria-pressed={showEveryChange}
+          className="mb-3 px-2.5 py-1.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 text-[10px] font-bold"
+        >
+          {showEveryChange
+            ? 'Hide routine changes'
+            : `Show every change (${routineCount} routine ${routineCount === 1 ? 'one' : 'ones'} hidden)`}
+        </button>
+      )}
+
       {loading ? (
         <p className="text-sm text-slate-500 py-8 text-center">Loading…</p>
       ) : days.length === 0 ? (
@@ -590,8 +634,11 @@ export const ActivityView: React.FC<{ currentRole: UserRole }> = ({ currentRole 
                 {day.items.length} change{day.items.length === 1 ? '' : 's'}
               </span>
             </h2>
+            {diary.get(day.date) && (
+              <p className="text-xs text-slate-200 mb-2 leading-snug">{diary.get(day.date)}</p>
+            )}
             <ul>
-              {day.items.map((item) => (
+              {day.shown.map((item) => (
                 <ActivityRow
                   key={item.id}
                   item={item}

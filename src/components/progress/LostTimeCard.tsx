@@ -1,12 +1,8 @@
-import React from "react";
-import { useLiveQuery } from "dexie-react-hooks";
-import {
-  LostReason,
-  TimeAccount,
-  readTimeAccount,
-} from "../../services/progressReport";
-import type { NavTab } from "../layout/Navigation";
-import { Clock, ArrowRight } from "lucide-react";
+import React from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { LostReason, TimeAccount, readTimeAccount } from '../../services/progressReport';
+import type { NavTab } from '../layout/Navigation';
+import { Clock, ArrowRight } from 'lucide-react';
 
 /**
  * Study time that counted towards nothing, with why and what fixes it.
@@ -22,10 +18,10 @@ import { Clock, ArrowRight } from "lucide-react";
  */
 
 const FIX_TAB: Record<LostReason, NavTab | undefined> = {
-  GOAL_NOT_AGREED: "GOALS",
-  GOAL_HAS_NO_SUBJECT: "GOALS",
-  GOAL_GONE: "GOALS",
-  NO_GOAL_FOR_SUBJECT: "GOALS",
+  GOAL_NOT_AGREED: 'GOALS',
+  GOAL_HAS_NO_SUBJECT: 'GOALS',
+  GOAL_GONE: 'GOALS',
+  NO_GOAL_FOR_SUBJECT: 'GOALS',
   // Nothing to open: the subject is chosen while logging, and old rows are
   // not worth re-filing one by one. The advice is the fix.
   NO_SUBJECT: undefined,
@@ -51,17 +47,15 @@ export const LostTimeCard: React.FC<{
         </h3>
       </div>
       <p className="text-xs text-slate-300">
-        <strong className="text-white">{hours(account.loggedMinutes)}h</strong>{" "}
-        studied,{" "}
-        <strong className="text-white">{hours(account.countedMinutes)}h</strong>{" "}
-        towards agreed goals
+        <strong className="text-white">{hours(account.loggedMinutes)}h</strong> studied,{' '}
+        <strong className="text-white">{hours(account.countedMinutes)}h</strong> towards agreed
+        goals
         {lostMinutes > 0 ? (
           <>
-            , <strong className="text-amber-200">{hours(lostMinutes)}h</strong>{" "}
-            towards nothing.
+            , <strong className="text-amber-200">{hours(lostMinutes)}h</strong> towards nothing.
           </>
         ) : (
-          ". Nothing lost."
+          '. Nothing lost.'
         )}
       </p>
 
@@ -94,7 +88,7 @@ export const LostTimeCard: React.FC<{
             const tab = FIX_TAB[lost.reason];
             return (
               <li
-                key={`${lost.reason}-${lost.goal?.id ?? ""}-${lost.subjectId ?? ""}`}
+                key={`${lost.reason}-${lost.goal?.id ?? ''}-${lost.subjectId ?? ''}`}
                 className="py-2 flex flex-wrap items-center gap-x-3 gap-y-1"
               >
                 <span className="text-xs font-bold text-amber-200 tabular-nums w-12">
@@ -103,7 +97,7 @@ export const LostTimeCard: React.FC<{
                 <span className="flex-1 min-w-0 text-xs text-slate-200">
                   {lost.explanation}
                   <span className="block text-[10px] text-slate-500">
-                    {lost.owner === "PARENT" ? "For a parent" : "For Tejas"}
+                    {lost.owner === 'PARENT' ? 'For a parent' : 'For Tejas'}
                   </span>
                 </span>
                 {tab ? (
@@ -138,7 +132,5 @@ export const HomeLostTimeCard: React.FC<{
 }> = ({ onOpenTab }) => {
   const account = useLiveQuery(() => readTimeAccount(), []);
   if (!account) return null;
-  return (
-    <LostTimeCard account={account} onOpenTab={onOpenTab} hideWhenNothingLost />
-  );
+  return <LostTimeCard account={account} onOpenTab={onOpenTab} hideWhenNothingLost />;
 };
