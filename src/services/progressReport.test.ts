@@ -6,6 +6,7 @@ import { Assessment, DailyCheckIn, Goal, MilestoneReminder, Task } from '../type
 import { StudyEntry } from './studyLedger';
 import {
   accountForTime,
+  goalPace,
   readGoalSeries,
   readProgress,
   readTimeAccount,
@@ -318,5 +319,22 @@ describe('reading the week from the database', () => {
       subjectName: 'Mathematics',
       targetGrade: 9,
     });
+  });
+});
+
+/**
+ * Every goal line used to be drawn green, flat or not. On 19 Oct 2026 four of
+ * ten goals had nothing reach them in a month and looked as healthy as the rest.
+ */
+describe('how a goal line is coloured', () => {
+  it('reads meeting, below, no ask and nothing from the finished weeks', () => {
+    expect(goalPace([2, 3, 2, 0], 2, 2.3)).toBe('MEETING');
+    expect(goalPace([1, 0, 1, 0], 2, 0.7)).toBe('BELOW');
+    expect(goalPace([1, 0, 0, 0], 0, 0.3)).toBe('NO_ASK');
+    expect(goalPace([0, 0, 0, 0], 2, 0)).toBe('NONE');
+  });
+
+  it('does not call a goal flat when only this week has time on it', () => {
+    expect(goalPace([0, 0, 0, 1.5], 2, 0)).toBe('BELOW');
   });
 });

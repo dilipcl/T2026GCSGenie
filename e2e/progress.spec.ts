@@ -1,4 +1,4 @@
-import { test, expect, openApp, openTab, insert, TODAY } from './fixtures';
+import { test, expect, openApp, openTab, insert, homework, NOW, TODAY } from './fixtures';
 
 /**
  * The Progress screen, from the parent's Sunday-review seat.
@@ -76,4 +76,55 @@ test('the weekly review starts from Progress', async ({ page }) => {
   await page.getByRole('button', { name: 'Start the weekly review' }).click();
   await expect(page.getByRole('dialog').first()).toBeVisible();
   await expect(page.getByText(/Genie hit a problem|Something went wrong/)).toHaveCount(0);
+});
+
+test('a week opens to what got done and how it was recorded', async ({ page }) => {
+  await openApp(page);
+  await insert(page, 'checkIns', csEvening);
+  await insert(
+    page,
+    'tasks',
+    homework('e2e-done', 'Sparx Maths', { completed: true, completedAt: NOW.getTime() })
+  );
+  await openTab(page, 'Progress');
+
+  const strip = page.locator('section', {
+    has: page.getByRole('heading', { name: 'Week by week' }),
+  });
+  const week = strip.getByRole('button', { expanded: false }).first();
+  await week.click();
+  await expect(strip.getByRole('button', { expanded: true })).toBeVisible();
+
+  await expect(strip.getByText('No plan for this week')).toBeVisible();
+  await expect(strip.getByText('Finished this week (1)')).toBeVisible();
+  await expect(strip.getByText('Sparx Maths')).toBeVisible();
+  await expect(strip.getByText('How the week was recorded')).toBeVisible();
+  await expect(strip.getByText(/XP earned/)).toBeVisible();
+});
+
+test('a goal nothing has reached says so, rather than drawing a healthy line', async ({
+  page,
+}) => {
+  await openApp(page);
+  await insert(page, 'goals', {
+    id: 'e2e-physics',
+    title: 'Grade 9 in Physics',
+    category: 'ACADEMIC_GRADE_9',
+    subjectId: 'physics',
+    smartSpecific: '',
+    smartMeasurable: '',
+    smartAchievable: '',
+    smartRealistic: '',
+    smartTimeBound: '',
+    status: 'APPROVED_LOCKED',
+    ragStatus: 'GREEN',
+    weeklyHoursRequired: 2,
+    createdAt: 0,
+  });
+  await openTab(page, 'Progress');
+  const goals = page.locator('section', {
+    has: page.getByRole('heading', { name: 'Agreed goals, last four weeks' }),
+  });
+  await expect(goals.getByText('nothing counted')).toBeVisible();
+  await expect(goals.getByText(/No Physics time logged in these weeks/)).toBeVisible();
 });

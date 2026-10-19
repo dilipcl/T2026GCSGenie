@@ -84,7 +84,7 @@ const isOpen = (goal: Goal) => goal.status === 'DRAFT' || goal.status === 'PENDI
  * count time towards the goal. Crediting time on a guess from a title would be
  * a second attribution rule, and `minutesForGoal` is the only one.
  */
-function looksLikeGoalFor(goal: Goal, subject?: SubjectConfig): boolean {
+export function looksLikeGoalFor(goal: Goal, subject?: SubjectConfig): boolean {
   if (!subject) return false;
   const title = goal.title.toLowerCase();
   return [subject.name, subject.shortName]
@@ -327,6 +327,50 @@ export interface GoalSeries {
   askedHours: number;
   /** Mean of the finished weeks only - the current one is partial by definition. */
   averageHours: number;
+  pace: GoalPace;
+  /** Why the line is flat, when nothing at all reached the goal. */
+  quietReason?: string;
+}
+
+/**
+ * How a goal's recent weeks compare with what it asks.
+ *
+ * Every line on the goal rows used to be drawn green, so a goal nothing had
+ * reached in a month looked exactly as healthy as one meeting its ask - four of
+ * ten were flat on 19 Oct 2026, and the colour said all was well. Judged on the
+ * finished weeks only; the current week is partial and would mark every goal
+ * behind on a Monday.
+ */
+export type GoalPace =
+  /** Averaging what it asks, or more. */
+  | 'MEETING'
+  /** Some time reaching it, less than it asks. */
+  | 'BELOW'
+  /** Time reaching it, and it asks for no particular amount. */
+  | 'NO_ASK'
+  /** Nothing has reached it in the whole window, current week included. */
+  | 'NONE';
+
+export function goalPace(
+  weeklyHours: number[],
+  askedHours: number,
+  averageHours: number
+): GoalPace {
+  if (weeklyHours.every((h) => h === 0)) return 'NONE';
+  if (askedHours <= 0) return 'NO_ASK';
+  return averageHours >= askedHours ? 'MEETING' : 'BELOW';
+}
+
+/**
+ * Why nothing reached a goal, in the terms of the one attribution rule: a goal
+ * with no subject can only collect time tagged to it directly, which almost
+ * nothing is, so that is a different fix from a subject nobody studied.
+ */
+function quietReasonFor(goal: Goal, subjects: Map<string, SubjectConfig>): string {
+  if (!goal.subjectId) return 'No subject set, so only time tagged to this goal itself counts';
+  const subject = subjects.get(goal.subjectId);
+  const name = subject?.shortName || subject?.name || goal.subjectId;
+  return `No ${name} time logged in these weeks`;
 }
 
 export async function readGoalSeries(
@@ -338,7 +382,12 @@ export async function readGoalSeries(
     start: windows[0].start,
     end: windows[windows.length - 1].end,
   };
-  const [entries, goals] = await Promise.all([studyEntries(span), db.goals.toArray()]);
+  const [entries, goals, subjects] = await Promise.all([
+    studyEntries(span),
+    db.goals.toArray(),
+    db.subjects.toArray(),
+  ]);
+  const bySubject = new Map(subjects.map((s) => [s.id as string, s]));
 
   return goals
     .filter(isAgreed)
@@ -352,11 +401,16 @@ export async function readGoalSeries(
         )
       );
       const finished = weeklyHours.slice(0, -1);
+      const askedHours = goal.weeklyHoursRequired || 0;
+      const averageHours = round1(finished.reduce((a, b) => a + b, 0) / (finished.length || 1));
+      const pace = goalPace(weeklyHours, askedHours, averageHours);
       return {
         goal,
         weeklyHours,
-        askedHours: goal.weeklyHoursRequired || 0,
-        averageHours: round1(finished.reduce((a, b) => a + b, 0) / (finished.length || 1)),
+        askedHours,
+        averageHours,
+        pace,
+        quietReason: pace === 'NONE' ? quietReasonFor(goal, bySubject) : undefined,
       };
     });
 }
