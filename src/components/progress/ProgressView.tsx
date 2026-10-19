@@ -18,6 +18,7 @@ import type { NavTab } from '../layout/Navigation';
 import { LostTimeCard } from './LostTimeCard';
 import { TimeCleanupCard } from './TimeCleanupCard';
 import { WeekDetailPanel } from './WeekDetailPanel';
+import { CourseSoFarCard } from './CourseSoFarCard';
 import {
   TrendingUp,
   ArrowRight,
@@ -87,7 +88,9 @@ export const ProgressView: React.FC<{
    * the numbers the conversation is about.
    */
   onOpenReview?: () => void;
-}> = ({ role, onOpenTab, onOpenReview }) => {
+  /** The Library's topic log, opened on that pane rather than the Library's default. */
+  onOpenTopicLog?: () => void;
+}> = ({ role, onOpenTab, onOpenReview, onOpenTopicLog }) => {
   const [weeks, setWeeks] = useState(WEEKS_SHOWN);
   const progress = useLiveQuery(() => readProgress(), []);
   const strip = useLiveQuery(() => readWeekStrip(weeks), [weeks]);
@@ -162,6 +165,8 @@ export const ProgressView: React.FC<{
       />
 
       <GoalRows series={series} />
+
+      <CourseSoFarCard onOpenTopicLog={onOpenTopicLog} />
 
       <section className="glass-card p-4">
         <h3 className="text-sm font-bold text-white mb-1">Latest marks</h3>

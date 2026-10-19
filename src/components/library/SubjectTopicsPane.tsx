@@ -4,6 +4,7 @@ import { SubjectId, UserRole } from '../../types';
 import { subjectTopics, tagUntagged, TopicSummary } from '../../services/topicTimeline';
 import { AddTopicForm } from './AddTopicForm';
 import { TopicPage } from './TopicPage';
+import { SpecOutline, TopicJourneyStrip } from './TopicJourneyStrip';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { formatShortDate } from '../../utils/date';
 import { Plus, Target, Inbox, ChevronRight } from 'lucide-react';
@@ -44,16 +45,19 @@ interface SubjectTopicsPaneProps {
   subjectId: SubjectId;
   role: UserRole;
   onOpenMaterial: (materialId: string) => void;
+  /** Opens straight onto one topic - from the topic log. */
+  initialTopicId?: string;
 }
 
 export const SubjectTopicsPane: React.FC<SubjectTopicsPaneProps> = ({
   subjectId,
   role,
   onOpenMaterial,
+  initialTopicId,
 }) => {
   const { toast } = useFeedback();
   const data = useLiveQuery(() => subjectTopics(subjectId), [subjectId]);
-  const [openTopicId, setOpenTopicId] = useState<string | undefined>(undefined);
+  const [openTopicId, setOpenTopicId] = useState<string | undefined>(initialTopicId);
   const [adding, setAdding] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTopic, setBulkTopic] = useState('');
@@ -75,6 +79,7 @@ export const SubjectTopicsPane: React.FC<SubjectTopicsPaneProps> = ({
     return (
       <TopicPage
         summary={open}
+        outline={data.outline}
         role={role}
         onBack={() => setOpenTopicId(undefined)}
         onOpenMaterial={onOpenMaterial}
@@ -127,10 +132,22 @@ export const SubjectTopicsPane: React.FC<SubjectTopicsPaneProps> = ({
 
       <p className="text-[11px] text-slate-400">
         {data.lessonsAnswered} lesson{data.lessonsAnswered === 1 ? '' : 's'} recorded ·{' '}
-        <span className={data.lessonsTagged < data.lessonsAnswered ? 'text-amber-300' : 'text-emerald-300'}>
+        <span
+          className={
+            data.lessonsTagged < data.lessonsAnswered ? 'text-amber-300' : 'text-emerald-300'
+          }
+        >
           {data.lessonsTagged} tagged to a topic
         </span>
       </p>
+
+      {data.outline && (
+        <SpecOutline
+          name={data.outline.name}
+          coverage={data.coverage}
+          unplaced={data.topics.filter((t) => !t.section).length}
+        />
+      )}
 
       {data.untagged.length > 0 && (
         <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 space-y-2">
@@ -154,7 +171,9 @@ export const SubjectTopicsPane: React.FC<SubjectTopicsPaneProps> = ({
                     className="accent-amber-500 mt-0.5"
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[11px] text-slate-100 break-words">{item.title}</span>
+                    <span className="block text-[11px] text-slate-100 break-words">
+                      {item.title}
+                    </span>
                     {item.detail && (
                       <span className="block text-[10px] text-slate-300 whitespace-pre-wrap">
                         {item.detail}
@@ -226,11 +245,7 @@ export const SubjectTopicsPane: React.FC<SubjectTopicsPaneProps> = ({
       )}
 
       {adding ? (
-        <AddTopicForm
-          subjectId={subjectId}
-          units={data.units}
-          onDone={() => setAdding(false)}
-        />
+        <AddTopicForm subjectId={subjectId} units={data.units} onDone={() => setAdding(false)} />
       ) : (
         <button
           type="button"
@@ -261,8 +276,11 @@ export const SubjectTopicsPane: React.FC<SubjectTopicsPaneProps> = ({
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-100 flex-1 min-w-0 break-words">
                         {row.topic.title}
-                        {row.topic.specRef && (
-                          <span className="text-slate-500"> · {row.topic.specRef}</span>
+                        {(row.topic.specRef || row.section) && (
+                          <span className="text-slate-500">
+                            {' '}
+                            · {row.topic.specRef || row.section!.ref}
+                          </span>
                         )}
                       </span>
                       <span className="text-[10px] text-slate-500 flex-shrink-0">
@@ -270,10 +288,11 @@ export const SubjectTopicsPane: React.FC<SubjectTopicsPaneProps> = ({
                       </span>
                       <ChevronRight className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
+                    <TopicJourneyStrip journey={row.journey} />
+                    <span className="block text-[10px] text-slate-500 mt-1">
                       {counts(row)}
                       {row.lastDate && ` · last ${formatShortDate(row.lastDate)}`}
-                    </p>
+                    </span>
                   </button>
                 </li>
               ))}

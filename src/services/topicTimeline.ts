@@ -4,6 +4,7 @@ import {
   DailyCheckIn,
   Goal,
   OccurrenceOutcome,
+  SubjectConfig,
   SubjectId,
   SyllabusTopic,
   Task,
@@ -15,6 +16,9 @@ import { entryFromTask } from './studyLedger';
 import { tagOccurrenceToTopic, teachesTopics } from './checkInOccurrenceService';
 import { tagAttachmentToTopic } from './attachmentService';
 import { tagCheckInToTopic, tagTaskToTopic } from './topicService';
+import { Curriculum, Placement, SpecSection, curriculumFor, placeTopic } from './curriculum';
+import { isTopicSecure } from './ragCalculator';
+import { addDaysISO, parseISODate, toLocalISODate, todayISO } from '../utils/date';
 
 /**
  * A subject seen through its topics: what was taught, what was done about it,
@@ -49,6 +53,10 @@ export interface TopicEntry {
   outcome?: OccurrenceOutcome;
   minutes?: number;
   completed?: boolean;
+  /** Local date a piece of work was closed, when it has been. */
+  completedOn?: string;
+  /** What a piece of work was for. Only on WORK entries. */
+  workKind?: WorkKind;
   /** Present on MATERIAL entries, so the row can open the thing itself. */
   material?: Material;
 }
@@ -63,6 +71,140 @@ export interface TopicSummary {
   /** Newest entry, so a topic that has gone quiet says so. */
   lastDate?: string;
   entries: TopicEntry[];
+  journey: TopicJourney;
+  /** Where it sits in the board's outline, when that is known or can be guessed. */
+  section?: SpecSection;
+  placement?: Placement;
+}
+
+/**
+ * What a piece of work on a topic was for.
+ *
+ * Homework is set by school, a fix-up comes from a lost mark, and everything
+ * else Tejas did on a topic by choice is revision. The three answer different
+ * questions - is he keeping up, is he closing gaps, is he going back over it -
+ * so they are not added together anywhere a topic is summarised.
+ */
+export type WorkKind = 'HOMEWORK' | 'FIX_UP' | 'REVISION';
+
+function workKindOf(task: Task): WorkKind {
+  if (task.isRemediation) return 'FIX_UP';
+  return task.isHomework ? 'HOMEWORK' : 'REVISION';
+}
+
+/**
+ * One topic's progress in the same five steps every time: taught, homework,
+ * revised, notes, secure.
+ *
+ * Asked for on 19 Oct 2026, after the topic list could say "3 lessons · 45 min
+ * studied · 2 work" and still not answer "has he revised it since it was
+ * taught?" or "are there notes to revise from?". The steps are fixed so any
+ * two topics - or the same topic a month apart - can be read side by side.
+ *
+ * Built only from what is already recorded. Nothing here asks for a new field
+ * to be filled in: a topic with nothing tagged to it shows its steps empty,
+ * which is the truth, and tagging a lesson or a photo fills them in.
+ */
+export interface TopicJourney {
+  /** The date it was taught: the one entered, or else its first lesson. */
+  taught?: string;
+  lessons: number;
+  homework: { set: number; done: number; lastDone?: string };
+  /** Focus blocks and check-ins on it, and revision work finished on it. */
+  revision: { sessions: number; minutes: number; last?: string };
+  /** Files, links and notes captured on it, and lesson answers with a note. */
+  notes: { captured: number; lessonNotes: number };
+  fixUps: { open: number; done: number };
+  secure: boolean;
+  confidence: SyllabusTopic['confidenceRating'];
+  /**
+   * The one thing most worth knowing next, stated as a fact rather than an
+   * instruction - or nothing, when the topic is in hand.
+   */
+  gap?: string;
+}
+
+/** How long after teaching a topic can go unrevised before saying so. */
+export const REVISE_WITHIN_DAYS = 14;
+
+function journeyOf(topic: SyllabusTopic, list: TopicEntry[], today: string): TopicJourney {
+  const lessons = list.filter((e) => e.kind === 'LESSON');
+  const work = list.filter((e) => e.kind === 'WORK');
+  const homework = work.filter((e) => e.workKind === 'HOMEWORK');
+  const fixUps = work.filter((e) => e.workKind === 'FIX_UP');
+  const revisions = [
+    ...list.filter((e) => e.kind === 'FOCUS'),
+    ...work.filter((e) => e.workKind === 'REVISION' && e.completed),
+  ];
+  const revisedOn = (e: TopicEntry) => e.completedOn ?? e.date;
+  const latest = (dates: string[]) => [...dates].sort().at(-1);
+
+  const firstLesson = lessons.map((e) => e.date).sort()[0];
+  const taught = topic.dateTaught || firstLesson;
+  const captured = list.filter((e) => e.kind === 'MATERIAL').length;
+  const lessonNotes = lessons.filter((e) => e.detail?.trim()).length;
+  const lastRevised = latest(revisions.map(revisedOn));
+  const secure = isTopicSecure(topic);
+  const openFixUps = fixUps.filter((e) => !e.completed).length;
+
+  /**
+   * One line at most, and only a fact. A list of everything missing on every
+   * topic is the evidence nag over again - fifty-nine reminders nobody reads.
+   * An open fix-up comes first because it is a mark already lost once.
+   */
+  let gap: string | undefined;
+  if (openFixUps > 0) gap = `${openFixUps} fix-up${openFixUps === 1 ? '' : 's'} open`;
+  else if (taught && !secure) {
+    const stale = addDaysISO(-REVISE_WITHIN_DAYS, parseISODate(today));
+    if (captured + lessonNotes === 0) gap = 'No notes captured yet';
+    else if (!lastRevised && taught <= stale) gap = 'Not revised since it was taught';
+  }
+
+  return {
+    taught,
+    lessons: lessons.length,
+    homework: {
+      set: homework.length,
+      done: homework.filter((e) => e.completed).length,
+      lastDone: latest(homework.filter((e) => e.completed).map(revisedOn)),
+    },
+    revision: {
+      sessions: revisions.length,
+      minutes: revisions.reduce((sum, e) => sum + (e.minutes ?? 0), 0),
+      last: lastRevised,
+    },
+    notes: { captured, lessonNotes },
+    fixUps: { open: openFixUps, done: fixUps.length - openFixUps },
+    secure,
+    confidence: topic.confidenceRating,
+    gap,
+  };
+}
+
+/** One section of the board's outline, and how far into it the topics have gone. */
+export interface SectionCoverage {
+  section: SpecSection;
+  topics: number;
+  taught: number;
+  secure: number;
+  /** Earliest teaching date in it, so the outline reads in the order it was met. */
+  firstTaught?: string;
+}
+
+export function sectionCoverage(outline: Curriculum, rows: TopicSummary[]): SectionCoverage[] {
+  return outline.sections.map((section) => {
+    const inIt = rows.filter((r) => r.section?.ref === section.ref);
+    return {
+      section,
+      topics: inIt.length,
+      taught: inIt.filter((r) => r.journey.taught).length,
+      secure: inIt.filter((r) => r.journey.secure).length,
+      firstTaught: inIt
+        .map((r) => r.journey.taught)
+        .filter((d): d is string => !!d)
+        .sort()[0],
+    };
+  });
 }
 
 /** Something that could be tagged to a topic and has not been. */
@@ -87,6 +229,9 @@ export interface SubjectTopics {
   lessonsAnswered: number;
   lessonsTagged: number;
   untagged: UntaggedItem[];
+  /** The board's outline, when there is one for this subject and board. */
+  outline?: Curriculum;
+  coverage: SectionCoverage[];
 }
 
 /**
@@ -97,34 +242,45 @@ function coveredSomething(row: CheckInOccurrence): boolean {
   return teachesTopics(row) && row.outcome !== 'MISSED';
 }
 
-export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics> {
-  const [snapshot, occurrences, checkIns, tasks, goals] = await Promise.all([
-    library(),
-    db.checkInOccurrences.toArray(),
-    db.checkIns.toArray(),
-    db.tasks.toArray(),
-    db.goals.toArray(),
-  ]);
-
-  const topics = snapshot.topics
-    .filter((t) => t.subjectId === subjectId)
-    .sort((a, b) => a.unit.localeCompare(b.unit) || a.title.localeCompare(b.title));
-  const topicIds = new Set(topics.map((t) => t.id));
+/**
+ * Every topic's entries and journey, from rows read once.
+ *
+ * Shared by one subject's page and the log across all subjects, so the two can
+ * never count a topic differently - which they would, the first time either was
+ * tuned, if each had its own loop.
+ */
+function buildSummaries(
+  topics: SyllabusTopic[],
+  materials: Material[],
+  occurrences: CheckInOccurrence[],
+  checkIns: DailyCheckIn[],
+  tasks: Task[],
+  subjects: SubjectConfig[],
+  today: string
+): TopicSummary[] {
+  const byId = new Map(topics.map((t) => [t.id, t]));
   const entries = new Map<string, TopicEntry[]>(topics.map((t) => [t.id, []]));
-  const push = (topicId: string | undefined, entry: TopicEntry) => {
-    if (topicId && topicIds.has(topicId)) entries.get(topicId)!.push(entry);
+  const push = (topicId: string | undefined, entry: TopicEntry, subjectId?: SubjectId) => {
+    const topic = topicId ? byId.get(topicId) : undefined;
+    if (!topic) return;
+    // A lesson counts towards a topic of its own subject only, as it always has.
+    if (subjectId && topic.subjectId !== subjectId) return;
+    entries.get(topic.id)!.push(entry);
   };
 
-  const lessons = occurrences.filter((o) => o.subjectId === subjectId && coveredSomething(o));
-  for (const lesson of lessons) {
-    push(lesson.topicId, {
-      id: `lesson__${lesson.id}`,
-      kind: 'LESSON',
-      date: lesson.date,
-      title: lesson.label,
-      detail: lesson.notes,
-      outcome: lesson.outcome,
-    });
+  for (const lesson of occurrences.filter(coveredSomething)) {
+    push(
+      lesson.topicId,
+      {
+        id: `lesson__${lesson.id}`,
+        kind: 'LESSON',
+        date: lesson.date,
+        title: lesson.label,
+        detail: lesson.notes,
+        outcome: lesson.outcome,
+      },
+      lesson.subjectId
+    );
   }
 
   for (const checkIn of checkIns) {
@@ -147,6 +303,9 @@ export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics
       date: task.dueDate,
       title: task.title,
       completed: task.completed,
+      completedOn:
+        task.completed && task.completedAt ? toLocalISODate(new Date(task.completedAt)) : undefined,
+      workKind: workKindOf(task),
       // Counted by the ledger's rule, so the cut-over and the timer's own
       // minutes are respected here exactly as on the goal cards.
       minutes: entryFromTask(task)?.minutes,
@@ -158,7 +317,7 @@ export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics
    * with the note as their detail. Listing them again as material would show
    * every lesson note twice on the page for its topic.
    */
-  const standalone = snapshot.materials.filter(
+  const standalone = materials.filter(
     (m) => !(m.kind === 'NOTE' && (m.owner.entity === 'Lesson' || m.owner.entity === 'Check-in'))
   );
   for (const material of standalone) {
@@ -172,7 +331,9 @@ export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics
     });
   }
 
-  const summaries: TopicSummary[] = topics.map((topic) => {
+  const outlines = new Map(subjects.map((s) => [s.id as string, curriculumFor(s)]));
+
+  return topics.map((topic) => {
     const list = entries.get(topic.id)!.sort((a, b) => b.date.localeCompare(a.date));
     return {
       topic,
@@ -184,22 +345,53 @@ export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics
       materials: list.filter((e) => e.kind === 'MATERIAL').length,
       lastDate: list[0]?.date,
       entries: list,
+      journey: journeyOf(topic, list, today),
+      ...placeTopic(topic, outlines.get(topic.subjectId)),
     };
   });
+}
+
+export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics> {
+  const [snapshot, occurrences, checkIns, tasks, goals, subjects] = await Promise.all([
+    library(),
+    db.checkInOccurrences.toArray(),
+    db.checkIns.toArray(),
+    db.tasks.toArray(),
+    db.goals.toArray(),
+    db.subjects.toArray(),
+  ]);
+
+  const topics = snapshot.topics
+    .filter((t) => t.subjectId === subjectId)
+    .sort((a, b) => a.unit.localeCompare(b.unit) || a.title.localeCompare(b.title));
+  const topicIds = new Set(topics.map((t) => t.id));
+  const lessons = occurrences.filter((o) => o.subjectId === subjectId && coveredSomething(o));
+  const summaries = buildSummaries(
+    topics,
+    snapshot.materials,
+    lessons,
+    checkIns,
+    tasks,
+    subjects,
+    todayISO()
+  );
+  const subject = subjects.find((s) => s.id === subjectId);
+  const outline = curriculumFor(subject);
 
   return {
     subjectId,
     goals: goals
       .filter((g) => g.subjectId === subjectId)
       .sort(
-        (a, b) =>
-          Number(b.status === 'APPROVED_LOCKED') - Number(a.status === 'APPROVED_LOCKED')
+        (a, b) => Number(b.status === 'APPROVED_LOCKED') - Number(a.status === 'APPROVED_LOCKED')
       ),
     topics: summaries,
     units: [...new Set(topics.map((t) => t.unit))].sort(),
     lessonsAnswered: lessons.length,
     lessonsTagged: lessons.filter((l) => l.topicId && topicIds.has(l.topicId)).length,
     untagged: untaggedFor(subjectId, lessons, checkIns, tasks, snapshot.materials, topicIds),
+    outline,
+    coverage: outline ? sectionCoverage(outline, summaries) : [],
   };
 }
 
@@ -306,4 +498,57 @@ export async function tagUntagged(
       await tagCheckInToTopic(item.target.id, topicId, user);
     }
   }
+}
+
+/** One subject in the log: its outline, and every topic in teaching order. */
+export interface SubjectLog {
+  subject: SubjectConfig;
+  outline?: Curriculum;
+  coverage: SectionCoverage[];
+  /** Newest taught first; topics with no teaching date last. */
+  topics: TopicSummary[];
+}
+
+/**
+ * Every topic in every subject, for the log.
+ *
+ * The same summaries a subject's page builds, so a topic reads identically in
+ * both. Lessons are filtered to their own subject inside the builder, which is
+ * the rule the subject page has always applied.
+ */
+export async function topicLog(): Promise<SubjectLog[]> {
+  const [snapshot, occurrences, checkIns, tasks, subjects] = await Promise.all([
+    library(),
+    db.checkInOccurrences.toArray(),
+    db.checkIns.toArray(),
+    db.tasks.toArray(),
+    db.subjects.toArray(),
+  ]);
+  const summaries = buildSummaries(
+    snapshot.topics,
+    snapshot.materials,
+    occurrences,
+    checkIns,
+    tasks,
+    subjects,
+    todayISO()
+  );
+
+  const newestFirst = (a: TopicSummary, b: TopicSummary) =>
+    (b.journey.taught ?? '').localeCompare(a.journey.taught ?? '') ||
+    a.topic.title.localeCompare(b.topic.title);
+
+  return [...subjects]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((subject) => {
+      const outline = curriculumFor(subject);
+      const rows = summaries.filter((r) => r.topic.subjectId === subject.id).sort(newestFirst);
+      return {
+        subject,
+        outline,
+        coverage: outline ? sectionCoverage(outline, rows) : [],
+        topics: rows,
+      };
+    })
+    .filter((log) => log.topics.length > 0 || !!log.outline);
 }

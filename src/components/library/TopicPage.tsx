@@ -1,6 +1,8 @@
 import React from 'react';
 import { TopicSummary, TopicEntry } from '../../services/topicTimeline';
-import { setTopicConfidence } from '../../services/topicService';
+import { setTopicConfidence, setTopicSpecRef } from '../../services/topicService';
+import { Curriculum } from '../../services/curriculum';
+import { journeySteps } from './TopicJourneyStrip';
 import { TopicMaterialPanel } from '../goals/TopicMaterialPanel';
 import { MaterialLink, materialFromEvidence } from '../shared/MaterialLink';
 import { UserRole } from '../../types';
@@ -55,7 +57,11 @@ const EntryRow: React.FC<{ entry: TopicEntry; onOpen: (materialId: string) => vo
     kind.label,
     entry.outcome === 'PARTIAL' ? 'partly' : undefined,
     entry.minutes ? `${entry.minutes} min` : undefined,
-    entry.kind === 'WORK' ? (entry.completed ? 'done' : `due ${formatShortDate(entry.date)}`) : undefined,
+    entry.kind === 'WORK'
+      ? entry.completed
+        ? 'done'
+        : `due ${formatShortDate(entry.date)}`
+      : undefined,
   ].filter(Boolean);
 
   return (
@@ -101,13 +107,26 @@ const EntryRow: React.FC<{ entry: TopicEntry; onOpen: (materialId: string) => vo
 
 interface TopicPageProps {
   summary: TopicSummary;
+  /** The subject's outline, for saying which section the topic is in. */
+  outline?: Curriculum;
   role: UserRole;
   onBack: () => void;
   onOpenMaterial: (materialId: string) => void;
 }
 
-export const TopicPage: React.FC<TopicPageProps> = ({ summary, role, onBack, onOpenMaterial }) => {
-  const { topic, entries } = summary;
+export const TopicPage: React.FC<TopicPageProps> = ({
+  summary,
+  outline,
+  role,
+  onBack,
+  onOpenMaterial,
+}) => {
+  const { topic, entries, journey, section, placement } = summary;
+  /**
+   * The select shows the section's own ref, so a more precise spec ref
+   * ("4.2.1") already on the topic still reads as its section ("4.2").
+   */
+  const sectionRef = section?.ref ?? '';
 
   return (
     <div className="space-y-3">
@@ -142,6 +161,71 @@ export const TopicPage: React.FC<TopicPageProps> = ({ summary, role, onBack, onO
         </p>
       </div>
 
+      {/* The same five steps as the list, with what is behind each. */}
+      <section
+        aria-label="Where this topic has got to"
+        className="p-2.5 rounded-xl bg-slate-950/50 border border-slate-800 space-y-1.5"
+      >
+        <ol className="grid gap-1 text-[11px]">
+          {journeySteps(journey).map((step, i) => (
+            <li key={step.label} className="flex items-baseline gap-2">
+              <span
+                className={`w-4 text-[10px] tabular-nums ${
+                  step.done
+                    ? 'text-emerald-300'
+                    : step.partial
+                      ? 'text-amber-300'
+                      : 'text-slate-600'
+                }`}
+                aria-hidden="true"
+              >
+                {step.done ? '✓' : i + 1}
+              </span>
+              <span className={step.done ? 'text-slate-100' : 'text-slate-400'}>{step.label}</span>
+            </li>
+          ))}
+        </ol>
+        {(journey.fixUps.open > 0 || journey.fixUps.done > 0) && (
+          <p className="text-[10px] text-slate-400">
+            Fix-ups: {journey.fixUps.done} done, {journey.fixUps.open} open
+          </p>
+        )}
+        {journey.revision.minutes > 0 && (
+          <p className="text-[10px] text-slate-400">
+            {journey.revision.minutes} min of revision recorded
+          </p>
+        )}
+        {journey.gap && <p className="text-[10px] text-amber-300/90">{journey.gap}</p>}
+      </section>
+
+      {outline && (
+        <label className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+          <span>
+            In the specification
+            {placement === 'SUGGESTED' && ' (worked out from the title)'}
+          </span>
+          <select
+            value={sectionRef}
+            onChange={(e) => void setTopicSpecRef(topic.id, e.target.value, role)}
+            className="flex-1 min-w-[10rem] bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+          >
+            {/* Clearing hands the topic back to the guess from its title, so
+                the empty choice says that. A guess already showing has no
+                empty choice: picking it would change nothing and snap back. */}
+            {placement !== 'SUGGESTED' && (
+              <option value="">
+                {placement === 'SPEC_REF' ? 'Work it out from the title' : 'Not placed'}
+              </option>
+            )}
+            {outline.sections.map((s) => (
+              <option key={s.ref} value={s.ref}>
+                {s.ref} {s.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <div className="flex flex-wrap items-center gap-1">
         <span className="text-[10px] text-slate-400 mr-1">How sure are you?</span>
         {CONFIDENCE.map((c) => (
@@ -162,8 +246,8 @@ export const TopicPage: React.FC<TopicPageProps> = ({ summary, role, onBack, onO
       </div>
 
       <p className="text-[11px] text-slate-300">
-        {summary.lessons} lesson{summary.lessons === 1 ? '' : 's'} ·{' '}
-        {summary.studyMinutes} min studied · {summary.work} piece
+        {summary.lessons} lesson{summary.lessons === 1 ? '' : 's'} · {summary.studyMinutes} min
+        studied · {summary.work} piece
         {summary.work === 1 ? '' : 's'} of work · {summary.materials} captured
       </p>
 

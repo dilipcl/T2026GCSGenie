@@ -96,6 +96,22 @@ delete one.
 
 ## Closed
 
+- **major - No view of how each topic was getting on, or of the course as a
+  whole.** On 19 Oct 2026 a topic listed "3 lessons · 45 min studied · 2 work"
+  and could not say whether it had been revised since it was taught, whether
+  there were notes to revise from, or which part of the course it belonged
+  to. Every topic now shows the same five steps (taught, homework, revised,
+  notes, secure) with one line of fact where something is missing, built only
+  from what is already recorded - nothing new to enter. The Library has a
+  Topic log across all subjects, each subject has its board's outline with the
+  sections reached, a topic's section can be corrected from its page, and
+  Progress shows the course so far. `curriculum.ts`, `topicTimeline.ts`;
+  tests in `curriculum.test.ts` (placement against Tejas's real titles),
+  `topicJourney.test.ts` and `e2e/topic-log.spec.ts`. Full suite 124/124 on
+  phone and desktop. **Watch:** the outline is top-level sections only, and
+  History's options are the school's choice - a topic from an option the
+  keywords do not cover shows as "not placed".
+
 - **major - Every goal line on Progress was green, flat or not.** On 19 Oct
   2026 four of ten agreed goals had nothing reach them in four weeks and drew
   the same green line as the rest. The line is now coloured by pace against

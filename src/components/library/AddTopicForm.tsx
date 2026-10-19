@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../../db';
+import { curriculumFor, placeTopic } from '../../services/curriculum';
 import { SubjectId, SyllabusTopic } from '../../types';
 import { addSyllabusTopic } from '../../services/topicService';
 import { useFeedback } from '../shared/FeedbackProvider';
@@ -48,7 +51,15 @@ export const AddTopicForm: React.FC<AddTopicFormProps> = ({ subjectId, units, on
   const [notesUrl, setNotesUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
+  /**
+   * Where the title would place it in the specification, said as the title is
+   * typed. Shown, never stored: the topic is placed the same way every time it
+   * is read, and typing a spec ref is the way to overrule it.
+   */
+  const subject = useLiveQuery(() => db.subjects.get(subjectId), [subjectId]);
+
   const unit = unitChoice === NEW_UNIT ? newUnit.trim() : unitChoice;
+  const placed = title.trim() ? placeTopic({ title, unit, specRef }, curriculumFor(subject)) : {};
   const canSave = !!title.trim() && !!unit && !saving;
 
   const submit = async (e: React.FormEvent) => {
@@ -113,6 +124,12 @@ export const AddTopicForm: React.FC<AddTopicFormProps> = ({ subjectId, units, on
           />
         </div>
       </div>
+      {placed.section && (
+        <p className="-mt-1.5 text-[10px] text-slate-400" aria-live="polite">
+          In the specification under {placed.section.ref} {placed.section.title}
+          {placed.placement === 'SUGGESTED' && ' - type a spec ref if that is wrong'}
+        </p>
+      )}
 
       <div>
         <label className={label} htmlFor="topic-unit">
@@ -162,7 +179,9 @@ export const AddTopicForm: React.FC<AddTopicFormProps> = ({ subjectId, units, on
           <select
             id="topic-year"
             value={yearGroup}
-            onChange={(e) => setYearGroup(e.target.value as NonNullable<SyllabusTopic['yearGroup']>)}
+            onChange={(e) =>
+              setYearGroup(e.target.value as NonNullable<SyllabusTopic['yearGroup']>)
+            }
             className={field}
           >
             <option value="YEAR_9">Year 9</option>
