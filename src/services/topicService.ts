@@ -141,3 +141,37 @@ export async function setTopicConfidence(
     newValue: String(rating),
   });
 }
+
+/**
+ * Says which section of the specification a topic is in, where the guess from
+ * its title was wrong or there was none.
+ *
+ * Writes the section's reference into `specRef`, which is what the outline
+ * reads first - so one correction settles it for good, and a guess is never
+ * stored as though somebody had said it. A more precise reference already
+ * there ("4.2.1" under "4.2") is kept rather than cut back to the section.
+ * Clearing it hands the topic back to the guess.
+ */
+export async function setTopicSpecRef(
+  id: string,
+  specRef: string,
+  user: UserRole = 'STUDENT'
+): Promise<void> {
+  const existing = await db.syllabusTopics.get(id);
+  if (!existing) return;
+  const current = existing.specRef?.trim() ?? '';
+  const next = specRef.trim();
+  if (current === next) return;
+  if (next && current.toUpperCase().startsWith(`${next.toUpperCase()}.`)) return;
+
+  await db.syllabusTopics.update(id, { specRef: next || undefined });
+  await logAuditEvent({
+    user,
+    action: 'UPDATE',
+    entity: 'SyllabusTopic',
+    entityId: id,
+    fieldChanged: 'specRef',
+    oldValue: current || 'none',
+    newValue: next || 'none',
+  });
+}

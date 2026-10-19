@@ -79,6 +79,15 @@ export const App: React.FC = () => {
   /** Set when the add sheet is opened from a goal that needs work aimed at it. */
   const [quickAddGoalId, setQuickAddGoalId] = useState<string | undefined>(undefined);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  /**
+   * Set when Progress sends someone to the topic log, so the Library opens on
+   * it rather than on its default pane. Cleared on leaving the Library, so
+   * reaching it from the menu next time opens where it always has.
+   */
+  const [libraryStart, setLibraryStart] = useState<'LOG' | undefined>(undefined);
+  useEffect(() => {
+    if (activeTab !== 'LIBRARY') setLibraryStart(undefined);
+  }, [activeTab]);
   /** Phone only: whether Home shows the week's cards or just the one line. */
   const [isWeekOpen, setIsWeekOpen] = useState(false);
   // Shown once, on the very first launch. Read lazily so storage is touched
@@ -410,6 +419,10 @@ export const App: React.FC = () => {
             role={currentRole}
             onOpenTab={setActiveTab}
             onOpenReview={() => setIsReviewOpen(true)}
+            onOpenTopicLog={() => {
+              setLibraryStart('LOG');
+              setActiveTab('LIBRARY');
+            }}
           />
         )}
 
@@ -421,6 +434,8 @@ export const App: React.FC = () => {
 
         {activeTab === 'LIBRARY' && (
           <LibraryView
+            key={libraryStart ?? 'default'}
+            initialPane={libraryStart}
             currentRole={currentRole}
             refreshKey={refreshKey}
             onChanged={refreshData}

@@ -12,6 +12,7 @@ import {
 import { AssessmentLogView } from '../assessments/AssessmentLogView';
 import { MaterialDetail } from './MaterialDetail';
 import { SubjectTopicsPane } from './SubjectTopicsPane';
+import { TopicLogView } from './TopicLogView';
 import { MaterialLink, materialFromEvidence } from '../shared/MaterialLink';
 import { formatShortDate } from '../../utils/date';
 import {
@@ -64,7 +65,7 @@ const KIND_LABEL: Record<MaterialKind, string> = {
   NOTE: 'Lesson notes',
 };
 
-type Pane = 'MATERIAL' | 'PAPERS';
+type Pane = 'MATERIAL' | 'LOG' | 'PAPERS';
 
 /**
  * How one subject is shown. By topic is the default because it is the question
@@ -218,15 +219,24 @@ const MaterialRow: React.FC<{
 
 export const LibraryView: React.FC<{
   currentRole: UserRole;
+  /** Where to open, when something sent the person here for one pane. */
+  initialPane?: 'LOG';
   refreshKey?: number;
   onChanged?: () => void;
-}> = ({ currentRole, refreshKey, onChanged }) => {
-  const [pane, setPane] = useState<Pane>('MATERIAL');
+}> = ({ currentRole, initialPane, refreshKey, onChanged }) => {
+  const [pane, setPane] = useState<Pane>(initialPane ?? 'MATERIAL');
   const [subject, setSubject] = useState<SubjectId | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [kinds, setKinds] = useState<MaterialKind[]>([]);
   const [openId, setOpenId] = useState<string | undefined>(undefined);
   const [subjectView, setSubjectView] = useState<SubjectView>('TOPICS');
+  /**
+   * A topic picked in the log, opened inside its subject. The count makes each
+   * pick a fresh mount: picking the same topic a second time, after backing out
+   * of it, would otherwise find the pane already mounted and open nothing.
+   */
+  const [logTopic, setLogTopic] = useState<string | undefined>(undefined);
+  const [logPicks, setLogPicks] = useState(0);
 
   /**
    * Every hook is above the first return, including this one. `refreshKey` is
@@ -279,12 +289,27 @@ export const LibraryView: React.FC<{
         <PaneTab active={pane === 'MATERIAL'} onClick={() => setPane('MATERIAL')}>
           Everything captured {totals > 0 && <span className="opacity-70">({totals})</span>}
         </PaneTab>
+        <PaneTab active={pane === 'LOG'} onClick={() => setPane('LOG')}>
+          Topic log
+        </PaneTab>
         <PaneTab active={pane === 'PAPERS'} onClick={() => setPane('PAPERS')}>
           Log a marked paper
         </PaneTab>
       </div>
 
-      {pane === 'PAPERS' ? (
+      {pane === 'LOG' ? (
+        <TopicLogView
+          onOpenTopic={(subjectId, topicId) => {
+            setSubject(subjectId);
+            setSubjectView('TOPICS');
+            setQuery('');
+            setKinds([]);
+            setLogTopic(topicId);
+            setLogPicks((n) => n + 1);
+            setPane('MATERIAL');
+          }}
+        />
+      ) : pane === 'PAPERS' ? (
         <AssessmentLogView
           currentRole={currentRole}
           refreshKey={refreshKey}
@@ -344,7 +369,10 @@ export const LibraryView: React.FC<{
             <div className="glass-card p-4">
               <button
                 type="button"
-                onClick={() => setSubject(undefined)}
+                onClick={() => {
+                  setSubject(undefined);
+                  setLogTopic(undefined);
+                }}
                 className="flex items-center gap-1 text-[11px] font-bold text-indigo-300 hover:text-indigo-200 mb-3"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -376,7 +404,9 @@ export const LibraryView: React.FC<{
 
               {effectiveView === 'TOPICS' ? (
                 <SubjectTopicsPane
+                  key={`${subject}__${logTopic ?? ''}__${logPicks}`}
                   subjectId={subject}
+                  initialTopicId={logTopic}
                   role={currentRole}
                   onOpenMaterial={setOpenId}
                 />
