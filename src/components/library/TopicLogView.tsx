@@ -4,6 +4,7 @@ import { SubjectLog, TopicSummary, topicLog } from '../../services/topicTimeline
 import { SubjectId } from '../../types';
 import { formatShortDate } from '../../utils/date';
 import { SpecOutline, TopicJourneyStrip } from './TopicJourneyStrip';
+import { HALF_TERMS, halfTermLabel } from '../../services/schoolPlan';
 import { ChevronRight } from 'lucide-react';
 
 /**
@@ -24,12 +25,26 @@ import { ChevronRight } from 'lucide-react';
 
 const ALL = 'ALL';
 
-/** Months as a reader scans them: "October 2026", newest first. */
-function monthOf(date?: string): string {
-  if (!date) return 'No teaching date';
+/**
+ * The group a topic is listed under: the month it was taught, or - not taught
+ * yet - the half-term the school plans it for, so the log reads as what has
+ * happened followed by what is coming.
+ */
+function groupOf(summary: TopicSummary): string {
+  const date = summary.journey.taught;
+  if (!date) {
+    const term = summary.topic.plannedTerm;
+    return term ? `Planned for ${halfTermLabel(term)}` : 'No teaching date';
+  }
   const [y, m] = date.split('-').map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
+
+/** Untaught topics in the order the school plans them; unplanned last. */
+const termOrder = (s: TopicSummary) => {
+  const i = HALF_TERMS.findIndex((t) => t.id === s.topic.plannedTerm);
+  return i < 0 ? HALF_TERMS.length : i;
+};
 
 interface Row {
   summary: TopicSummary;
@@ -50,6 +65,7 @@ export const TopicLogView: React.FC<{
       .sort(
         (a, b) =>
           (b.summary.journey.taught ?? '').localeCompare(a.summary.journey.taught ?? '') ||
+          termOrder(a.summary) - termOrder(b.summary) ||
           a.summary.topic.title.localeCompare(b.summary.topic.title)
       );
   }, [logs, subject]);
@@ -57,7 +73,7 @@ export const TopicLogView: React.FC<{
   const months = useMemo(() => {
     const groups = new Map<string, Row[]>();
     for (const row of rows) {
-      const key = monthOf(row.summary.journey.taught);
+      const key = groupOf(row.summary);
       groups.set(key, [...(groups.get(key) ?? []), row]);
     }
     return [...groups.entries()];

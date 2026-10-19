@@ -476,7 +476,7 @@ export const App: React.FC = () => {
 
         {activeTab === 'GUIDANCE' && <HelpAndCareersHub />}
 
-        {activeTab === 'PARENT' && <ParentPortal />}
+        {activeTab === 'PARENT' && <ParentPortal onOpenTab={setActiveTab} />}
         </ErrorBoundary>
       </main>
 

@@ -3,6 +3,7 @@ import { TopicSummary, TopicEntry } from '../../services/topicTimeline';
 import { setTopicConfidence, setTopicSpecRef } from '../../services/topicService';
 import { Curriculum } from '../../services/curriculum';
 import { journeySteps } from './TopicJourneyStrip';
+import { TopicResourcesPanel } from './TopicResourcesPanel';
 import { TopicMaterialPanel } from '../goals/TopicMaterialPanel';
 import { MaterialLink, materialFromEvidence } from '../shared/MaterialLink';
 import { UserRole } from '../../types';
@@ -160,6 +161,8 @@ export const TopicPage: React.FC<TopicPageProps> = ({
           {topic.isCompleted && <span className="text-emerald-300">Finished</span>}
         </p>
       </div>
+
+      <TopicResourcesPanel summary={summary} role={role} />
 
       {/* The same five steps as the list, with what is behind each. */}
       <section

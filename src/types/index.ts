@@ -67,7 +67,45 @@ export interface SubjectConfig {
   driveFolderUrl?: string; // Link to Google Drive folder for this subject
   manualRAGOverride?: RAGStatus | null; // Manual override if parent/student wants to force RAG
   manualHealthScore?: number | null; // Optional manual health score 0-100
+  /**
+   * What Tejas works from in this subject - his notebook, the CGP guide, Sparx,
+   * a practical write-up - set by a parent in Study setup. Undefined means the
+   * defaults in `studyResources`, so a subject nobody has configured still has
+   * sensible ones. Unindexed; old rows need nothing.
+   */
+  resources?: StudyResource[];
 }
+
+/**
+ * One thing a topic can be worked through in, ticked per topic.
+ *
+ * Configurable because every school and every subject differs: Maths has Sparx
+ * Maths, the sciences have practical write-ups, Art has a sketchbook. The id
+ * is stable once made, because ticks on topics are stored against it; renaming
+ * keeps them, archiving hides the resource without losing them.
+ */
+export interface StudyResource {
+  id: string;
+  name: string;
+  /** Required practical topics only, or every topic. */
+  appliesTo: 'ALL' | 'PRACTICALS';
+  /**
+   * Words that, in the title of finished homework on a topic, tick this
+   * resource without anyone tapping it - "sparx" for Sparx homework. Comma
+   * separated, matched without case.
+   */
+  matches?: string;
+  archived?: boolean;
+}
+
+/** A resource ticked on a topic: when, and where in it (a page, an exercise). */
+export interface TopicResourceMark {
+  on: string;
+  ref?: string;
+}
+
+/** The six half-terms of an English school year. */
+export type HalfTerm = 'AUT1' | 'AUT2' | 'SPR1' | 'SPR2' | 'SUM1' | 'SUM2';
 
 export interface SyllabusTopic {
   id: string;
@@ -88,6 +126,14 @@ export interface SyllabusTopic {
    * cannot be matched up. Optional and unindexed, so old rows need nothing.
    */
   specRef?: string;
+  /**
+   * The half-term the school plans to teach it in, for a topic entered from
+   * the school's scheme of work before it is taught. With `yearGroup` it
+   * places the topic in a real term. Unindexed and optional.
+   */
+  plannedTerm?: HalfTerm;
+  /** Resources ticked on this topic, by `StudyResource.id`. */
+  resources?: Record<string, TopicResourceMark>;
 }
 
 export interface StructuredCheckInNotes {

@@ -96,6 +96,27 @@ delete one.
 
 ## Closed
 
+- **major - Nowhere to record what Tejas works from, or what school plans to
+  teach.** Notebook, CGP guides, Sparx, practical write-ups and coursework
+  appeared nowhere, and a topic only existed once it had been taught. A parent
+  now sets resources per subject (Parent Portal > Study setup; sensible
+  defaults otherwise), each ticked per topic in one tap or a tick sheet, and
+  ticked automatically when finished homework on the topic names it ("sparx").
+  The school's plan is pasted per half-term; planned topics count as taught
+  once a lesson is tagged. Progress shows each resource and the plan per
+  subject. `studyResources.ts`, `schoolPlan.ts`; tests in
+  `studyResources.test.ts`, `schoolPlan.test.ts`, `courseSummary.test.ts`,
+  `e2e/parent.spec.ts`.
+- **minor - The Parent Portal opened on a passphrase form.** The usual reason
+  to be there - the week's plan - was nine panels down. It is now four tabs
+  (Today, Family, Study setup, Data & security), opening on what is waiting;
+  every panel is kept, moved under its job.
+- **Caught in testing, fixed before shipping:** the new Today tab read the
+  backup state inside a live query, and `readState` writes on first read - the
+  tab crashed with "Readwrite transaction in liveQuery context". Read once
+  instead. Also caught: "Notebook 1/1" beside "Notes 0/1" for the same topic;
+  a ticked notebook-type resource now counts as notes.
+
 - **major - No view of how each topic was getting on, or of the course as a
   whole.** On 19 Oct 2026 a topic listed "3 lessons · 45 min studied · 2 work"
   and could not say whether it had been revised since it was taught, whether

@@ -5,6 +5,7 @@ import { subjectTopics, tagUntagged, TopicSummary } from '../../services/topicTi
 import { AddTopicForm } from './AddTopicForm';
 import { TopicPage } from './TopicPage';
 import { SpecOutline, TopicJourneyStrip } from './TopicJourneyStrip';
+import { ResourceTickSheet } from './ResourceTickSheet';
 import { useFeedback } from '../shared/FeedbackProvider';
 import { formatShortDate } from '../../utils/date';
 import { Plus, Target, Inbox, ChevronRight } from 'lucide-react';
@@ -148,6 +149,8 @@ export const SubjectTopicsPane: React.FC<SubjectTopicsPaneProps> = ({
           unplaced={data.topics.filter((t) => !t.section).length}
         />
       )}
+
+      <ResourceTickSheet rows={data.topics} role={role} />
 
       {data.untagged.length > 0 && (
         <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 space-y-2">
