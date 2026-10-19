@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Answer,
+  GoalPace,
   GoalSeries,
   WeekSummary,
   WEEKS_SHOWN,
@@ -15,6 +16,8 @@ import { UserRole } from '../../types';
 import { formatShortDate } from '../../utils/date';
 import type { NavTab } from '../layout/Navigation';
 import { LostTimeCard } from './LostTimeCard';
+import { TimeCleanupCard } from './TimeCleanupCard';
+import { WeekDetailPanel } from './WeekDetailPanel';
 import {
   TrendingUp,
   ArrowRight,
@@ -23,6 +26,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Circle,
+  ChevronDown,
 } from 'lucide-react';
 
 /**
@@ -130,6 +134,7 @@ export const ProgressView: React.FC<{
       </div>
 
       <LostTimeCard account={progress.account} onOpenTab={onOpenTab} />
+      <TimeCleanupCard role={role} />
 
       {progress.keyDate && (
         <section className="glass-card p-4 border-sky-500/30 flex flex-wrap items-center gap-3">
@@ -246,13 +251,19 @@ const WeekStrip: React.FC<{
   weeks: number;
   onToggle: () => void;
 }> = ({ strip, weeks, onToggle }) => {
+  const [open, setOpen] = useState<string | null>(null);
   const most = Math.max(1, ...strip.map((w) => w.loggedHours));
   const newestFirst = [...strip].reverse();
 
   return (
     <section className="glass-card p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
-        <h3 className="text-sm font-bold text-white">Week by week</h3>
+        <div>
+          <h3 className="text-sm font-bold text-white">Week by week</h3>
+          <p className="text-[10px] text-slate-500">
+            Tap a week for its plan, what got done, and how it was recorded.
+          </p>
+        </div>
         <span className="flex items-center gap-3 text-[10px] text-slate-400">
           <span className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400" aria-hidden="true" /> counted
@@ -266,45 +277,60 @@ const WeekStrip: React.FC<{
       <ul className="divide-y divide-slate-800">
         {newestFirst.map((w) => {
           const lost = Math.max(0, w.loggedHours - w.countedHours);
+          const isOpen = open === w.week.start;
           return (
             <li key={w.week.start} className="py-2.5">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span className="text-xs font-semibold text-white">
-                  {weekLabel(w.week.start, w.week.end)}
-                  {w.isCurrent && (
-                    <span className="ml-1.5 text-[10px] text-emerald-300">so far</span>
-                  )}
-                </span>
-                <span className="text-[10px] text-slate-400">{w.standingLabel}</span>
-              </div>
-              <div className="mt-1.5 flex items-center gap-2">
-                <div
-                  className="flex-1 h-2 rounded-full bg-slate-800/70 overflow-hidden flex gap-0.5"
-                  role="img"
-                  aria-label={`${w.countedHours} of ${w.loggedHours} hours counted`}
-                >
-                  {w.countedHours > 0 && (
-                    <span
-                      className="h-full bg-emerald-400 rounded-l-full"
-                      style={{ width: `${(w.countedHours / most) * 100}%` }}
+              <button
+                type="button"
+                onClick={() => setOpen(isOpen ? null : w.week.start)}
+                aria-expanded={isOpen}
+                className="w-full text-left"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <span className="text-xs font-semibold text-white">
+                    {weekLabel(w.week.start, w.week.end)}
+                    {w.isCurrent && (
+                      <span className="ml-1.5 text-[10px] text-emerald-300">so far</span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                    {w.standingLabel}
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                      aria-hidden="true"
                     />
-                  )}
-                  {lost > 0 && (
-                    <span
-                      className="h-full bg-amber-400/60 rounded-r-full"
-                      style={{ width: `${(lost / most) * 100}%` }}
-                    />
-                  )}
+                  </span>
                 </div>
-                <span className="w-24 text-right text-[11px] tabular-nums text-slate-200">
-                  {w.loggedHours === 0 ? 'nothing' : `${w.countedHours}h of ${w.loggedHours}h`}
-                </span>
-              </div>
-              <p className="mt-1 text-[10px] text-slate-500 tabular-nums">
-                {w.workClosed} work finished · {w.daysCheckedIn}/7 days checked in ·{' '}
-                {w.topicsTaught} topics taught
-                {w.marksLogged > 0 && ` · ${w.marksLogged} marked`}
-              </p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div
+                    className="flex-1 h-2 rounded-full bg-slate-800/70 overflow-hidden flex gap-0.5"
+                    role="img"
+                    aria-label={`${w.countedHours} of ${w.loggedHours} hours counted`}
+                  >
+                    {w.countedHours > 0 && (
+                      <span
+                        className="h-full bg-emerald-400 rounded-l-full"
+                        style={{ width: `${(w.countedHours / most) * 100}%` }}
+                      />
+                    )}
+                    {lost > 0 && (
+                      <span
+                        className="h-full bg-amber-400/60 rounded-r-full"
+                        style={{ width: `${(lost / most) * 100}%` }}
+                      />
+                    )}
+                  </div>
+                  <span className="w-24 text-right text-[11px] tabular-nums text-slate-200">
+                    {w.loggedHours === 0 ? 'nothing' : `${w.countedHours}h of ${w.loggedHours}h`}
+                  </span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-500 tabular-nums">
+                  {w.workClosed} work finished · {w.daysCheckedIn}/7 days checked in ·{' '}
+                  {w.topicsTaught} topics taught
+                  {w.marksLogged > 0 && ` · ${w.marksLogged} marked`}
+                </p>
+              </button>
+              {isOpen && <WeekDetailPanel weekStart={w.week.start} />}
             </li>
           );
         })}
@@ -325,6 +351,19 @@ const WeekStrip: React.FC<{
 };
 
 /**
+ * The line's colour is what it says about the goal, so a flat line can never
+ * pass for a healthy one - which, drawn green whatever the numbers, four of ten
+ * did on 19 Oct 2026. Each pace is also written beside the line, so the colour
+ * is never the only signal.
+ */
+const PACE: Record<GoalPace, { stroke: string; text: string; label: string }> = {
+  MEETING: { stroke: 'rgb(52 211 153)', text: 'text-emerald-300', label: 'meeting its ask' },
+  BELOW: { stroke: 'rgb(251 191 36)', text: 'text-amber-300', label: 'below its ask' },
+  NO_ASK: { stroke: 'rgb(125 211 252)', text: 'text-sky-300', label: 'no weekly ask set' },
+  NONE: { stroke: 'rgb(100 116 139)', text: 'text-slate-400', label: 'nothing counted' },
+};
+
+/**
  * Each agreed goal over four weeks against what it asks for - a trend, not a
  * burn-down. The dashed line is the ask; the last point is the week so far.
  */
@@ -342,10 +381,13 @@ const GoalRows: React.FC<{ series: GoalSeries[] }> = ({ series }) => (
             <span className="flex-1 min-w-0 text-xs text-slate-200">
               {s.goal.title}
               <span className="block text-[10px] text-slate-500 tabular-nums">
-                averaging {s.averageHours}h a week · asks {s.askedHours}h
+                <span className={PACE[s.pace].text}>{PACE[s.pace].label}</span>
+                {s.pace === 'NONE'
+                  ? ` · ${s.quietReason}`
+                  : ` · averaging ${s.averageHours}h a week · asks ${s.askedHours}h`}
               </span>
             </span>
-            <Sparkline values={s.weeklyHours} asked={s.askedHours} />
+            <Sparkline values={s.weeklyHours} asked={s.askedHours} stroke={PACE[s.pace].stroke} />
           </li>
         ))}
       </ul>
@@ -353,7 +395,11 @@ const GoalRows: React.FC<{ series: GoalSeries[] }> = ({ series }) => (
   </section>
 );
 
-const Sparkline: React.FC<{ values: number[]; asked: number }> = ({ values, asked }) => {
+const Sparkline: React.FC<{ values: number[]; asked: number; stroke: string }> = ({
+  values,
+  asked,
+  stroke,
+}) => {
   const width = 96;
   const height = 28;
   const pad = 4;
@@ -386,7 +432,7 @@ const Sparkline: React.FC<{ values: number[]; asked: number }> = ({ values, aske
       <polyline
         points={points}
         fill="none"
-        stroke="rgb(52 211 153)"
+        stroke={stroke}
         strokeWidth={2}
         strokeLinejoin="round"
       />
@@ -394,7 +440,7 @@ const Sparkline: React.FC<{ values: number[]; asked: number }> = ({ values, aske
         cx={x(last)}
         cy={y(values[last])}
         r={3}
-        fill="rgb(52 211 153)"
+        fill={stroke}
         stroke="rgb(15 23 42)"
         strokeWidth={1.5}
       />

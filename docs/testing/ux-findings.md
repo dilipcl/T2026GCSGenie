@@ -96,6 +96,26 @@ delete one.
 
 ## Closed
 
+- **major - Every goal line on Progress was green, flat or not.** On 19 Oct
+  2026 four of ten agreed goals had nothing reach them in four weeks and drew
+  the same green line as the rest. The line is now coloured by pace against
+  the goal's ask, the pace is written beside it, and a flat line says why
+  (no subject set, or no time logged for the subject). `goalPace` in
+  `progressReport.ts`; tests in `progressReport.test.ts` and
+  `e2e/progress.spec.ts`.
+- **minor - A week on Progress could not be opened.** The strip gave each week
+  one line; what was planned, what slipped, what was finished off-plan and how
+  the week was recorded needed an export. Tapping a week now opens it
+  (`weekDetail.ts`, `WeekDetailPanel`), with delivery held to
+  `weekExecution`'s count by test.
+- **minor - Time filed against a deleted goal could only be re-filed row by
+  row.** After the duplicate Maths goal was deleted on 19 Oct 2026, two
+  check-ins (2h) and four pieces of work still pointed at it, and the
+  Chemistry goal had no subject. A parent now gets a one-tap tidy on Progress
+  for the changes with only one right answer (`timeCleanup.ts`); everything
+  that needs a decision stays on the lost-time card. Each change is written to
+  the activity feed.
+
 - **major - Nothing reported how things were going.** Every screen answered
   "what next?"; answering "is he doing the work, is the time going where we
   agreed, is it working?" took a database export on 18 Oct 2026. The
