@@ -18,6 +18,8 @@ import { tagAttachmentToTopic } from './attachmentService';
 import { tagCheckInToTopic, tagTaskToTopic } from './topicService';
 import { Curriculum, Placement, SpecSection, curriculumFor, placeTopic } from './curriculum';
 import { isTopicSecure } from './ragCalculator';
+import { ResourceState, appliesTo, resourceState, resourcesFor } from './studyResources';
+import { PlanState, planState, yearNumber } from './schoolPlan';
 import { addDaysISO, parseISODate, toLocalISODate, todayISO } from '../utils/date';
 
 /**
@@ -72,6 +74,10 @@ export interface TopicSummary {
   lastDate?: string;
   entries: TopicEntry[];
   journey: TopicJourney;
+  /** The subject's resources that apply to this topic, and which are done. */
+  resources: ResourceState[];
+  /** Where it stands against the school's plan, when it was planned. */
+  plan?: PlanState;
   /** Where it sits in the board's outline, when that is known or can be guessed. */
   section?: SpecSection;
   placement?: Placement;
@@ -112,8 +118,11 @@ export interface TopicJourney {
   homework: { set: number; done: number; lastDone?: string };
   /** Focus blocks and check-ins on it, and revision work finished on it. */
   revision: { sessions: number; minutes: number; last?: string };
-  /** Files, links and notes captured on it, and lesson answers with a note. */
-  notes: { captured: number; lessonNotes: number };
+  /**
+   * Files, links and notes captured on it, lesson answers with a note, and
+   * whether a notebook-type resource has been ticked for it.
+   */
+  notes: { captured: number; lessonNotes: number; inNotebook?: boolean };
   fixUps: { open: number; done: number };
   secure: boolean;
   confidence: SyllabusTopic['confidenceRating'];
@@ -124,10 +133,29 @@ export interface TopicJourney {
   gap?: string;
 }
 
+/** Whether a topic has notes anywhere: captured, in a lesson answer, or in a ticked notebook. */
+export const hasNotes = (j: TopicJourney) =>
+  j.notes.captured + j.notes.lessonNotes > 0 || !!j.notes.inNotebook;
+
 /** How long after teaching a topic can go unrevised before saying so. */
 export const REVISE_WITHIN_DAYS = 14;
 
-function journeyOf(topic: SyllabusTopic, list: TopicEntry[], today: string): TopicJourney {
+/**
+ * A resource that is somewhere notes are kept - "Notebook", "Exercise book
+ * notes" - by its name, since the list is the parent's to set.
+ *
+ * On 19 Oct 2026 the course card showed "Notebook 1/1" beside "Notes 0/1" for
+ * the same topic: ticking the notebook said notes existed, and the notes step,
+ * which only counted what was captured in the app, said they did not.
+ */
+const keepsNotes = (name: string) => /note|exercise book|book of/i.test(name);
+
+function journeyOf(
+  topic: SyllabusTopic,
+  list: TopicEntry[],
+  today: string,
+  inNotebook = false
+): TopicJourney {
   const lessons = list.filter((e) => e.kind === 'LESSON');
   const work = list.filter((e) => e.kind === 'WORK');
   const homework = work.filter((e) => e.workKind === 'HOMEWORK');
@@ -156,7 +184,7 @@ function journeyOf(topic: SyllabusTopic, list: TopicEntry[], today: string): Top
   if (openFixUps > 0) gap = `${openFixUps} fix-up${openFixUps === 1 ? '' : 's'} open`;
   else if (taught && !secure) {
     const stale = addDaysISO(-REVISE_WITHIN_DAYS, parseISODate(today));
-    if (captured + lessonNotes === 0) gap = 'No notes captured yet';
+    if (captured + lessonNotes === 0 && !inNotebook) gap = 'No notes captured yet';
     else if (!lastRevised && taught <= stale) gap = 'Not revised since it was taught';
   }
 
@@ -173,7 +201,7 @@ function journeyOf(topic: SyllabusTopic, list: TopicEntry[], today: string): Top
       minutes: revisions.reduce((sum, e) => sum + (e.minutes ?? 0), 0),
       last: lastRevised,
     },
-    notes: { captured, lessonNotes },
+    notes: { captured, lessonNotes, inNotebook },
     fixUps: { open: openFixUps, done: fixUps.length - openFixUps },
     secure,
     confidence: topic.confidenceRating,
@@ -256,7 +284,8 @@ function buildSummaries(
   checkIns: DailyCheckIn[],
   tasks: Task[],
   subjects: SubjectConfig[],
-  today: string
+  today: string,
+  studentYear: number
 ): TopicSummary[] {
   const byId = new Map(topics.map((t) => [t.id, t]));
   const entries = new Map<string, TopicEntry[]>(topics.map((t) => [t.id, []]));
@@ -332,9 +361,21 @@ function buildSummaries(
   }
 
   const outlines = new Map(subjects.map((s) => [s.id as string, curriculumFor(s)]));
+  const subjectById = new Map(subjects.map((s) => [s.id as string, s]));
+  const workByTopic = new Map<string, Task[]>();
+  for (const task of tasks) {
+    if (!task.linkedTopicId) continue;
+    workByTopic.set(task.linkedTopicId, [...(workByTopic.get(task.linkedTopicId) ?? []), task]);
+  }
 
   return topics.map((topic) => {
     const list = entries.get(topic.id)!.sort((a, b) => b.date.localeCompare(a.date));
+    const work = workByTopic.get(topic.id) ?? [];
+    const resources = resourcesFor(subjectById.get(topic.subjectId))
+      .filter((r) => appliesTo(r, topic))
+      .map((r) => resourceState(topic, r, work));
+    const inNotebook = resources.some((r) => r.done && keepsNotes(r.resource.name));
+    const journey = journeyOf(topic, list, today, inNotebook);
     return {
       topic,
       lessons: list.filter((e) => e.kind === 'LESSON').length,
@@ -345,20 +386,23 @@ function buildSummaries(
       materials: list.filter((e) => e.kind === 'MATERIAL').length,
       lastDate: list[0]?.date,
       entries: list,
-      journey: journeyOf(topic, list, today),
+      journey,
+      resources,
+      plan: planState(topic, !!journey.taught, studentYear, today),
       ...placeTopic(topic, outlines.get(topic.subjectId)),
     };
   });
 }
 
 export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics> {
-  const [snapshot, occurrences, checkIns, tasks, goals, subjects] = await Promise.all([
+  const [snapshot, occurrences, checkIns, tasks, goals, subjects, settings] = await Promise.all([
     library(),
     db.checkInOccurrences.toArray(),
     db.checkIns.toArray(),
     db.tasks.toArray(),
     db.goals.toArray(),
     db.subjects.toArray(),
+    db.parentSettings.get('active_settings'),
   ]);
 
   const topics = snapshot.topics
@@ -373,7 +417,8 @@ export async function subjectTopics(subjectId: SubjectId): Promise<SubjectTopics
     checkIns,
     tasks,
     subjects,
-    todayISO()
+    todayISO(),
+    yearNumber(settings?.studentYearGroup)
   );
   const subject = subjects.find((s) => s.id === subjectId);
   const outline = curriculumFor(subject);
@@ -517,12 +562,13 @@ export interface SubjectLog {
  * the rule the subject page has always applied.
  */
 export async function topicLog(): Promise<SubjectLog[]> {
-  const [snapshot, occurrences, checkIns, tasks, subjects] = await Promise.all([
+  const [snapshot, occurrences, checkIns, tasks, subjects, settings] = await Promise.all([
     library(),
     db.checkInOccurrences.toArray(),
     db.checkIns.toArray(),
     db.tasks.toArray(),
     db.subjects.toArray(),
+    db.parentSettings.get('active_settings'),
   ]);
   const summaries = buildSummaries(
     snapshot.topics,
@@ -531,7 +577,8 @@ export async function topicLog(): Promise<SubjectLog[]> {
     checkIns,
     tasks,
     subjects,
-    todayISO()
+    todayISO(),
+    yearNumber(settings?.studentYearGroup)
   );
 
   const newestFirst = (a: TopicSummary, b: TopicSummary) =>

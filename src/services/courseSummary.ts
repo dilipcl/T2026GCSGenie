@@ -1,4 +1,5 @@
-import { SubjectLog } from './topicTimeline';
+import { SubjectLog, TopicSummary, hasNotes } from './topicTimeline';
+import { StudyResource } from '../types';
 import { formatShortDate } from '../utils/date';
 
 /**
@@ -13,9 +14,10 @@ import { formatShortDate } from '../utils/date';
  * subject - tapping through to the log shows exactly the topics behind each
  * number.
  *
- * Revised and notes are counted out of topics *taught*, not all topics. A
- * topic added ahead of teaching has nothing to revise yet, and counting it
- * would make a subject look behind for being organised.
+ * Revised, notes, secure and the resources are counted out of topics
+ * *taught*, not all topics. A topic entered ahead from the school's plan has
+ * nothing to revise yet, and counting it would make a subject look behind for
+ * being organised. Planned topics are counted on their own, against the plan.
  */
 
 export interface Measure {
@@ -23,7 +25,22 @@ export interface Measure {
   of: number;
 }
 
+/** A configured resource across a subject's taught topics it applies to. */
+export interface ResourceMeasure extends Measure {
+  resource: StudyResource;
+}
+
+/** The school's plan for the subject, by where each planned topic stands. */
+export interface PlanMeasure {
+  planned: number;
+  taught: number;
+  dueNow: number;
+  behind: number;
+  later: number;
+}
+
 export interface SubjectSummary {
+  /** Topics taught so far - the denominator for everything but homework. */
   topics: number;
   sectionsStarted: number;
   sectionsTotal: number;
@@ -35,6 +52,8 @@ export interface SubjectSummary {
   notes: Measure;
   secure: Measure;
   openFixUps: number;
+  resources: ResourceMeasure[];
+  plan?: PlanMeasure;
   latest?: { title: string; taught: string };
   /** Two short sentences: what there is, then how it is going. */
   sentence: string;
@@ -42,29 +61,59 @@ export interface SubjectSummary {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
+function resourceMeasures(taughtRows: TopicSummary[]): ResourceMeasure[] {
+  const byId = new Map<string, ResourceMeasure>();
+  for (const row of taughtRows) {
+    for (const state of row.resources) {
+      const m = byId.get(state.resource.id) ?? { resource: state.resource, done: 0, of: 0 };
+      m.of += 1;
+      if (state.done) m.done += 1;
+      byId.set(state.resource.id, m);
+    }
+  }
+  return [...byId.values()];
+}
+
+function planMeasure(rows: TopicSummary[]): PlanMeasure | undefined {
+  const planned = rows.filter((r) => r.plan);
+  if (planned.length === 0) return undefined;
+  const count = (state: string) => planned.filter((r) => r.plan === state).length;
+  return {
+    planned: planned.length,
+    taught: count('TAUGHT'),
+    dueNow: count('DUE_NOW'),
+    behind: count('BEHIND'),
+    later: count('LATER'),
+  };
+}
+
 export function summariseSubject(log: SubjectLog): SubjectSummary {
+  const taughtRows = log.topics.filter((t) => t.journey.taught);
   const journeys = log.topics.map((t) => t.journey);
-  const taught = journeys.filter((j) => j.taught);
+  const taught = taughtRows.map((t) => t.journey);
   const homework = journeys.reduce(
     (m, j) => ({ done: m.done + j.homework.done, of: m.of + j.homework.set }),
     { done: 0, of: 0 }
   );
   const revised = { done: taught.filter((j) => j.revision.sessions > 0).length, of: taught.length };
   const notes = {
-    done: taught.filter((j) => j.notes.captured + j.notes.lessonNotes > 0).length,
+    done: taught.filter(hasNotes).length,
     of: taught.length,
   };
-  const secure = { done: journeys.filter((j) => j.secure).length, of: journeys.length };
+  const secure = { done: taught.filter((j) => j.secure).length, of: taught.length };
   const openFixUps = journeys.reduce((sum, j) => sum + j.fixUps.open, 0);
-  const sectionsStarted = log.coverage.filter((c) => c.topics > 0).length;
+  // A section is started once a topic in it has been taught, not merely planned.
+  const sectionsStarted = new Set(
+    taughtRows.map((r) => r.section?.ref).filter((ref): ref is string => !!ref)
+  ).size;
   const sectionsTotal = log.coverage.length;
 
   // Topics are newest-taught first in the log.
   const newest = log.topics.find((t) => t.journey.taught);
   const latest = newest ? { title: newest.topic.title, taught: newest.journey.taught! } : undefined;
 
-  return {
-    topics: log.topics.length,
+  const summary = {
+    topics: taughtRows.length,
     sectionsStarted,
     sectionsTotal,
     homework,
@@ -72,19 +121,11 @@ export function summariseSubject(log: SubjectLog): SubjectSummary {
     notes,
     secure,
     openFixUps,
+    resources: resourceMeasures(taughtRows),
+    plan: planMeasure(log.topics),
     latest,
-    sentence: sentenceFor({
-      topics: log.topics.length,
-      sectionsStarted,
-      sectionsTotal,
-      homework,
-      revised,
-      notes,
-      secure,
-      openFixUps,
-      latest,
-    }),
   };
+  return { ...summary, sentence: sentenceFor(summary) };
 }
 
 /**
@@ -94,7 +135,15 @@ export function summariseSubject(log: SubjectLog): SubjectSummary {
  * to the end, where the gap is.
  */
 function sentenceFor(s: Omit<SubjectSummary, 'sentence'>): string {
-  if (s.topics === 0) return 'No topics logged yet.';
+  if (s.topics === 0) {
+    if (s.plan?.planned) {
+      const due = s.plan.behind + s.plan.dueNow;
+      return `None taught yet; ${plural(s.plan.planned, 'topic')} on the school plan${
+        due ? `, ${due} due by now` : ''
+      }.`;
+    }
+    return 'No topics logged yet.';
+  }
 
   const what =
     `${plural(s.topics, 'topic')}` +
@@ -118,6 +167,12 @@ function sentenceFor(s: Omit<SubjectSummary, 'sentence'>): string {
     watch.push(s.notes.done === 0 ? 'no notes yet' : `${s.notes.of - s.notes.done} without notes`);
   }
   if (s.openFixUps > 0) watch.push(plural(s.openFixUps, 'fix-up') + ' open');
+  // The school plan comes first among the watches: a half-term gone by with
+  // planned topics untaught is a question for the teacher, not for Tejas.
+  if (s.plan) {
+    if (s.plan.behind > 0) watch.unshift(`${s.plan.behind} planned topic${s.plan.behind === 1 ? '' : 's'} not yet taught from an earlier half-term`);
+    else if (s.plan.taught > 0) good.push('on the school plan');
+  }
 
   const parts = [...good, ...watch.slice(0, 2)];
   if (parts.length === 0) return what;

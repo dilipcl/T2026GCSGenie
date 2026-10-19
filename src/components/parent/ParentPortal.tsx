@@ -29,6 +29,10 @@ import { SanctionPanel } from './SanctionPanel';
 import { PlanApprovalPanel } from './PlanApprovalPanel';
 import { PortalSection } from './PortalSection';
 import { MaterialReadingPanel } from './MaterialReadingPanel';
+import { StudySetupPanel } from './StudySetupPanel';
+import { ParentToday } from './ParentToday';
+import { TimeCleanupCard } from '../progress/TimeCleanupCard';
+import type { NavTab } from '../layout/Navigation';
 import { XpStatementPanel } from '../rewards/XpStatementPanel';
 import { UserCog, ListChecks, Link as LinkIcon } from 'lucide-react';
 import { logAuditEvent } from '../../services/auditService';
@@ -50,11 +54,33 @@ import {
   Receipt,
   BookOpenCheck,
   FileWarning,
+  Shield,
+  GraduationCap,
 } from 'lucide-react';
 import { useFeedback } from '../shared/FeedbackProvider';
 
-export const ParentPortal: React.FC = () => {
+/**
+ * The four things a parent comes here for, as tabs.
+ *
+ * Redesigned on 19 Oct 2026. The page had grown one panel at a time into a
+ * long scroll that opened on a passphrase form and an AI audit, with the week's
+ * plan - the usual reason to be here - nine panels down. Now it opens on what
+ * is waiting (Today), and every panel that was here is still here, under the
+ * job it belongs to: the family's arrangements, how study is set up, and
+ * keeping the data safe. Nothing was removed; panels were moved, unchanged.
+ */
+type PortalTab = 'TODAY' | 'FAMILY' | 'STUDY' | 'DATA';
+
+const PORTAL_TABS: { id: PortalTab; label: string }[] = [
+  { id: 'TODAY', label: 'Today' },
+  { id: 'FAMILY', label: 'Family' },
+  { id: 'STUDY', label: 'Study setup' },
+  { id: 'DATA', label: 'Data & security' },
+];
+
+export const ParentPortal: React.FC<{ onOpenTab?: (tab: NavTab) => void }> = ({ onOpenTab }) => {
   const { toast, confirm } = useFeedback();
+  const [tab, setTab] = useState<PortalTab>('TODAY');
   const [settings, setSettings] = useState<ParentSettings>({
 
     googleDriveBackupPath: `${WORKING_FOLDER_PATH}\\_Genie-Backups`,
@@ -284,20 +310,64 @@ export const ParentPortal: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="glass-card p-6 bg-gradient-to-r from-slate-900 via-rose-950/30 to-slate-900 border-rose-500/30">
+      {/* Header, in the same shape as Progress and the Library. */}
+      <div className="glass-card p-5 bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 border-indigo-500/20">
         <div className="flex items-center gap-2 mb-1">
-          <span className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
-            🛡️
+          <span className="p-2 rounded-xl bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+            <Shield className="w-5 h-5" aria-hidden="true" />
           </span>
           <h2 className="text-xl font-bold text-white">Parent Portal</h2>
         </div>
-        <p className="text-xs text-slate-300 max-w-xl">
-          Run an audit, log a school sanction, back up the data, change the passphrase, and check
-          the change history for tampering.
+        <p className="text-xs text-slate-300 max-w-2xl">
+          What is waiting on you, the family's arrangements, how study is set up, and keeping the
+          data safe.
         </p>
       </div>
 
+      <div
+        role="tablist"
+        aria-label="Parent sections"
+        className="glass-card p-1.5 grid grid-cols-2 sm:grid-cols-4 gap-1"
+      >
+        {PORTAL_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+              tab === t.id
+                ? 'bg-indigo-600 text-white'
+                : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'TODAY' && (
+        <>
+          <ParentToday onOpenTab={onOpenTab} onOpenDataTab={() => setTab('DATA')} />
+          {/* Where this week's plan is agreed to - the far most frequent reason to be here. */}
+          <PlanApprovalPanel />
+          <TimeCleanupCard role="PARENT" />
+        </>
+      )}
+
+      {tab === 'STUDY' && (
+        <div className="glass-card p-5">
+          <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-800">
+            <GraduationCap className="w-5 h-5 text-sky-300" aria-hidden="true" />
+            <h3 className="font-bold text-sm text-white">Resources and the school plan</h3>
+          </div>
+          <StudySetupPanel />
+        </div>
+      )}
+
+      {tab === 'DATA' && (
+      <>
       {/* Parent passphrase */}
       <div className="glass-card p-6">
         <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-800">
@@ -459,7 +529,10 @@ export const ParentPortal: React.FC = () => {
         )}
       </div>
 
-      {/* Grid: AI Agent Audit Engine & Configuration */}
+      </>
+      )}
+
+      {tab === 'STUDY' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: AI Agent Controls & Settings */}
         <div className="glass-card p-5 space-y-4">
@@ -664,10 +737,10 @@ export const ParentPortal: React.FC = () => {
         </div>
       </div>
 
-      {/* Where this week's plan is agreed to. Above the sanctions because it
-          is the far more frequent reason to be on this screen. */}
-      <PlanApprovalPanel />
+      )}
 
+      {tab === 'FAMILY' && (
+      <>
       <SanctionPanel />
 
       {/* UX-5. The portal is opened to do one thing, and used to make you
@@ -706,7 +779,11 @@ export const ParentPortal: React.FC = () => {
       >
         <XpStatementPanel role="PARENT" />
       </PortalSection>
+      </>
+      )}
 
+      {tab === 'STUDY' && (
+      <>
       {/* Sits beside XP rather than under "Links & data": it is not a link or an
           export, it is the one action in the app that sends Tejas's work to
           somebody else, and burying it among file operations would be the wrong
@@ -720,22 +797,17 @@ export const ParentPortal: React.FC = () => {
       </PortalSection>
 
       <PortalSection
-        title="Links & data"
-        blurb="Guidance links, spreadsheet import and export"
+        title="Guidance links"
+        blurb="Careers and revision links shown to Tejas"
         icon={<LinkIcon className="w-5 h-5 text-teal-400" />}
       >
         <GuidanceLinksPanel />
-        <DataExchangePanel />
       </PortalSection>
+      </>
+      )}
 
-      <PortalSection
-        title="Handover"
-        blurb="Moving the app to another device, and starting again"
-        icon={<ShieldCheck className="w-5 h-5 text-rose-400" />}
-      >
-        <HandoverResetPanel />
-      </PortalSection>
-
+      {tab === 'DATA' && (
+      <>
       {/* Backup & Google Drive Sync (Option A) */}
       <div className="glass-card p-6">
         <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-800">
@@ -829,6 +901,22 @@ export const ParentPortal: React.FC = () => {
         </p>
       </div>
 
+      <PortalSection
+        title="Spreadsheet import and export"
+        blurb="Moving rows in and out as a spreadsheet"
+        icon={<Database className="w-5 h-5 text-teal-400" />}
+      >
+        <DataExchangePanel />
+      </PortalSection>
+
+      <PortalSection
+        title="Handover"
+        blurb="Moving the app to another device, and starting again"
+        icon={<ShieldCheck className="w-5 h-5 text-rose-400" />}
+      >
+        <HandoverResetPanel />
+      </PortalSection>
+
       {/* Immutable Write-Only Audit Log Viewer */}
       <div className="glass-card p-6">
         <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-800">
@@ -885,6 +973,8 @@ export const ParentPortal: React.FC = () => {
           </table>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

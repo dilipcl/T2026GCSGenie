@@ -34,7 +34,7 @@ test.describe('the topic log', () => {
     await expect(first.getByText(/^(Taught .+|Not taught yet)$/)).toHaveCount(1);
     await expect(first.getByText(/^(Homework \d+ of \d+|No homework)$/)).toHaveCount(1);
     await expect(first.getByText(/^(Revised .+|Not revised)$/)).toHaveCount(1);
-    await expect(first.getByText(/^(Notes \d+|No notes)$/)).toHaveCount(1);
+    await expect(first.getByText(/^(Notes \d+|Notes in notebook|No notes)$/)).toHaveCount(1);
     await expect(first.getByText(/^(Secure|Sure \d\/5)$/)).toHaveCount(1);
   });
 

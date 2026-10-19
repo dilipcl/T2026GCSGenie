@@ -1,5 +1,5 @@
 import React from 'react';
-import { TopicJourney, SectionCoverage } from '../../services/topicTimeline';
+import { TopicJourney, SectionCoverage, hasNotes } from '../../services/topicTimeline';
 import { formatShortDate } from '../../utils/date';
 
 /**
@@ -35,9 +35,11 @@ export function journeySteps(j: TopicJourney): Step[] {
           }`,
           done: true,
         },
-    j.notes.captured + j.notes.lessonNotes === 0
+    !hasNotes(j)
       ? { label: 'No notes', done: false }
-      : { label: `Notes ${j.notes.captured + j.notes.lessonNotes}`, done: true },
+      : j.notes.captured + j.notes.lessonNotes === 0
+        ? { label: 'Notes in notebook', done: true }
+        : { label: `Notes ${j.notes.captured + j.notes.lessonNotes}`, done: true },
     j.secure ? { label: 'Secure', done: true } : { label: `Sure ${j.confidence}/5`, done: false },
   ];
 }
@@ -84,7 +86,8 @@ export const SpecOutline: React.FC<{
   coverage: SectionCoverage[];
   unplaced: number;
 }> = ({ name, coverage, unplaced }) => {
-  const started = coverage.filter((c) => c.topics > 0).length;
+  // Started means taught in, not just planned for.
+  const started = coverage.filter((c) => c.taught > 0).length;
   return (
     <details className="rounded-xl bg-slate-950/50 border border-slate-800 group">
       <summary className="cursor-pointer list-none p-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
@@ -100,15 +103,19 @@ export const SpecOutline: React.FC<{
         {coverage.map((c) => (
           <li key={c.section.ref} className="flex items-baseline gap-2 text-[11px]">
             <span className="w-9 flex-shrink-0 text-slate-500 tabular-nums">{c.section.ref}</span>
-            <span className={`flex-1 min-w-0 ${c.topics ? 'text-slate-200' : 'text-slate-500'}`}>
+            <span className={`flex-1 min-w-0 ${c.taught ? 'text-slate-200' : 'text-slate-500'}`}>
               {c.section.title}
             </span>
             <span className="flex-shrink-0 text-[10px] text-slate-400 tabular-nums">
               {c.topics === 0
                 ? 'not started'
-                : `${c.topics} topic${c.topics === 1 ? '' : 's'}${
-                    c.secure ? ` · ${c.secure} secure` : ''
-                  }`}
+                : [
+                    c.taught ? `${c.taught} taught` : 'not started',
+                    c.topics > c.taught ? `${c.topics - c.taught} planned` : '',
+                    c.secure ? `${c.secure} secure` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
             </span>
           </li>
         ))}
