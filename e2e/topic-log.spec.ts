@@ -129,6 +129,17 @@ test('Progress shows the course so far and opens the topic log', async ({ page }
   await expect(card.getByText('Biology')).toBeVisible();
   await expect(card.getByText(/\d+\/7 sections/)).toBeVisible();
 
+  // Each subject with topics has its four meters and a sentence.
+  const biology = card.getByTestId('course-subject').filter({ hasText: 'Biology' });
+  for (const meter of ['Homework', 'Revised', 'Notes', 'Secure']) {
+    await expect(biology.getByText(meter, { exact: true })).toBeVisible();
+  }
+  await expect(biology.getByText(/^\d+ topics? in \d+ of 7 sections/)).toBeVisible();
+  // A subject with nothing logged says so rather than drawing empty meters.
+  const engLang = card.getByTestId('course-subject').filter({ hasText: 'Eng Lang' });
+  await expect(engLang.getByText('No topics logged yet.')).toBeVisible();
+  await expect(engLang.getByText('Homework', { exact: true })).toHaveCount(0);
+
   await card.getByRole('button', { name: 'Open the topic log' }).click();
   await expect(page.getByRole('heading', { name: 'Topic log' })).toBeVisible();
   await expect(page.getByTestId('topic-journey').first()).toBeVisible();
