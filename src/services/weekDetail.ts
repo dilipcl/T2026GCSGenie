@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { SubjectId, Task, WeekPlanBaseline } from '../types';
 import { amendmentsFor, loadBaseline } from './planBaselineService';
+import { taskHours } from './planService';
 import { TimeAccount, accountForTime } from './progressReport';
 import { studyEntries } from './studyLedger';
 import { weekExecution } from './weekExecution';
@@ -53,6 +54,14 @@ export interface WeekWorkItem {
   /** Local date it was closed, when it was. */
   doneOn?: string;
   isFixUp: boolean;
+  /**
+   * Its size, by the reckoning the plan's load bar used when the week was
+   * agreed - so a burn-down drawn from these items starts from the same number
+   * the family looked at when they said yes.
+   */
+  hours: number;
+  /** For a piece brought in by an amendment: the local date it came in. */
+  addedOn?: string;
 }
 
 export interface SubjectTime {
@@ -137,6 +146,7 @@ function itemFrom(task: Task, week: WeekWindow): WeekWorkItem {
     outcome,
     doneOn,
     isFixUp: !!task.isRemediation,
+    hours: taskHours(task),
   };
 }
 
@@ -197,6 +207,15 @@ export async function readWeekDetail(weekStart: string): Promise<WeekDetail> {
     .filter((t): t is Task => !!t)
     .map((t) => itemFrom(t, week))
     .sort(byOutcome);
+  /**
+   * The first amendment that brought a piece in dates it. A piece added,
+   * displaced and added again came in once as far as the week is concerned.
+   */
+  const firstAdded = new Map<string, string>();
+  for (const a of [...amendments].sort((x, y) => x.at - y.at)) {
+    if (!firstAdded.has(a.addedTaskId)) firstAdded.set(a.addedTaskId, dateOf(a.at));
+  }
+  for (const item of added) item.addedOn = firstAdded.get(item.id);
   const onAList = new Set([...committedIds, ...addedIds]);
 
   const extra = tasks
