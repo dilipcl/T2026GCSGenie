@@ -4,6 +4,7 @@ import { db } from '../../db';
 import { WeekDetail, WeekWorkItem, WorkOutcome, readWeekDetail } from '../../services/weekDetail';
 import { formatShortDate } from '../../utils/date';
 import { CheckCircle2, Clock3, Circle } from 'lucide-react';
+import { WeekBurndownCard } from './WeekBurndownCard';
 
 /**
  * One week, opened from the strip on Progress: the plan against what happened,
@@ -28,7 +29,11 @@ const PLAN_LINE: Record<WeekDetail['plan'], string> = {
   NONE: 'No plan for this week',
 };
 
-export const WeekDetailPanel: React.FC<{ weekStart: string }> = ({ weekStart }) => {
+export const WeekDetailPanel: React.FC<{
+  weekStart: string;
+  /** Off where the burn-down is already on screen above it, as in the review. */
+  showBurndown?: boolean;
+}> = ({ weekStart, showBurndown = true }) => {
   const detail = useLiveQuery(() => readWeekDetail(weekStart), [weekStart]);
   const subjects = useLiveQuery(() => db.subjects.toArray(), []);
 
@@ -44,6 +49,8 @@ export const WeekDetailPanel: React.FC<{ weekStart: string }> = ({ weekStart }) 
 
   return (
     <div className="mt-3 grid gap-4 border-t border-slate-800 pt-3">
+      {showBurndown && <WeekBurndownCard detail={detail} />}
+
       {/* The plan ----------------------------------------------------------- */}
       <div>
         <h4 className="text-[10px] uppercase tracking-wider font-bold text-slate-400">

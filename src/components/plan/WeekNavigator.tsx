@@ -23,9 +23,26 @@ interface WeekNavigatorProps {
   weekStart: string;
   onChange: (weekStart: string) => void;
   onToday: () => void;
+  /**
+   * The furthest week it may step to. The review looks back at what happened,
+   * and a week that has not started yet has nothing to show there.
+   */
+  latest?: string;
+  /**
+   * Where the screen starts, when that is not the current week - the review
+   * opens on the week just finished, so that is what the reset button returns
+   * to, and it is hidden there rather than on the current week.
+   */
+  home?: { weekStart: string; label: string };
 }
 
-export const WeekNavigator: React.FC<WeekNavigatorProps> = ({ weekStart, onChange, onToday }) => {
+export const WeekNavigator: React.FC<WeekNavigatorProps> = ({
+  weekStart,
+  onChange,
+  onToday,
+  latest,
+  home,
+}) => {
   const weekEnd = addDaysISO(6, parseISODate(weekStart));
   const thisWeek = weekStart <= todayISO() && todayISO() <= weekEnd;
   const isPast = weekEnd < todayISO();
@@ -39,7 +56,9 @@ export const WeekNavigator: React.FC<WeekNavigatorProps> = ({ weekStart, onChang
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => step(-1)}
+            aria-label="The week before"
             title="The week before"
             className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition-colors"
           >
@@ -56,20 +75,24 @@ export const WeekNavigator: React.FC<WeekNavigatorProps> = ({ weekStart, onChang
           </div>
 
           <button
+            type="button"
             onClick={() => step(1)}
+            disabled={latest !== undefined && weekStart >= latest}
+            aria-label="The week after"
             title="The week after"
-            className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition-colors disabled:opacity-30"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
 
-          {!thisWeek && (
+          {(home ? weekStart !== home.weekStart : !thisWeek) && (
             <button
+              type="button"
               onClick={onToday}
               className="ml-1 flex items-center gap-1 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[10px] font-bold text-slate-300 hover:bg-slate-800 transition-colors"
             >
               <RotateCcw className="w-3 h-3" />
-              Today
+              {home?.label ?? 'Today'}
             </button>
           )}
         </div>

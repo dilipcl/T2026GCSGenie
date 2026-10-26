@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { INITIAL_SUBJECTS } from '../../db/seedData';
@@ -20,12 +20,15 @@ import { useFeedback } from '../shared/FeedbackProvider';
 import {
   addDaysISO,
   formatFriendlyDate,
-  formatPastDate,
   formatShortDate,
   daysUntil,
 } from '../../utils/date';
 import { markWeekReviewed } from '../../services/weekLedger';
 import { DayNote, notesForWeek } from '../../services/dayRecordService';
+import { readWeekDetail } from '../../services/weekDetail';
+import { WeekNavigator } from './WeekNavigator';
+import { WeekBurndownCard } from '../progress/WeekBurndownCard';
+import { WeekDetailPanel } from '../progress/WeekDetailPanel';
 
 /**
  * A reason is tapped rather than typed, and saying so matters: "Missed —
@@ -51,7 +54,7 @@ const NOTE_TONE: Record<DayNote['kind'], string> = {
   ASKED: 'text-rose-200',
   EXPLAINED: 'text-slate-300',
 };
-import { weeksAgo } from '../../services/weekWindow';
+import { weekContaining, weeksAgo } from '../../services/weekWindow';
 import {
   X,
   ChevronRight,
@@ -71,7 +74,7 @@ interface WeeklyReviewModalProps {
 type Step = 'LAST_WEEK' | 'NEXT_WEEK' | 'APPROVALS' | 'SIGN_OFF';
 
 const STEPS: { id: Step; label: string }[] = [
-  { id: 'LAST_WEEK', label: 'Last week' },
+  { id: 'LAST_WEEK', label: 'How it went' },
   { id: 'NEXT_WEEK', label: 'Next week' },
   { id: 'APPROVALS', label: 'Approvals' },
   { id: 'SIGN_OFF', label: 'Sign off' },
@@ -96,14 +99,57 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
   const { toast } = useFeedback();
   const [step, setStep] = useState<Step>('LAST_WEEK');
 
+  /**
+   * The week this review is about, and it is a choice rather than a constant.
+   *
+   * The first step was headed "Last week" and read most of its numbers from
+   * the week in progress: the committed count, the hours studied and the goal
+   * hours were this week's, "XP earned" was the all-time total, and only the
+   * notes were last week's. On a Sunday evening the two weeks are close enough
+   * to pass for each other; on a Tuesday the review described two days of a
+   * week nobody was reviewing. Every week-shaped figure on that step now reads
+   * from this one value, so they cannot drift apart again.
+   *
+   * It opens on the week just finished, and steps back as far as the record
+   * goes but never forward past it: an unfinished week has no burn-down to
+   * look back on, and is on Progress, "so far", for anyone who wants it.
+   * Signing off closes whichever week is on screen, so a review that was
+   * skipped can still be held, for the week it was about.
+   */
+  const lastWeek = weeksAgo(1).start;
+  const [weekStart, setWeekStart] = useState(lastWeek);
+  const [showDetail, setShowDetail] = useState(false);
+  const week = weekContaining(weekStart);
+
+  // Each opening starts again from the week just finished: a review left on
+  // 28 Sep last Sunday should not open there this Sunday.
+  useEffect(() => {
+    if (!isOpen) return;
+    setWeekStart(weeksAgo(1).start);
+    setShowDetail(false);
+    setStep('LAST_WEEK');
+  }, [isOpen]);
+
   const commitment = useLiveQuery(() => (isOpen ? loadWeekCommitment() : undefined), [isOpen]);
   const streak = useLiveQuery(() => (isOpen ? calculateStreakStats() : undefined), [isOpen]);
   const effort = useLiveQuery(() => (isOpen ? calculateEffortStats() : undefined), [isOpen]);
   const xp = useLiveQuery(() => (isOpen ? calculateTotalXP() : undefined), [isOpen]);
   const chores = useLiveQuery(() => (isOpen ? choreWeekSummary() : undefined), [isOpen]);
-  const goalHours = useLiveQuery(() => (isOpen ? lockedGoalProgress() : []), [isOpen], []);
+  const goalHours = useLiveQuery(
+    () => (isOpen ? lockedGoalProgress(weekContaining(weekStart)) : []),
+    [isOpen, weekStart],
+    []
+  );
   const capacity = useLiveQuery(() => (isOpen ? calculateBurnoutCapacity() : undefined), [isOpen]);
-  const exceptions = useLiveQuery(() => (isOpen ? weekExceptions() : []), [isOpen], []);
+  const exceptions = useLiveQuery(
+    () => (isOpen ? weekExceptions(weekContaining(weekStart)) : []),
+    [isOpen, weekStart],
+    []
+  );
+  const detail = useLiveQuery(
+    () => (isOpen ? readWeekDetail(weekStart) : undefined),
+    [isOpen, weekStart]
+  );
 
   /**
    * What was actually written during the week being reviewed.
@@ -119,8 +165,8 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
    * state appearing in the wrong component.
    */
   const weekNotes = useLiveQuery(
-    () => (isOpen ? notesForWeek(weeksAgo(1).start) : undefined),
-    [isOpen]
+    () => (isOpen ? notesForWeek(weekStart) : undefined),
+    [isOpen, weekStart]
   );
   const settings = useLiveQuery(
     () => (isOpen ? db.parentSettings.get('active_settings') : undefined),
@@ -130,11 +176,11 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
     async () => {
       if (!isOpen) return {};
       const entries = await Promise.all(
-        (await lockedGoalProgress()).map(async (p) => [p.goal.id, await goalTrend(p.goal)] as const)
+        (await lockedGoalProgress(weekContaining(weekStart))).map(async (p) => [p.goal.id, await goalTrend(p.goal)] as const)
       );
       return Object.fromEntries(entries);
     },
-    [isOpen],
+    [isOpen, weekStart],
     {}
   );
 
@@ -173,7 +219,7 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
   useEscapeToClose(isOpen, onClose);
 
   if (!isOpen) return null;
-  if (!commitment || !streak || !effort || !xp) return null;
+  if (!commitment || !streak || !effort || !xp || !detail) return null;
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
 
@@ -181,8 +227,17 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
     ? daysUntil(settings.examSeriesStartDate)
     : undefined;
 
+  /**
+   * The week on screen, in the terms the sign-off and the family message use.
+   * Planned pieces include any since deleted, as the detail card counts them,
+   * so "3 of 5" here is "3 of 5" there.
+   */
+  const plannedCount = detail.committed.length + detail.committedGone;
+  const studiedHours = Math.round((detail.time.loggedMinutes / 60) * 10) / 10;
+  const weekDates = `${formatShortDate(week.start)} – ${formatShortDate(week.end)}`;
+
   const digestText = weeklyDigestMessage(messageContext(settings), {
-    weekLabel: `Week of ${formatFriendlyDate(capacity?.week.start ?? addDaysISO(0))}`,
+    weekLabel: `Week of ${formatShortDate(week.start)}`,
     targetGrade: settings?.studentTargetGrade,
     daysToExams: examDays !== undefined && examDays >= 0 ? examDays : undefined,
     goals: goalHours.map((p) => ({
@@ -206,11 +261,11 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
     streakBest: streak.best,
     choresDone: chores?.done ?? 0,
     choresDue: chores?.due ?? 0,
-    xpEarnedThisWeek: chores?.xp ?? 0,
+    xpEarnedThisWeek: detail.points.earned,
     xpBalance: xp.availableXP,
-    studyHours: effort.hoursThisWeek,
-    committedDone: commitment.committedDone,
-    committedCount: commitment.committedCount,
+    studyHours: studiedHours,
+    committedDone: detail.delivered,
+    committedCount: plannedCount,
     // The three things carried into next week: whatever is still committed.
     focusNextWeek: commitment.columns.THIS_WEEK.filter((t) => !t.completed)
       .slice(0, 3)
@@ -233,23 +288,21 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
   };
 
   /**
-   * The week this review is about.
+   * The week this review closes: the one on screen.
    *
-   * A review run at any point in a week is looking back at the one before it -
-   * the modal's first step is literally headed "Last week" - and until now the
-   * sign-off recorded only the date it happened, so nothing could say which
-   * week had actually been closed. That is why the gate timeline settled
-   * "close the week" from the calendar instead of from anybody's decision, and
-   * why a week nobody had reviewed still showed a green tick.
+   * Until the sign-off recorded which week it was about, nothing could say
+   * which week had actually been closed - which is why the gate timeline
+   * settled "close the week" from the calendar instead of from anybody's
+   * decision, and why a week nobody had reviewed still showed a green tick.
+   * The summary written with it is that week's own numbers; it used to be the
+   * current week's, so the record of a review described a different week from
+   * the one it marked as reviewed.
    */
-  const reviewedWeek = weeksAgo(1).start;
+  const reviewedWeek = week.start;
+  const weekSummary = `${detail.delivered}/${plannedCount} planned pieces done, ${studiedHours}h studied`;
 
   const handleSignOff = async () => {
-    await markWeekReviewed(
-      reviewedWeek,
-      `${commitment.committedDone}/${commitment.committedCount} committed tasks done, ` +
-        `${effort.hoursThisWeek}h studied`
-    );
+    await markWeekReviewed(reviewedWeek, weekSummary);
 
     await logAuditEvent({
       user: 'PARENT',
@@ -258,25 +311,13 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
       entityId: `review_${addDaysISO(0)}`,
       newValue:
         `Weekly review completed for the week of ${formatShortDate(reviewedWeek)}. ` +
-        `${commitment.committedDone}/${commitment.committedCount} committed tasks done, ` +
-        `${effort.hoursThisWeek}h studied, ${streak.current}-day streak, ${approvalCount} items were awaiting approval` +
-        ((chores?.due ?? 0) > 0 ? `, chores ${chores!.done}/${chores!.due}.` : '.'),
+        `${weekSummary}, ${streak.current}-day streak at the time, ` +
+        `${approvalCount} items were awaiting approval.`,
     });
     toast.celebrate('Reviewed together', 'Logged to the change history. Same time next week.');
     setStep('LAST_WEEK');
     onClose();
   };
-
-  const Stat: React.FC<{ label: string; value: string; tone?: string }> = ({
-    label,
-    value,
-    tone,
-  }) => (
-    <div className="p-3 bg-slate-900/70 border border-slate-800 rounded-xl">
-      <span className="block text-[10px] uppercase font-bold text-slate-500">{label}</span>
-      <span className={`block text-lg font-bold ${tone ?? 'text-white'}`}>{value}</span>
-    </div>
-  );
 
   return (
     <div
@@ -330,33 +371,51 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
 
         {step === 'LAST_WEEK' && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Stat
-                label="Committed"
-                value={`${commitment.committedDone}/${commitment.committedCount}`}
-                tone={
-                  commitment.committedCount && commitment.committedDone / commitment.committedCount >= 0.7
-                    ? 'text-emerald-300'
-                    : 'text-amber-300'
-                }
+            <WeekNavigator
+              weekStart={weekStart}
+              onChange={(next) => {
+                setWeekStart(next);
+                setShowDetail(false);
+              }}
+              onToday={() => setWeekStart(lastWeek)}
+              latest={lastWeek}
+              home={{ weekStart: lastWeek, label: 'Last week' }}
+            />
+
+            <WeekBurndownCard key={weekStart} detail={detail} />
+
+            <p className="text-[11px] text-slate-400">
+              {studiedHours}h studied · {detail.usage.daysCheckedIn} of 7 days checked in
+              {detail.usage.lessonsExpected > 0 &&
+                ` · ${detail.usage.lessonsAnswered} of ${detail.usage.lessonsExpected} lessons answered`}{' '}
+              · {detail.points.earned} XP earned that week.
+            </p>
+
+            {/* Everything behind the chart: each planned piece and what became
+                of it, where the time went, how the week was recorded. Folded
+                away because a fifteen-minute review needs the shape first and
+                the list only when the shape raises a question. */}
+            <button
+              type="button"
+              onClick={() => setShowDetail(!showDetail)}
+              aria-expanded={showDetail}
+              className="w-full min-h-[44px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center justify-between"
+            >
+              <span>Every piece of {weekDates}</span>
+              <ChevronRight
+                className={`w-4 h-4 transition-transform ${showDetail ? 'rotate-90' : ''}`}
+                aria-hidden="true"
               />
-              <Stat label="Studied" value={`${effort.hoursThisWeek}h`} />
-              <Stat label="Streak" value={`${streak.current}d`} tone="text-amber-300" />
-              <Stat label="XP earned" value={xp.totalXP.toLocaleString()} tone="text-indigo-300" />
-            </div>
+            </button>
+            {showDetail && <WeekDetailPanel weekStart={weekStart} showBurndown={false} />}
 
             {commitment.overdueCommitted > 0 && (
               <p className="text-[11px] text-amber-300 p-2.5 bg-amber-950/30 border border-amber-500/40 rounded-xl">
                 {commitment.overdueCommitted} committed{' '}
-                {commitment.overdueCommitted === 1 ? 'task is' : 'tasks are'} past their date. Worth
-                deciding now whether they move to next week or come off the list.
+                {commitment.overdueCommitted === 1 ? 'task is past its' : 'tasks are past their'} date in the
+                week now running. Worth deciding now whether they move on or come off the list.
               </p>
             )}
-
-            <p className="text-[11px] text-slate-400">
-              {effort.votes} votes cast for being someone who does the work — {effort.tasksCompleted}{' '}
-              tasks, {effort.checkInDays} days checked in.
-            </p>
 
             {/* The week in its own words.
 
@@ -371,7 +430,7 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
                 {weekNotes.map((day) => (
                   <div key={day.date}>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                      {formatPastDate(day.date)}
+                      {formatShortDate(day.date)}
                     </p>
                     <ul className="space-y-1">
                       {day.notes.map((note, index) => (
@@ -402,7 +461,9 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
             not getting its time either gets it or gets renegotiated. */}
         {step === 'LAST_WEEK' && goalHours.length > 0 && (
           <div className="mt-3 p-3 bg-slate-900/70 border border-slate-800 rounded-xl space-y-2">
-            <p className="text-xs font-bold text-white">Goals against their weekly hours</p>
+            <p className="text-xs font-bold text-white">
+              Goals against their weekly hours, {weekDates}
+            </p>
             {goalHours.map((p) => (
               <div key={p.goal.id} className="flex items-center justify-between gap-3">
                 <span className="text-[11px] text-slate-300 flex-1 min-w-0 truncate">
@@ -437,21 +498,13 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
             capacity gauge simply went down and nobody knows what for. */}
         {step === 'LAST_WEEK' && exceptions.length > 0 && (
           <div className="mt-3 p-3 bg-slate-900/70 border border-slate-800 rounded-xl">
-            <p className="text-xs font-bold text-white mb-1.5">
-              Missed or moved
-              {(capacity?.excusedHours ?? 0) > 0 && (
-                <span className="font-normal text-amber-300">
-                  {' '}
-                  · {capacity!.excusedHours}h came off the week
-                </span>
-              )}
-            </p>
+            <p className="text-xs font-bold text-white mb-1.5">Missed or moved</p>
             <ul className="space-y-1">
               {exceptions.map((e) => (
                 <li key={e.id} className="text-[11px] text-slate-300">
                   <span className="text-slate-200 font-medium">{e.title}</span>{' '}
                   <span className="text-slate-500">
-                    {formatFriendlyDate(e.date)} · {STATUS_LABEL[e.status]} ·{' '}
+                    {formatShortDate(e.date)} · {STATUS_LABEL[e.status]} ·{' '}
                     {REASON_LABEL[e.reasonCategory]}
                   </span>
                   {e.reasonNotes && (
@@ -463,10 +516,10 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
           </div>
         )}
 
-        {step === 'LAST_WEEK' && (chores?.due ?? 0) > 0 && (
-          <div className="p-3 bg-slate-900/70 border border-slate-800 rounded-xl">
+        {step === 'NEXT_WEEK' && (chores?.due ?? 0) > 0 && (
+          <div className="mt-3 p-3 bg-slate-900/70 border border-slate-800 rounded-xl">
             <p className="text-xs font-bold text-white">
-              Chores: {chores!.done} of {chores!.due} done
+              Chores this week so far: {chores!.done} of {chores!.due} done
               {chores!.xp > 0 ? ` · ${chores!.xp} XP` : ''}
             </p>
             <p className="text-[11px] text-slate-400 mt-0.5">
@@ -619,10 +672,17 @@ export const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
 
         {step === 'SIGN_OFF' && (
           <div className="space-y-3">
+            <p className="text-[11px] text-slate-300 p-3 bg-slate-900/70 border border-slate-800 rounded-xl">
+              Signing off closes the week of{' '}
+              <span className="font-bold text-white">{weekDates}</span>: {weekSummary}.
+              {weekStart !== lastWeek &&
+                ' That is not the week just finished - step forward on the first page to close that one instead.'}
+            </p>
+
             <div className="p-4 bg-emerald-950/25 border border-emerald-500/40 rounded-2xl">
               <div className="flex items-center gap-2 mb-2">
                 <Handshake className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-sm font-bold text-white">Agreed for the week</h3>
+                <h3 className="text-sm font-bold text-white">Agreed for the week now running</h3>
               </div>
               <p className="text-xs text-emerald-100">
                 {commitment.committedCount - commitment.committedDone} tasks committed
